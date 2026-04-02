@@ -1,0 +1,8 @@
+export const PAGE_BACKGROUND_COLOR: string = '#F6F2EA';
+export const SURFACE_BACKGROUND_COLOR: string = '#FFFDF8';
+export const NAV_BACKGROUND_COLOR: string = '#FFFCF7';
+export const NAV_BORDER_COLOR: string = '#E5E9F0';
+export const PRIMARY_TEXT_COLOR: string = '#1C2430';
+export const SECONDARY_TEXT_COLOR: string = '#667085';
+export const ACTIVE_TAB_COLOR: string = '#17324D';
+export const INACTIVE_TAB_COLOR: string = '#7D8794';

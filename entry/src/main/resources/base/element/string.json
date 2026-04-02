@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "记录每日体重变化"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "显示体重趋势和反馈"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "体重追踪"
+    }
+  ]
+}
