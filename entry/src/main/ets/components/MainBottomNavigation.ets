@@ -23,7 +23,7 @@ export struct MainBottomNavigation {
           Column({ space: 8 }) {
             Text(item.icon)
               .fontSize(20)
-              .fontWeight(FontWeight.SemiBold)
+              .fontWeight(FontWeight.Bold)
               .fontColor(this.isActive(item) ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR)
               .width(38)
               .height(38)
