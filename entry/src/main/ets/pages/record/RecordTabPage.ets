@@ -25,6 +25,7 @@ export struct RecordTabPage {
   @State weightInput: string = '';
   @State noticeText: string = '只能记录今天的体重；当天多次提交会覆盖当天记录。';
   @State nextId: number = 1;
+  @State useEmojiTag: boolean = true;
   // 记录更新后递增版本号，确保列表 key 能稳定刷新。
   @State recordsVersion: number = 0;
 
@@ -298,7 +299,7 @@ export struct RecordTabPage {
     return 0;
   }
 
-  getRecordTag(record: WeightRecord): string {
+  getRecordTextTag(record: WeightRecord): string {
     if (this.isLatestRecord(record)) {
       return '最新';
     }
@@ -311,6 +312,40 @@ export struct RecordTabPage {
       return '上升';
     }
     return '平稳';
+  }
+
+  getRecordEmojiTag(record: WeightRecord): string {
+    if (this.isLatestRecord(record)) {
+      return '⭐';
+    }
+
+    let delta = this.getRecordDelta(record);
+    if (delta <= -0.2) {
+      return '😎';
+    }
+    if (delta >= 0.2) {
+      return '😅';
+    }
+    return '🙂';
+  }
+
+  getRecordTag(record: WeightRecord): string {
+    if (this.useEmojiTag) {
+      return this.getRecordEmojiTag(record);
+    }
+    return this.getRecordTextTag(record);
+  }
+
+  getRecordTagModeText(): string {
+    return this.useEmojiTag ? '表情' : '文字';
+  }
+
+  getRecordTagToggleText(): string {
+    return this.useEmojiTag ? '切到文字' : '切到表情';
+  }
+
+  getRecordTagFontSize(): number {
+    return this.useEmojiTag ? 18 : 12;
   }
 
   addOrUpdateRecord(): void {
@@ -534,17 +569,40 @@ export struct RecordTabPage {
 
         Column({ space: 14 }) {
           Row() {
-            Text('近期走势')
-              .fontSize(18)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(PRIMARY_TEXT_COLOR)
+            Column({ space: 4 }) {
+              Text('近期走势')
+                .fontSize(18)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(PRIMARY_TEXT_COLOR)
 
-            Text(`${this.getRecentRecords().length} 条记录`)
-              .fontSize(12)
-              .fontColor('#7D8794')
+              Text(`${this.getRecentRecords().length} 条记录`)
+                .fontSize(12)
+                .fontColor('#7D8794')
+            }
+            .alignItems(HorizontalAlign.Start)
+
+            Column({ space: 6 }) {
+              Text(`柱顶标签：${this.getRecordTagModeText()}`)
+                .fontSize(11)
+                .fontColor('#7D8794')
+
+              Button(this.getRecordTagToggleText())
+                .height(32)
+                .fontSize(12)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#17324D')
+                .backgroundColor('#E7EEF9')
+                .borderRadius(16)
+                .padding({ left: 12, right: 12 })
+                .onClick(() => {
+                  this.useEmojiTag = !this.useEmojiTag;
+                })
+            }
+            .alignItems(HorizontalAlign.End)
           }
           .width('100%')
           .justifyContent(FlexAlign.SpaceBetween)
+          .alignItems(VerticalAlign.Center)
 
           Text(`图表范围 ${this.getChartMinWeight().toFixed(1)} kg - ${this.getChartMaxWeight().toFixed(1)} kg`)
             .fontSize(12)
@@ -554,9 +612,12 @@ export struct RecordTabPage {
             ForEach(this.getRecentRecords(), (record: WeightRecord) => {
               Column({ space: 8 }) {
                 Text(this.getRecordTag(record))
-                  .fontSize(12)
+                  .fontSize(this.getRecordTagFontSize())
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.isLatestRecord(record) ? '#2F6FED' : '#7D8794')
+                  .maxLines(1)
+                  .width('100%')
+                  .textAlign(TextAlign.Center)
 
                 Column() {
                   Text('')

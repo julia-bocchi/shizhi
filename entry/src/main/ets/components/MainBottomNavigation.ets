@@ -1,4 +1,10 @@
-import { ACTIVE_TAB_COLOR, INACTIVE_TAB_COLOR, NAV_BACKGROUND_COLOR, NAV_BORDER_COLOR } from '../constants/AppTheme';
+import {
+  ACTIVE_TAB_COLOR,
+  ACTIVE_TAB_SURFACE_COLOR,
+  INACTIVE_TAB_COLOR,
+  NAV_BACKGROUND_COLOR,
+  NAV_BORDER_COLOR
+} from '../constants/AppTheme';
 import { BottomTabItem } from '../models/TabItem';
 
 @Component
@@ -14,9 +20,20 @@ export struct MainBottomNavigation {
     Column() {
       Row() {
         ForEach(this.items, (item: BottomTabItem) => {
-          Column({ space: 6 }) {
+          Column({ space: 8 }) {
+            Text(item.icon)
+              .fontSize(20)
+              .fontWeight(FontWeight.SemiBold)
+              .fontColor(this.isActive(item) ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR)
+              .width(38)
+              .height(38)
+              .textAlign(TextAlign.Center)
+              .padding({ top: 8, bottom: 8 })
+              .backgroundColor(this.isActive(item) ? ACTIVE_TAB_SURFACE_COLOR : '#00000000')
+              .borderRadius(19)
+
             Text(item.label)
-              .fontSize(14)
+              .fontSize(13)
               .fontWeight(this.isActive(item) ? FontWeight.Bold : FontWeight.Medium)
               .fontColor(this.isActive(item) ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR)
 
@@ -44,6 +61,6 @@ export struct MainBottomNavigation {
         top: 1
       }
     })
-    .padding({ left: 20, right: 20, bottom: 12 })
+    .padding({ left: 20, right: 20, top: 8, bottom: 12 })
   }
 }
