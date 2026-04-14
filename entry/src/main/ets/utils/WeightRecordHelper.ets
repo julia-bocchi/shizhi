@@ -59,3 +59,94 @@ export function createSampleRecords(): WeightRecord[] {
 
   return result;
 }
+
+export function serializeWeightRecords(records: WeightRecord[]): string {
+  let sanitizedRecords: WeightRecord[] = [];
+  for (let index = 0; index < records.length; index++) {
+    sanitizedRecords.push({
+      id: records[index].id,
+      date: records[index].date,
+      weight: records[index].weight
+    });
+  }
+  return JSON.stringify(sanitizedRecords);
+}
+
+export function deserializeWeightRecords(savedText: string): WeightRecord[] {
+  if (savedText.trim().length === 0) {
+    return [];
+  }
+
+  try {
+    let parsedRecords = JSON.parse(savedText) as WeightRecord[];
+    if (!Array.isArray(parsedRecords)) {
+      return [];
+    }
+
+    let result: WeightRecord[] = [];
+    for (let index = 0; index < parsedRecords.length; index++) {
+      let currentRecord = parsedRecords[index];
+      let parsedId = Number(currentRecord.id);
+      let parsedWeight = Number(currentRecord.weight);
+      if (isNaN(parsedId) || isNaN(parsedWeight)) {
+        continue;
+      }
+      result.push({
+        id: parsedId,
+        date: `${currentRecord.date}`,
+        weight: parsedWeight
+      });
+    }
+
+    result.sort((left: WeightRecord, right: WeightRecord) => compareRecordDate(left, right));
+    return result;
+  } catch (error) {
+    return [];
+  }
+}
+
+export function getNextWeightRecordId(records: WeightRecord[]): number {
+  let nextId: number = 1;
+  for (let index = 0; index < records.length; index++) {
+    if (records[index].id >= nextId) {
+      nextId = records[index].id + 1;
+    }
+  }
+  return nextId;
+}
+
+export function getRecentWeightRecords(records: WeightRecord[], limit: number = 7): WeightRecord[] {
+  let sortedRecords = records.slice();
+  sortedRecords.sort((left: WeightRecord, right: WeightRecord) => compareRecordDate(left, right));
+  if (sortedRecords.length <= limit) {
+    return sortedRecords;
+  }
+  return sortedRecords.slice(sortedRecords.length - limit, sortedRecords.length);
+}
+
+export function getLatestWeightRecord(records: WeightRecord[]): WeightRecord | undefined {
+  let recentRecords = getRecentWeightRecords(records, records.length);
+  if (recentRecords.length === 0) {
+    return undefined;
+  }
+  return recentRecords[recentRecords.length - 1];
+}
+
+export function getAverageWeight(records: WeightRecord[]): number {
+  if (records.length === 0) {
+    return 0;
+  }
+
+  let totalWeight: number = 0;
+  for (let index = 0; index < records.length; index++) {
+    totalWeight += records[index].weight;
+  }
+  return totalWeight / records.length;
+}
+
+export function getWeightChange(records: WeightRecord[]): number {
+  if (records.length < 2) {
+    return 0;
+  }
+  return records[records.length - 1].weight - records[0].weight;
+}

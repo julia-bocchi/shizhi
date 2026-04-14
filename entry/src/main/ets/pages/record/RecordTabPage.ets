@@ -13,14 +13,17 @@ import {
   CHART_SCALE_STEP,
   clamp,
   compareRecordDate,
-  createSampleRecords,
+  deserializeWeightRecords,
   formatDate,
+  getNextWeightRecordId,
   roundDownToStep,
-  roundUpToStep
+  roundUpToStep,
+  serializeWeightRecords
 } from '../../utils/WeightRecordHelper';
 
 @Component
 export struct RecordTabPage {
+  @StorageLink('weightRecordText') weightRecordText: string = '';
   @State records: WeightRecord[] = [];
   @State weightInput: string = '';
   @State noticeText: string = '只能记录今天的体重；当天多次提交会覆盖当天记录。';
@@ -30,10 +33,12 @@ export struct RecordTabPage {
   @State recordsVersion: number = 0;
 
   aboutToAppear(): void {
-    if (this.records.length === 0) {
-      this.records = createSampleRecords();
-      this.nextId = this.records.length + 1;
-    }
+    this.syncRecordsFromStorage();
+  }
+
+  private syncRecordsFromStorage(): void {
+    this.records = deserializeWeightRecords(this.weightRecordText);
+    this.nextId = getNextWeightRecordId(this.records);
   }
 
   getSortedRecords(): WeightRecord[] {
@@ -390,6 +395,7 @@ export struct RecordTabPage {
 
     updatedRecords.sort((left: WeightRecord, right: WeightRecord) => compareRecordDate(left, right));
     this.records = updatedRecords;
+    this.weightRecordText = serializeWeightRecords(updatedRecords);
     this.recordsVersion += 1;
     this.weightInput = '';
     this.noticeText = hasUpdated
