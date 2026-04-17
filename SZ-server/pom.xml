@@ -11,8 +11,8 @@
     <groupId>com.chen</groupId>
     <artifactId>SZ-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>SZ-framework</name>
-    <description>SZ-framework</description>
+    <name>SZ-server</name>
+    <description>SZ-server</description>
     <url/>
     <licenses>
         <license/>
@@ -44,9 +44,20 @@
             <version>4.0.1</version>
         </dependency>
         <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+            <version>5.8.26</version>
+        </dependency>
+        <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <!--      mybatisplus依赖-->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+            <version>3.4.3</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -68,6 +79,17 @@
             <artifactId>mybatis-spring-boot-starter-test</artifactId>
             <version>4.0.1</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>24.1.0</version>
+            <scope>compile</scope>
         </dependency>
     </dependencies>
 
