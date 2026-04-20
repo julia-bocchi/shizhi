@@ -11,7 +11,11 @@ public enum AppHttpCodeEnum {
      PHONENUMBER_EXIST(502,"手机号已存在"), EMAIL_EXIST(503, "邮箱已存在"),
     REQUIRE_USERNAME(504, "必需填写用户名"),
     LOGIN_ERROR(505,"用户名或密码错误"),
-    CONTENT_NULL(506, "内容不能为空");
+    CONTENT_NULL(506, "内容不能为空"),
+    FOOD_NOT_FOUND(507, "食物不存在"),
+    FOOD_PERMISSION_DENIED(508, "无权限操作该食物"),
+    FOOD_PLAN_NOT_FOUND(509, "饮食计划不存在");
+
     int code;
     String msg;
 
