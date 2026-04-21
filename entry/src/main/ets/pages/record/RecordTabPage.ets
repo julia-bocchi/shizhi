@@ -638,8 +638,6 @@ export struct RecordTabPage {
               }
               .layoutWeight(1)
               .height(52)
-              .justifyContent(FlexAlign.Center)
-              .alignItems(HorizontalAlign.Center)
               .backgroundColor(day.isToday ? '#EEF5FF' : '#FFFFFF')
               .borderRadius(14)
               .border({

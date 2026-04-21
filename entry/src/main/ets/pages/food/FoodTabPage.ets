@@ -867,8 +867,6 @@ export struct FoodTabPage {
               }
               .layoutWeight(1)
               .height(52)
-              .alignItems(HorizontalAlign.Center)
-              .justifyContent(FlexAlign.Center)
               .backgroundColor(day.dateText === this.selectedPlanDate ? '#8EBBFF' : '#FFFFFF')
               .borderRadius(14)
               .border({

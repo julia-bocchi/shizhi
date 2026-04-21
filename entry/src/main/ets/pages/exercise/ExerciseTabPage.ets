@@ -803,8 +803,6 @@ export struct ExerciseTabPage {
               }
               .layoutWeight(1)
               .height(52)
-              .justifyContent(FlexAlign.Center)
-              .alignItems(HorizontalAlign.Center)
               .backgroundColor(this.isSelectedCalendarDay(day.dateText) ? '#8EBBFF' : '#FFFFFF')
               .borderRadius(14)
               .border({

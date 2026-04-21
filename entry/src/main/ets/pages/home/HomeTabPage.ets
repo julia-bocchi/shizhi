@@ -679,9 +679,7 @@ export struct HomeTabPage {
   }
 
   @Builder
-  private buildReminderCard() {
-    let reminderItem = this.getPrimaryReminder();
-
+  private buildReminderCard(reminderItem: HomeReminderItem) {
     Button() {
       Row({ space: 12 }) {
         Text('')
@@ -731,7 +729,7 @@ export struct HomeTabPage {
         this.buildEnergyHeroCard()
         this.buildWeightTrendCard()
         this.buildQuickEntryCard()
-        this.buildReminderCard()
+        this.buildReminderCard(this.getPrimaryReminder())
       }
       .width('100%')
       .padding({ left: 20, right: 20, top: 20, bottom: 28 })
