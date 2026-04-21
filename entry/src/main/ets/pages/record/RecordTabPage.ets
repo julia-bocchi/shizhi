@@ -20,9 +20,20 @@ import {
   roundUpToStep,
   serializeWeightRecords
 } from '../../utils/WeightRecordHelper';
+import {
+  buildMonthCalendarRows,
+  CALENDAR_WEEK_LABELS,
+  CalendarMonthCell,
+  formatMonthTitle,
+  shiftCalendarMonth
+} from '../../utils/MonthCalendarHelper';
 
 const CHART_BAR_GROUP_WIDTH: number = 40;
 const CHART_BAR_GROUP_SPACING: number = 12;
+
+interface CalendarDayItem extends CalendarMonthCell {
+  hasRecord: boolean;
+}
 
 @Component
 export struct RecordTabPage {
@@ -34,6 +45,8 @@ export struct RecordTabPage {
   @State useEmojiTag: boolean = true;
   // 记录更新后递增版本号，确保列表 key 能稳定刷新。
   @State recordsVersion: number = 0;
+  @State calendarYear: number = new Date().getFullYear();
+  @State calendarMonth: number = new Date().getMonth();
 
   aboutToAppear(): void {
     this.syncRecordsFromStorage();
@@ -356,6 +369,122 @@ export struct RecordTabPage {
     return this.useEmojiTag ? 18 : 12;
   }
 
+  getCalendarTitle(): string {
+    return formatMonthTitle(this.calendarYear, this.calendarMonth);
+  }
+
+  private changeCalendarMonth(step: number): void {
+    let nextCursor = shiftCalendarMonth(this.calendarYear, this.calendarMonth, step);
+    this.calendarYear = nextCursor.year;
+    this.calendarMonth = nextCursor.month;
+  }
+
+  private getMonthPrefix(): string {
+    return `${this.calendarYear}-${this.calendarMonth + 1 < 10 ? `0${this.calendarMonth + 1}` : `${this.calendarMonth + 1}`}-`;
+  }
+
+  private hasRecordOnDate(dateText: string): boolean {
+    for (let index = 0; index < this.records.length; index++) {
+      if (this.records[index].date === dateText) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private getCalendarRows(): CalendarDayItem[][] {
+    let baseRows = buildMonthCalendarRows(this.calendarYear, this.calendarMonth);
+    let rows: CalendarDayItem[][] = [];
+
+    for (let rowIndex = 0; rowIndex < baseRows.length; rowIndex++) {
+      let nextRow: CalendarDayItem[] = [];
+      for (let columnIndex = 0; columnIndex < baseRows[rowIndex].length; columnIndex++) {
+        let currentCell = baseRows[rowIndex][columnIndex];
+        nextRow.push({
+          key: currentCell.key,
+          dateText: currentCell.dateText,
+          dayNumber: currentCell.dayNumber,
+          isCurrentMonth: currentCell.isCurrentMonth,
+          isToday: currentCell.isToday,
+          hasRecord: currentCell.isCurrentMonth ? this.hasRecordOnDate(currentCell.dateText) : false
+        });
+      }
+      rows.push(nextRow);
+    }
+
+    return rows;
+  }
+
+  private getMonthRecordCount(): number {
+    let monthPrefix: string = this.getMonthPrefix();
+    let count: number = 0;
+    for (let index = 0; index < this.records.length; index++) {
+      if (this.records[index].date.startsWith(monthPrefix)) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  private getMonthLatestRecord(): WeightRecord | undefined {
+    let latestRecord: WeightRecord | undefined = undefined;
+    let monthPrefix: string = this.getMonthPrefix();
+    for (let index = 0; index < this.records.length; index++) {
+      if (!this.records[index].date.startsWith(monthPrefix)) {
+        continue;
+      }
+      latestRecord = this.records[index];
+    }
+    return latestRecord;
+  }
+
+  private getMonthAverageText(): string {
+    let monthPrefix: string = this.getMonthPrefix();
+    let totalWeight: number = 0;
+    let count: number = 0;
+    for (let index = 0; index < this.records.length; index++) {
+      if (this.records[index].date.startsWith(monthPrefix)) {
+        totalWeight += this.records[index].weight;
+        count += 1;
+      }
+    }
+    if (count <= 0) {
+      return '--';
+    }
+    return `${(totalWeight / count).toFixed(1)} kg`;
+  }
+
+  private getMonthChangeText(): string {
+    let firstRecord: WeightRecord | undefined = undefined;
+    let lastRecord: WeightRecord | undefined = undefined;
+    let monthPrefix: string = this.getMonthPrefix();
+
+    for (let index = 0; index < this.records.length; index++) {
+      if (!this.records[index].date.startsWith(monthPrefix)) {
+        continue;
+      }
+      if (!firstRecord) {
+        firstRecord = this.records[index];
+      }
+      lastRecord = this.records[index];
+    }
+
+    if (!firstRecord || !lastRecord || firstRecord.id === lastRecord.id) {
+      return '--';
+    }
+
+    let delta: number = lastRecord.weight - firstRecord.weight;
+    return `${delta <= 0 ? '下降' : '上升'} ${Math.abs(delta).toFixed(1)} kg`;
+  }
+
+  private getMonthLatestRecordText(): string {
+    let latestRecord = this.getMonthLatestRecord();
+    if (!latestRecord) {
+      return '本月暂时还没有体重记录。';
+    }
+    return `本月最近记录：${latestRecord.date} · ${latestRecord.weight.toFixed(1)} kg`;
+  }
+
   addOrUpdateRecord(): void {
     let dateValue = this.getTodayDate();
     let weightValue = this.weightInput.trim();
@@ -404,6 +533,186 @@ export struct RecordTabPage {
     this.noticeText = hasUpdated
       ? `已覆盖今天 ${dateValue} 的体重记录。`
       : `已记录今天 ${dateValue} 的体重：${parsedWeight.toFixed(1)} kg。`;
+  }
+
+  @Builder
+  buildCalendarOverviewCard() {
+    Column({ space: 16 }) {
+      Row() {
+        Column({ space: 4 }) {
+          Text('体重月历')
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(PRIMARY_TEXT_COLOR)
+
+          Text('仅做月度概览，录入规则仍然保持只记录今天。')
+            .fontSize(12)
+            .fontColor(SECONDARY_TEXT_COLOR)
+        }
+        .alignItems(HorizontalAlign.Start)
+
+        Text(`${this.getMonthRecordCount()} 天已记录`)
+          .fontSize(12)
+          .fontColor('#6A8AB2')
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor('#F2F5FA')
+          .borderRadius(999)
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
+      .alignItems(VerticalAlign.Center)
+
+      Row({ space: 18 }) {
+        Button('<')
+          .width(34)
+          .height(34)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#6782A8')
+          .backgroundColor('#F3F6FC')
+          .borderRadius(17)
+          .onClick(() => {
+            this.changeCalendarMonth(-1);
+          })
+
+        Text(this.getCalendarTitle())
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(PRIMARY_TEXT_COLOR)
+
+        Button('>')
+          .width(34)
+          .height(34)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#6782A8')
+          .backgroundColor('#F3F6FC')
+          .borderRadius(17)
+          .onClick(() => {
+            this.changeCalendarMonth(1);
+          })
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+
+      Row({ space: 6 }) {
+        ForEach(CALENDAR_WEEK_LABELS, (label: string) => {
+          Text(label)
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .fontSize(12)
+            .fontColor('#9AA6B5')
+        }, (label: string) => label)
+      }
+      .width('100%')
+
+      Column({ space: 6 }) {
+        ForEach(this.getCalendarRows(), (week: CalendarDayItem[]) => {
+          Row({ space: 6 }) {
+            ForEach(week, (day: CalendarDayItem) => {
+              Stack({ alignContent: Alignment.TopStart }) {
+                Column({ space: 2 }) {
+                  Text(day.isCurrentMonth ? `${day.dayNumber}` : '')
+                    .fontSize(18)
+                    .fontWeight(day.isToday ? FontWeight.Bold : FontWeight.Medium)
+                    .fontColor(day.isToday ? '#0F6BFF' : (day.isCurrentMonth ? PRIMARY_TEXT_COLOR : '#C8D0DC'))
+
+                  Text(day.isToday && day.isCurrentMonth ? '今' : '')
+                    .fontSize(10)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#89AFFF')
+                }
+                .width('100%')
+                .alignItems(HorizontalAlign.Center)
+                .margin({ top: 8 })
+
+                if (day.hasRecord && day.isCurrentMonth) {
+                  Text('')
+                    .width(6)
+                    .height(6)
+                    .backgroundColor('#8EBBFF')
+                    .borderRadius(3)
+                    .margin({ top: 37, left: 24 })
+                }
+              }
+              .layoutWeight(1)
+              .height(52)
+              .justifyContent(FlexAlign.Center)
+              .alignItems(HorizontalAlign.Center)
+              .backgroundColor(day.isToday ? '#EEF5FF' : '#FFFFFF')
+              .borderRadius(14)
+              .border({
+                width: 1,
+                color: day.isToday ? '#CFE2FF' : '#EEF2F7'
+              })
+            }, (day: CalendarDayItem) => day.key)
+          }
+          .width('100%')
+        }, (week: CalendarDayItem[]) => week[0].key)
+      }
+      .width('100%')
+
+      Row({ space: 10 }) {
+        Column({ space: 4 }) {
+          Text('记录天数')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(`${this.getMonthRecordCount()} 天`)
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(PRIMARY_TEXT_COLOR)
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .padding(12)
+        .backgroundColor('#F7F9FD')
+        .borderRadius(16)
+
+        Column({ space: 4 }) {
+          Text('月均体重')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(this.getMonthAverageText())
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(PRIMARY_TEXT_COLOR)
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .padding(12)
+        .backgroundColor('#F7F9FD')
+        .borderRadius(16)
+
+        Column({ space: 4 }) {
+          Text('月度变化')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(this.getMonthChangeText())
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(PRIMARY_TEXT_COLOR)
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .padding(12)
+        .backgroundColor('#F7F9FD')
+        .borderRadius(16)
+      }
+      .width('100%')
+
+      Text(this.getMonthLatestRecordText())
+        .fontSize(12)
+        .fontColor('#6A7B91')
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
+    .padding(18)
+    .backgroundColor(SURFACE_BACKGROUND_COLOR)
+    .borderRadius(24)
   }
 
   build() {
@@ -467,6 +776,8 @@ export struct RecordTabPage {
           .borderRadius(24)
         }
         .width('100%')
+
+        this.buildCalendarOverviewCard()
 
         Column({ space: 14 }) {
           Text('记录今日体重')

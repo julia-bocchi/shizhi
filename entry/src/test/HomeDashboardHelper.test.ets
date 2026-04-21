@@ -84,6 +84,31 @@ export default function homeDashboardHelperTest() {
       expect(summary.remainingTargetCalories).assertEqual(850);
     });
 
+    it('getTodayDashboardCalories keeps zero state without records', 0, () => {
+      let summary = getTodayDashboardCalories('', '', '1800', TODAY_TEXT);
+
+      expect(summary.intakeCalories).assertEqual(0);
+      expect(summary.burnedCalories).assertEqual(0);
+      expect(summary.netCalories).assertEqual(0);
+      expect(summary.remainingTargetCalories).assertEqual(1800);
+    });
+
+    it('getTodayDashboardCalories supports negative net calories', 0, () => {
+      let foodPlanText = serializeFoodPlans([
+        createFoodPlan('1', TODAY_TEXT, 320)
+      ]);
+      let workoutRecordText = serializeWorkoutRecords([
+        createWorkoutRecord('1', TODAY_TEXT, 460)
+      ]);
+
+      let summary = getTodayDashboardCalories(foodPlanText, workoutRecordText, '1800', TODAY_TEXT);
+
+      expect(summary.intakeCalories).assertEqual(320);
+      expect(summary.burnedCalories).assertEqual(460);
+      expect(summary.netCalories).assertEqual(-140);
+      expect(summary.remainingTargetCalories).assertEqual(1480);
+    });
+
     it('getHomeWeightTrend returns empty state when no records', 0, () => {
       let trend = getHomeWeightTrend('', TODAY_TEXT);
       let latestWeight = trend.latestRecord ? trend.latestRecord.weight : 0;

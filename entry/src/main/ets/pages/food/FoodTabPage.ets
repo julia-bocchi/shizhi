@@ -11,15 +11,17 @@ import {
   getFoodMealSortValue,
   serializeFoodPlans
 } from '../../utils/FoodHelper';
+import {
+  buildMonthCalendarRows,
+  CALENDAR_WEEK_LABELS,
+  CalendarMonthCell,
+  formatMonthTitle,
+  shiftCalendarMonth
+} from '../../utils/MonthCalendarHelper';
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 
-interface CalendarDayItem {
-  key: string;
-  dateText: string;
-  dayNumber: number;
-  isCurrentMonth: boolean;
-  isToday: boolean;
+interface CalendarDayItem extends CalendarMonthCell {
   planCount: number;
 }
 
@@ -461,21 +463,20 @@ export struct FoodTabPage {
   }
 
   private getCalendarTitle(): string {
-    return `${this.calendarYear}年${this.calendarMonth + 1}月`;
+    return formatMonthTitle(this.calendarYear, this.calendarMonth);
+  }
+
+  private createMonthDateText(dayNumber: number): string {
+    return formatDate(new Date(this.calendarYear, this.calendarMonth, dayNumber));
   }
 
   private changeCalendarMonth(step: number): void {
-    let nextMonth: number = this.calendarMonth + step;
-    let nextYear: number = this.calendarYear;
-    if (nextMonth < 0) {
-      nextMonth = 11;
-      nextYear -= 1;
-    } else if (nextMonth > 11) {
-      nextMonth = 0;
-      nextYear += 1;
-    }
-    this.calendarYear = nextYear;
-    this.calendarMonth = nextMonth;
+    let nextCursor = shiftCalendarMonth(this.calendarYear, this.calendarMonth, step);
+    this.calendarYear = nextCursor.year;
+    this.calendarMonth = nextCursor.month;
+    this.selectedPlanDate = this.createMonthDateText(1);
+    this.currentFoodPlanDateText = this.selectedPlanDate;
+    this.expandedMealType = '';
   }
 
   private toggleMealSection(mealType: string): void {
@@ -508,32 +509,68 @@ export struct FoodTabPage {
     return '#F7F2FF';
   }
 
+  private getMonthPlanDayCount(): number {
+    let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
+    let monthPrefix: string = `${this.calendarYear}-${this.calendarMonth + 1 < 10 ? `0${this.calendarMonth + 1}` : `${this.calendarMonth + 1}`}-`;
+    let countedDates: string[] = [];
+
+    for (let index = 0; index < currentPlans.length; index++) {
+      if (currentPlans[index].date.startsWith(monthPrefix) && countedDates.indexOf(currentPlans[index].date) < 0) {
+        countedDates.push(currentPlans[index].date);
+      }
+    }
+
+    return countedDates.length;
+  }
+
+  private getMonthPlanCount(): number {
+    let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
+    let monthPrefix: string = `${this.calendarYear}-${this.calendarMonth + 1 < 10 ? `0${this.calendarMonth + 1}` : `${this.calendarMonth + 1}`}-`;
+    let count: number = 0;
+
+    for (let index = 0; index < currentPlans.length; index++) {
+      if (currentPlans[index].date.startsWith(monthPrefix)) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  private getMonthCalories(): number {
+    let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
+    let monthPrefix: string = `${this.calendarYear}-${this.calendarMonth + 1 < 10 ? `0${this.calendarMonth + 1}` : `${this.calendarMonth + 1}`}-`;
+    let totalCalories: number = 0;
+
+    for (let index = 0; index < currentPlans.length; index++) {
+      if (currentPlans[index].date.startsWith(monthPrefix)) {
+        totalCalories += currentPlans[index].calories;
+      }
+    }
+
+    return Math.round(totalCalories);
+  }
+
   private getCalendarRows(): CalendarDayItem[][] {
-    let days: CalendarDayItem[] = [];
-    let monthStart = new Date(this.calendarYear, this.calendarMonth, 1);
-    let offset = monthStart.getDay();
-    let firstCellDate = new Date(this.calendarYear, this.calendarMonth, 1 - offset);
-    let todayText: string = formatDate(new Date());
-
-    for (let index = 0; index < 42; index++) {
-      let currentDate = new Date(firstCellDate.getTime());
-      currentDate.setDate(firstCellDate.getDate() + index);
-      let currentDateText: string = formatDate(currentDate);
-      let isCurrentMonth: boolean = currentDate.getMonth() === this.calendarMonth;
-      days.push({
-        key: isCurrentMonth ? currentDateText : `blank-${index}`,
-        dateText: isCurrentMonth ? currentDateText : '',
-        dayNumber: isCurrentMonth ? currentDate.getDate() : 0,
-        isCurrentMonth: isCurrentMonth,
-        isToday: isCurrentMonth && currentDateText === todayText,
-        planCount: isCurrentMonth ? this.getPlanCountByDate(currentDateText) : 0
-      });
-    }
-
+    let baseRows = buildMonthCalendarRows(this.calendarYear, this.calendarMonth);
     let rows: CalendarDayItem[][] = [];
-    for (let index = 0; index < days.length; index += 7) {
-      rows.push(days.slice(index, index + 7));
+
+    for (let rowIndex = 0; rowIndex < baseRows.length; rowIndex++) {
+      let nextRow: CalendarDayItem[] = [];
+      for (let columnIndex = 0; columnIndex < baseRows[rowIndex].length; columnIndex++) {
+        let currentCell = baseRows[rowIndex][columnIndex];
+        nextRow.push({
+          key: currentCell.key,
+          dateText: currentCell.dateText,
+          dayNumber: currentCell.dayNumber,
+          isCurrentMonth: currentCell.isCurrentMonth,
+          isToday: currentCell.isToday,
+          planCount: currentCell.isCurrentMonth ? this.getPlanCountByDate(currentCell.dateText) : 0
+        });
+      }
+      rows.push(nextRow);
     }
+
     return rows;
   }
 
@@ -726,7 +763,7 @@ export struct FoodTabPage {
 
   @Builder
   buildCalendarCard() {
-    Column({ space: 12 }) {
+    Column({ space: 16 }) {
       Row() {
         Column({ space: 4 }) {
           Text('饮食日历')
@@ -745,7 +782,7 @@ export struct FoodTabPage {
           .fontSize(13)
           .fontWeight(FontWeight.Medium)
           .fontColor('#FFFFFF')
-          .backgroundColor('#17324D')
+          .backgroundColor('#8EBBFF')
           .borderRadius(18)
           .onClick(() => {
             this.openPlanPage();
@@ -754,98 +791,90 @@ export struct FoodTabPage {
       .width('100%')
       .justifyContent(FlexAlign.SpaceBetween)
 
-      Row() {
+      Row({ space: 18 }) {
         Button('<')
-          .width(38)
-          .height(38)
-          .fontSize(18)
+          .width(34)
+          .height(34)
+          .fontSize(16)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#17324D')
-          .backgroundColor('#EEF3FF')
-          .borderRadius(19)
+          .fontColor('#6782A8')
+          .backgroundColor('#F3F6FC')
+          .borderRadius(17)
           .onClick(() => {
             this.changeCalendarMonth(-1);
           })
 
         Text(this.getCalendarTitle())
-          .fontSize(18)
+          .fontSize(20)
           .fontWeight(FontWeight.Bold)
           .fontColor(PRIMARY_TEXT_COLOR)
 
         Button('>')
-          .width(38)
-          .height(38)
-          .fontSize(18)
+          .width(34)
+          .height(34)
+          .fontSize(16)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#17324D')
-          .backgroundColor('#EEF3FF')
-          .borderRadius(19)
+          .fontColor('#6782A8')
+          .backgroundColor('#F3F6FC')
+          .borderRadius(17)
           .onClick(() => {
             this.changeCalendarMonth(1);
           })
       }
       .width('100%')
-      .justifyContent(FlexAlign.SpaceBetween)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
 
-      Row() {
-        Text('日').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
-        Text('一').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
-        Text('二').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
-        Text('三').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
-        Text('四').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
-        Text('五').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
-        Text('六').layoutWeight(1).textAlign(TextAlign.Center).fontSize(12).fontColor('#7D8794')
+      Row({ space: 6 }) {
+        ForEach(CALENDAR_WEEK_LABELS, (label: string) => {
+          Text(label)
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .fontSize(12)
+            .fontColor('#9AA6B5')
+        }, (label: string) => label)
       }
       .width('100%')
 
-      Column({ space: 4 }) {
+      Column({ space: 6 }) {
         ForEach(this.getCalendarRows(), (week: CalendarDayItem[]) => {
-          Row() {
+          Row({ space: 6 }) {
             ForEach(week, (day: CalendarDayItem) => {
-              Column({ space: 3 }) {
-                if (day.isCurrentMonth) {
-                  Stack({ alignContent: Alignment.Center }) {
-                    if (day.dateText === this.selectedPlanDate) {
-                      Text('')
-                        .width(42)
-                        .height(42)
-                        .backgroundColor('#1E6BFF')
-                        .borderRadius(21)
-                    }
+              Stack({ alignContent: Alignment.TopStart }) {
+                Column({ space: 2 }) {
+                  Text(day.isCurrentMonth ? `${day.dayNumber}` : '')
+                    .fontSize(18)
+                    .fontWeight(day.dateText === this.selectedPlanDate ? FontWeight.Bold : FontWeight.Medium)
+                    .fontColor(day.dateText === this.selectedPlanDate ? '#FFFFFF' : (day.isCurrentMonth ? PRIMARY_TEXT_COLOR : '#C8D0DC'))
 
-                    Column({ space: 2 }) {
-                      Text(`${day.dayNumber}`)
-                        .fontSize(17)
-                        .fontWeight(day.dateText === this.selectedPlanDate ? FontWeight.Bold : FontWeight.Medium)
-                        .fontColor(day.dateText === this.selectedPlanDate ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
+                  Text(day.isToday && day.isCurrentMonth ? '今' : '')
+                    .fontSize(10)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(day.dateText === this.selectedPlanDate ? '#EAF2FF' : '#89AFFF')
+                }
+                .width('100%')
+                .alignItems(HorizontalAlign.Center)
+                .margin({ top: 8 })
 
-                      Text(day.isToday ? '今天' : '')
-                        .fontSize(10)
-                        .fontColor(day.dateText === this.selectedPlanDate ? '#EAF1FF' : (day.isToday ? '#1E6BFF' : '#98A2B3'))
-                    }
-                    .alignItems(HorizontalAlign.Center)
-
-                    if (day.planCount > 0) {
-                      Text('')
-                        .width(6)
-                        .height(6)
-                        .backgroundColor(day.dateText === this.selectedPlanDate ? '#FFFFFF' : '#1E6BFF')
-                        .borderRadius(3)
-                        .margin({ top: 42 })
-                    }
-                  }
-                  .width(50)
-                  .height(50)
-                } else {
+                if (day.planCount > 0 && day.isCurrentMonth) {
                   Text('')
-                    .width(50)
-                    .height(50)
+                    .width(6)
+                    .height(6)
+                    .backgroundColor(day.dateText === this.selectedPlanDate ? '#FFFFFF' : '#8EBBFF')
+                    .borderRadius(3)
+                    .margin({ top: 37, left: 24 })
                 }
               }
               .layoutWeight(1)
-              .height(60)
-              .justifyContent(FlexAlign.Center)
+              .height(52)
               .alignItems(HorizontalAlign.Center)
+              .justifyContent(FlexAlign.Center)
+              .backgroundColor(day.dateText === this.selectedPlanDate ? '#8EBBFF' : '#FFFFFF')
+              .borderRadius(14)
+              .border({
+                width: 1,
+                color: day.dateText === this.selectedPlanDate ? '#8EBBFF' : '#EEF2F7'
+              })
               .onClick(() => {
                 if (!day.isCurrentMonth) {
                   return;
@@ -858,6 +887,59 @@ export struct FoodTabPage {
           }
           .width('100%')
         }, (week: CalendarDayItem[]) => week[0].key)
+      }
+      .width('100%')
+
+      Row({ space: 10 }) {
+        Column({ space: 4 }) {
+          Text('记录天数')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(`${this.getMonthPlanDayCount()} 天`)
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(PRIMARY_TEXT_COLOR)
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .padding(12)
+        .backgroundColor('#F7F9FD')
+        .borderRadius(16)
+
+        Column({ space: 4 }) {
+          Text('餐次总数')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(`${this.getMonthPlanCount()} 份`)
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(PRIMARY_TEXT_COLOR)
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .padding(12)
+        .backgroundColor('#F7F9FD')
+        .borderRadius(16)
+
+        Column({ space: 4 }) {
+          Text('月度热量')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(`${this.getMonthCalories()} kcal`)
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(PRIMARY_TEXT_COLOR)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+        .padding(12)
+        .backgroundColor('#F7F9FD')
+        .borderRadius(16)
       }
       .width('100%')
     }

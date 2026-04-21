@@ -38,37 +38,37 @@ const HOME_QUICK_ENTRIES: HomeQuickEntryItem[] = [
     id: 'food',
     icon: '食',
     title: '饮食',
-    description: '记录摄入热量',
+    description: '记录摄入',
     tabIndex: FOOD_TAB_INDEX,
     accentColor: '#F59E0B',
-    surfaceColor: '#FFF8E8'
+    surfaceColor: '#FFF7E7'
   },
   {
     id: 'exercise',
     icon: '动',
     title: '运动',
-    description: '累计消耗热量',
+    description: '累计消耗',
     tabIndex: EXERCISE_TAB_INDEX,
-    accentColor: '#FF7A59',
-    surfaceColor: '#FFF1EC'
+    accentColor: '#FF8B61',
+    surfaceColor: '#FFF2ED'
   },
   {
     id: 'record',
     icon: '重',
-    title: '记录',
-    description: '查看体重变化',
+    title: '体重',
+    description: '查看趋势',
     tabIndex: RECORD_TAB_INDEX,
-    accentColor: '#14B8A6',
-    surfaceColor: '#ECFFFB'
+    accentColor: '#15B8A6',
+    surfaceColor: '#EDFFFB'
   },
   {
     id: 'assistant',
     icon: 'AI',
-    title: '助手',
-    description: '生成今日建议',
+    title: '建议',
+    description: '今日分析',
     tabIndex: AI_TAB_INDEX,
-    accentColor: '#7B61FF',
-    surfaceColor: '#F4F0FF'
+    accentColor: '#6F7CFF',
+    surfaceColor: '#F2F1FF'
   }
 ];
 
@@ -116,66 +116,60 @@ export struct HomeTabPage {
     );
   }
 
+  private getPrimaryReminder(): HomeReminderItem {
+    return this.getReminderItems()[0];
+  }
+
   private getUserHeadline(): string {
     let profile = deserializeUserProfile(this.userProfileText);
     if (profile.nickname.trim().length > 0) {
       return `${profile.nickname.trim()} 的今日概览`;
     }
-    return '今日健康概览';
+    return '今日概览';
   }
 
-  private getNetCalorieAccentColor(): string {
+  private getHeroAccentColor(): string {
     let summary = this.getCalorieSummary();
     if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
-      return '#0F6BFF';
-    }
-    if (summary.netCalories <= 0) {
-      return '#10B981';
-    }
-    if (summary.netCalories <= 350) {
-      return '#0F6BFF';
-    }
-    return '#FF7A59';
-  }
-
-  private getNetCalorieSurfaceColor(): string {
-    let summary = this.getCalorieSummary();
-    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
-      return '#20456E';
-    }
-    if (summary.netCalories <= 0) {
-      return '#174238';
-    }
-    if (summary.netCalories <= 350) {
-      return '#20456E';
-    }
-    return '#5B2F2D';
-  }
-
-  private getNetCalorieTitleText(): string {
-    let summary = this.getCalorieSummary();
-    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
-      return '今日还没有热量记录';
+      return '#8EBBFF';
     }
     if (summary.netCalories < 0) {
-      return '净热量已经转负';
+      return '#4ED19A';
+    }
+    if (summary.netCalories <= 350) {
+      return '#8EBBFF';
+    }
+    return '#FF8B61';
+  }
+
+  private getHeroBadgeText(): string {
+    let summary = this.getCalorieSummary();
+    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
+      return '等待记录';
+    }
+    if (summary.netCalories < 0) {
+      return '消耗领先';
     }
     if (summary.netCalories === 0) {
-      return '净热量刚好持平';
+      return '摄消平衡';
     }
-    return '当前净热量';
+    return '今日净热量';
+  }
+
+  private getNetCalorieValueText(): string {
+    return `${Math.round(this.getCalorieSummary().netCalories)}`;
   }
 
   private getNetCalorieDescriptionText(): string {
     let summary = this.getCalorieSummary();
     if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
-      return '先去记录饮食或训练，首页会自动同步数据。';
+      return '先去记录饮食或训练，首页会自动同步今天的数据。';
     }
     if (summary.netCalories < 0) {
-      return `今天的训练消耗比摄入多 ${Math.round(Math.abs(summary.netCalories))} kcal。`;
+      return `今天训练消耗比摄入多 ${Math.round(Math.abs(summary.netCalories))} kcal。`;
     }
     if (summary.netCalories === 0) {
-      return '今天摄入和消耗目前相等。';
+      return '摄入和消耗刚好持平。';
     }
     return `摄入减去消耗后，还剩 ${Math.round(summary.netCalories)} kcal。`;
   }
@@ -183,24 +177,37 @@ export struct HomeTabPage {
   private getTargetStatusText(): string {
     let summary = this.getCalorieSummary();
     if (summary.intakeCalories <= 0) {
-      return `今日目标 ${summary.targetCalories} kcal`;
+      return `饮食目标 ${summary.targetCalories} kcal`;
     }
     if (summary.remainingTargetCalories >= 0) {
-      return `距离今日饮食目标还差 ${Math.round(summary.remainingTargetCalories)} kcal`;
+      return `距目标还差 ${Math.round(summary.remainingTargetCalories)} kcal`;
     }
-    return `已超过今日饮食目标 ${Math.round(Math.abs(summary.remainingTargetCalories))} kcal`;
+    return `已超过目标 ${Math.round(Math.abs(summary.remainingTargetCalories))} kcal`;
   }
 
   private getProgressWidthText(): string {
-    let summary = this.getCalorieSummary();
-    let ratio = Math.round(summary.intakeProgress * 100);
+    let ratio = Math.round(this.getCalorieSummary().intakeProgress * 100);
     if (ratio <= 0) {
       return '0%';
     }
-    if (ratio < 10) {
-      return '10%';
+    if (ratio < 12) {
+      return '12%';
     }
     return `${ratio}%`;
+  }
+
+  private getIntakeStatusText(): string {
+    if (this.getCalorieSummary().intakeCalories > 0) {
+      return '已开始记录';
+    }
+    return '待补充饮食';
+  }
+
+  private getBurnedStatusText(): string {
+    if (this.getCalorieSummary().burnedCalories > 0) {
+      return '训练已累计';
+    }
+    return '待开始训练';
   }
 
   private getWeightTrendBadgeText(): string {
@@ -218,11 +225,11 @@ export struct HomeTabPage {
   }
 
   private getLatestWeightText(): string {
-    let trendSummary = this.getWeightTrendSummary();
-    if (!trendSummary.latestRecord) {
+    let latestRecord = this.getWeightTrendSummary().latestRecord;
+    if (!latestRecord) {
       return '--';
     }
-    return `${trendSummary.latestRecord.weight.toFixed(1)} kg`;
+    return `${latestRecord.weight.toFixed(1)} kg`;
   }
 
   private getWeightChangeText(): string {
@@ -230,14 +237,13 @@ export struct HomeTabPage {
     if (trendSummary.recentRecords.length < 2) {
       return '继续记录形成趋势';
     }
-    let directionText: string = trendSummary.changeValue <= 0 ? '下降' : '上升';
-    return `${directionText} ${Math.abs(trendSummary.changeValue).toFixed(1)} kg`;
+    return `${trendSummary.changeValue <= 0 ? '下降' : '上升'} ${Math.abs(trendSummary.changeValue).toFixed(1)} kg`;
   }
 
   private getWeightSublineText(): string {
     let trendSummary = this.getWeightTrendSummary();
     if (!trendSummary.latestRecord) {
-      return '还没有体重记录';
+      return '开始记录后，这里会自动展示最近 7 条体重变化。';
     }
     if (trendSummary.hasTodayRecord) {
       return `今日已记录 · 近期均值 ${trendSummary.averageWeight.toFixed(1)} kg`;
@@ -280,18 +286,18 @@ export struct HomeTabPage {
     let maxValue = this.getWeightMaxValue();
     let range = maxValue - minValue;
     if (range <= 0) {
-      return 58;
+      return 66;
     }
     let ratio = (record.weight - minValue) / range;
-    return 34 + Math.round(ratio * 54);
+    return 38 + Math.round(ratio * 54);
   }
 
   private getWeightBarColor(record: WeightRecord): string {
-    let trendSummary = this.getWeightTrendSummary();
-    if (trendSummary.latestRecord && trendSummary.latestRecord.id === record.id) {
-      return '#0F6BFF';
+    let latestRecord = this.getWeightTrendSummary().latestRecord;
+    if (latestRecord && latestRecord.id === record.id) {
+      return '#8EBBFF';
     }
-    return '#93C5FD';
+    return '#D8E8FF';
   }
 
   private getWeightShortDate(dateText: string): string {
@@ -304,147 +310,185 @@ export struct HomeTabPage {
   private getQuickEntryStatusText(entryId: string): string {
     let calorieSummary = this.getCalorieSummary();
     let trendSummary = this.getWeightTrendSummary();
+
     if (entryId === 'food') {
-      if (calorieSummary.intakeCalories > 0) {
-        return `已记录 ${Math.round(calorieSummary.intakeCalories)} kcal`;
-      }
-      return '今天还没记饮食';
+      return calorieSummary.intakeCalories > 0 ? `${Math.round(calorieSummary.intakeCalories)} kcal` : '待记录';
     }
     if (entryId === 'exercise') {
-      if (calorieSummary.burnedCalories > 0) {
-        return `已消耗 ${Math.round(calorieSummary.burnedCalories)} kcal`;
-      }
-      return '今天还没训练';
+      return calorieSummary.burnedCalories > 0 ? `${Math.round(calorieSummary.burnedCalories)} kcal` : '待训练';
     }
     if (entryId === 'record') {
       if (trendSummary.hasTodayRecord && trendSummary.latestRecord) {
-        return `今日 ${trendSummary.latestRecord.weight.toFixed(1)} kg`;
+        return `${trendSummary.latestRecord.weight.toFixed(1)} kg`;
       }
-      return '今天还没记体重';
+      return '待记录';
     }
-    if (this.getReminderItems()[0].id === 'assistant') {
-      return '数据已齐，可以直接分析';
+    if (this.getPrimaryReminder().id === 'assistant') {
+      return '可直接分析';
     }
-    return '根据今天的记录给建议';
+    return '查看建议';
   }
 
   @Builder
-  private buildOverviewCard() {
-    Column({ space: 16 }) {
+  private buildEnergySideStat(title: string, valueText: string, statusText: string, accentColor: string) {
+    Column({ space: 8 }) {
+      Text(title)
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .fontColor('#6680A8')
+
+      Text(valueText)
+        .fontSize(24)
+        .fontWeight(FontWeight.Bolder)
+        .fontColor(PRIMARY_TEXT_COLOR)
+
+      Text(statusText)
+        .fontSize(11)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(accentColor)
+        .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+        .backgroundColor('#FFFFFF')
+        .borderRadius(999)
+    }
+    .alignItems(HorizontalAlign.Center)
+    .layoutWeight(1)
+  }
+
+  @Builder
+  private buildEnergyHeroCard() {
+    Column({ space: 18 }) {
       Row() {
         Column({ space: 4 }) {
           Text(this.getUserHeadline())
             .fontSize(24)
             .fontWeight(FontWeight.Bolder)
-            .fontColor('#FFFFFF')
+            .fontColor(PRIMARY_TEXT_COLOR)
 
           Text(this.getTodayText())
             .fontSize(12)
-            .fontColor('#D3E2F5')
+            .fontColor(SECONDARY_TEXT_COLOR)
         }
         .alignItems(HorizontalAlign.Start)
 
-        Text('今日总览')
+        Text(this.getHeroBadgeText())
           .fontSize(11)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#FFFFFF')
+          .fontColor('#6D8EBB')
           .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .backgroundColor(this.getNetCalorieAccentColor())
+          .backgroundColor('#FFFFFF')
           .borderRadius(999)
       }
       .width('100%')
       .justifyContent(FlexAlign.SpaceBetween)
       .alignItems(VerticalAlign.Top)
 
-      Column({ space: 8 }) {
-        Text(this.getNetCalorieTitleText())
-          .fontSize(13)
-          .fontColor('#BCD1E8')
+      Row({ space: 10 }) {
+        this.buildEnergySideStat(
+          '摄入',
+          `${Math.round(this.getCalorieSummary().intakeCalories)} kcal`,
+          this.getIntakeStatusText(),
+          '#F59E0B'
+        )
 
-        Row({ space: 8 }) {
-          Text(`${Math.round(this.getCalorieSummary().netCalories)}`)
-            .fontSize(42)
-            .fontWeight(FontWeight.Bolder)
-            .fontColor('#FFFFFF')
+        Stack({ alignContent: Alignment.Center }) {
+          Text('')
+            .width(188)
+            .height(188)
+            .backgroundColor(this.getHeroAccentColor())
+            .opacity(0.16)
+            .borderRadius(94)
 
-          Text('kcal')
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#D8E6F7')
-            .margin({ top: 22 })
+          Text('')
+            .width(160)
+            .height(160)
+            .backgroundColor(this.getHeroAccentColor())
+            .opacity(0.2)
+            .borderRadius(80)
+
+          Text('')
+            .width(142)
+            .height(142)
+            .backgroundColor('#FFFFFF')
+            .borderRadius(71)
+
+          Text('')
+            .width(130)
+            .height(130)
+            .border({
+              width: 7,
+              color: this.getHeroAccentColor()
+            })
+            .opacity(0.92)
+            .borderRadius(65)
+
+          Column({ space: 4 }) {
+            Row({ space: 4 }) {
+              Text(this.getNetCalorieValueText())
+                .fontSize(34)
+                .fontWeight(FontWeight.Bolder)
+                .fontColor(PRIMARY_TEXT_COLOR)
+
+              Text('kcal')
+                .fontSize(12)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#6F84A3')
+                .margin({ top: 17 })
+            }
+            .alignItems(VerticalAlign.Bottom)
+
+            Text('净热量')
+              .fontSize(12)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#6F84A3')
+
+            Text(this.getHeroBadgeText())
+              .fontSize(10)
+              .fontColor('#7A91B2')
+              .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+              .backgroundColor('#EEF5FF')
+              .borderRadius(999)
+          }
+          .alignItems(HorizontalAlign.Center)
         }
-        .width('100%')
-        .alignItems(VerticalAlign.Bottom)
 
-        Text(this.getNetCalorieDescriptionText())
-          .fontSize(13)
-          .lineHeight(20)
-          .fontColor('#D8E6F7')
+        this.buildEnergySideStat(
+          '消耗',
+          `${Math.round(this.getCalorieSummary().burnedCalories)} kcal`,
+          this.getBurnedStatusText(),
+          '#FF8B61'
+        )
       }
-      .alignItems(HorizontalAlign.Start)
       .width('100%')
-
-      Row({ space: 12 }) {
-        Column({ space: 6 }) {
-          Text('摄入热量')
-            .fontSize(12)
-            .fontColor('#A7BED9')
-
-          Text(`${Math.round(this.getCalorieSummary().intakeCalories)} kcal`)
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#FFFFFF')
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-        .padding(14)
-        .backgroundColor(this.getNetCalorieSurfaceColor())
-        .borderRadius(20)
-
-        Column({ space: 6 }) {
-          Text('消耗热量')
-            .fontSize(12)
-            .fontColor('#A7BED9')
-
-          Text(`${Math.round(this.getCalorieSummary().burnedCalories)} kcal`)
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#FFFFFF')
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-        .padding(14)
-        .backgroundColor(this.getNetCalorieSurfaceColor())
-        .borderRadius(20)
-      }
-      .width('100%')
+      .alignItems(VerticalAlign.Center)
 
       Column({ space: 8 }) {
         Row() {
-          Text(`饮食目标 ${this.getCalorieSummary().targetCalories} kcal`)
+          Text(this.getNetCalorieDescriptionText())
             .fontSize(12)
-            .fontColor('#D8E6F7')
+            .fontColor('#6A7B91')
             .layoutWeight(1)
+            .maxLines(2)
 
           Text(this.getTargetStatusText())
             .fontSize(12)
-            .fontColor('#D8E6F7')
+            .fontColor('#6A7B91')
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
         .width('100%')
+        .alignItems(VerticalAlign.Center)
 
         Stack({ alignContent: Alignment.Start }) {
           Text('')
             .width('100%')
             .height(8)
-            .backgroundColor('#2E4D71')
+            .backgroundColor('#E5EEF9')
             .borderRadius(999)
 
           Text('')
             .width(this.getProgressWidthText())
             .height(8)
-            .backgroundColor(this.getNetCalorieAccentColor())
+            .backgroundColor(this.getHeroAccentColor())
             .borderRadius(999)
         }
         .width('100%')
@@ -454,16 +498,16 @@ export struct HomeTabPage {
     .alignItems(HorizontalAlign.Start)
     .width('100%')
     .padding(20)
-    .backgroundColor('#17324D')
+    .backgroundColor('#F5FAFF')
     .borderRadius(28)
   }
 
   @Builder
   private buildWeightTrendCard() {
-    Column({ space: 14 }) {
+    Column({ space: 16 }) {
       Row() {
         Column({ space: 4 }) {
-          Text('体重变化趋势')
+          Text('本周体重')
             .fontSize(18)
             .fontWeight(FontWeight.Medium)
             .fontColor(PRIMARY_TEXT_COLOR)
@@ -480,53 +524,56 @@ export struct HomeTabPage {
         Text(this.getWeightTrendBadgeText())
           .fontSize(11)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#0F6BFF')
+          .fontColor('#7AA5E8')
           .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .backgroundColor('#EAF2FF')
+          .backgroundColor('#F1F6FF')
           .borderRadius(999)
       }
       .width('100%')
-      .alignItems(VerticalAlign.Center)
 
-      Row({ space: 12 }) {
-        Column({ space: 6 }) {
+      Row({ space: 10 }) {
+        Column({ space: 4 }) {
           Text('最新体重')
-            .fontSize(12)
-            .fontColor('#5373A6')
+            .fontSize(11)
+            .fontColor('#90A0B4')
 
           Text(this.getLatestWeightText())
-            .fontSize(26)
+            .fontSize(24)
             .fontWeight(FontWeight.Bolder)
             .fontColor(PRIMARY_TEXT_COLOR)
         }
-        .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
         .padding(14)
-        .backgroundColor('#F5F8FF')
-        .borderRadius(20)
+        .backgroundColor('#F8FBFF')
+        .borderRadius(18)
 
-        Column({ space: 6 }) {
+        Column({ space: 4 }) {
           Text('近 7 次变化')
-            .fontSize(12)
-            .fontColor('#5373A6')
+            .fontSize(11)
+            .fontColor('#90A0B4')
 
           Text(this.getWeightChangeText())
             .fontSize(22)
             .fontWeight(FontWeight.Bolder)
-            .fontColor(this.getWeightTrendSummary().changeValue <= 0 ? '#10B981' : '#FF7A59')
+            .fontColor(this.getWeightTrendSummary().changeValue <= 0 ? '#22B573' : '#FF8B61')
         }
-        .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
         .padding(14)
-        .backgroundColor('#EEF4FF')
-        .borderRadius(20)
+        .backgroundColor('#F8FBFF')
+        .borderRadius(18)
       }
       .width('100%')
 
       if (this.getWeightTrendSummary().recentRecords.length > 0) {
-        Row({ space: 10 }) {
+        Row({ space: 8 }) {
           ForEach(this.getWeightTrendSummary().recentRecords, (record: WeightRecord) => {
             Column({ space: 8 }) {
+              Text(record.weight.toFixed(1))
+                .fontSize(10)
+                .fontColor('#90A0B4')
+
               Column() {
                 Text('')
                   .width('100%')
@@ -534,20 +581,15 @@ export struct HomeTabPage {
                   .backgroundColor(this.getWeightBarColor(record))
                   .borderRadius(12)
               }
-              .width(24)
-              .height(92)
+              .width(26)
+              .height(96)
               .justifyContent(FlexAlign.End)
-              .backgroundColor('#EAF2FF')
+              .backgroundColor('#EEF4FF')
               .borderRadius(12)
 
               Text(this.getWeightShortDate(record.date))
                 .fontSize(10)
-                .fontColor('#94A0B4')
-
-              Text(record.weight.toFixed(1))
-                .fontSize(11)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(PRIMARY_TEXT_COLOR)
+                .fontColor('#90A0B4')
             }
             .layoutWeight(1)
             .alignItems(HorizontalAlign.Center)
@@ -562,7 +604,7 @@ export struct HomeTabPage {
           .fontColor(SECONDARY_TEXT_COLOR)
           .padding(14)
           .width('100%')
-          .backgroundColor('#F5F8FF')
+          .backgroundColor('#F8FBFF')
           .borderRadius(18)
       }
     }
@@ -574,77 +616,58 @@ export struct HomeTabPage {
   }
 
   @Builder
-  private buildQuickEntryItem(entry: HomeQuickEntryItem) {
-    Button() {
-      Column({ space: 10 }) {
-        Text(entry.icon)
-          .fontSize(entry.icon.length > 1 ? 14 : 18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(entry.accentColor)
-          .width(38)
-          .height(38)
-          .textAlign(TextAlign.Center)
-          .padding({ top: 8, bottom: 8 })
-          .backgroundColor('#FFFFFF')
-          .borderRadius(19)
-
-        Column({ space: 4 }) {
-          Text(entry.title)
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(PRIMARY_TEXT_COLOR)
-
-          Text(entry.description)
-            .fontSize(11)
-            .fontColor(SECONDARY_TEXT_COLOR)
-
-          Text(this.getQuickEntryStatusText(entry.id))
-            .fontSize(11)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(entry.accentColor)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-      }
-      .alignItems(HorizontalAlign.Start)
-      .width('100%')
-    }
-    .layoutWeight(1)
-    .padding(16)
-    .backgroundColor(entry.surfaceColor)
-    .borderRadius(20)
-    .onClick(() => {
-      this.openTab(entry.tabIndex);
-    })
-  }
-
-  @Builder
   private buildQuickEntryCard() {
-    Column({ space: 12 }) {
-      Column({ space: 4 }) {
-        Text('常用入口')
+    Column({ space: 14 }) {
+      Row() {
+        Text('快捷入口')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor(PRIMARY_TEXT_COLOR)
 
-        Text('从首页直接进入常用页面。')
+        Text('从首页直接进入常用页面')
           .fontSize(12)
           .fontColor(SECONDARY_TEXT_COLOR)
       }
-      .alignItems(HorizontalAlign.Start)
       .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
 
-      Row({ space: 12 }) {
-        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[0])
-        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[1])
-      }
-      .width('100%')
+      Row({ space: 10 }) {
+        ForEach(HOME_QUICK_ENTRIES, (entry: HomeQuickEntryItem) => {
+          Button() {
+            Column({ space: 8 }) {
+              Text(entry.icon)
+                .fontSize(entry.icon.length > 1 ? 14 : 18)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(entry.accentColor)
+                .width(38)
+                .height(38)
+                .textAlign(TextAlign.Center)
+                .padding({ top: 8, bottom: 8 })
+                .backgroundColor('#FFFFFF')
+                .borderRadius(19)
 
-      Row({ space: 12 }) {
-        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[2])
-        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[3])
+              Text(entry.title)
+                .fontSize(13)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(PRIMARY_TEXT_COLOR)
+
+              Text(this.getQuickEntryStatusText(entry.id))
+                .fontSize(10)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(entry.accentColor)
+                .maxLines(1)
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Center)
+          }
+          .layoutWeight(1)
+          .padding({ left: 8, right: 8, top: 14, bottom: 14 })
+          .backgroundColor(entry.surfaceColor)
+          .borderRadius(18)
+          .onClick(() => {
+            this.openTab(entry.tabIndex);
+          })
+        }, (entry: HomeQuickEntryItem) => entry.id)
       }
       .width('100%')
     }
@@ -657,75 +680,55 @@ export struct HomeTabPage {
 
   @Builder
   private buildReminderCard() {
-    Column({ space: 12 }) {
-      Column({ space: 4 }) {
-        Text('今日提醒')
-          .fontSize(18)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(PRIMARY_TEXT_COLOR)
+    let reminderItem = this.getPrimaryReminder();
 
-        Text('优先处理最影响首页数据完整度的几项。')
-          .fontSize(12)
-          .fontColor(SECONDARY_TEXT_COLOR)
-      }
-      .alignItems(HorizontalAlign.Start)
-      .width('100%')
+    Button() {
+      Row({ space: 12 }) {
+        Text('')
+          .width(10)
+          .height(10)
+          .backgroundColor(reminderItem.accentColor)
+          .borderRadius(5)
 
-      ForEach(this.getReminderItems(), (item: HomeReminderItem) => {
-        Button() {
-          Row({ space: 12 }) {
-            Text('')
-              .width(10)
-              .height(10)
-              .backgroundColor(item.accentColor)
-              .borderRadius(5)
+        Column({ space: 4 }) {
+          Text(reminderItem.title)
+            .fontSize(16)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(PRIMARY_TEXT_COLOR)
 
-            Column({ space: 4 }) {
-              Text(item.title)
-                .fontSize(15)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(PRIMARY_TEXT_COLOR)
-
-              Text(item.description)
-                .fontSize(12)
-                .lineHeight(18)
-                .fontColor(SECONDARY_TEXT_COLOR)
-                .maxLines(2)
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-
-            Text('去处理')
-              .fontSize(12)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(item.accentColor)
-              .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-              .backgroundColor('#FFFFFF')
-              .borderRadius(999)
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Center)
+          Text(reminderItem.description)
+            .fontSize(12)
+            .lineHeight(18)
+            .fontColor(SECONDARY_TEXT_COLOR)
+            .maxLines(2)
         }
-        .width('100%')
-        .padding(14)
-        .backgroundColor('#F7FAFF')
-        .borderRadius(18)
-        .onClick(() => {
-          this.openTab(item.targetTabIndex);
-        })
-      }, (item: HomeReminderItem) => item.id)
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text('去处理')
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(reminderItem.accentColor)
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor('#FFFFFF')
+          .borderRadius(999)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
     }
-    .alignItems(HorizontalAlign.Start)
     .width('100%')
     .padding(18)
     .backgroundColor(SURFACE_BACKGROUND_COLOR)
     .borderRadius(24)
+    .onClick(() => {
+      this.openTab(reminderItem.targetTabIndex);
+    })
   }
 
   build() {
     Scroll() {
       Column({ space: 14 }) {
-        this.buildOverviewCard()
+        this.buildEnergyHeroCard()
         this.buildWeightTrendCard()
         this.buildQuickEntryCard()
         this.buildReminderCard()
