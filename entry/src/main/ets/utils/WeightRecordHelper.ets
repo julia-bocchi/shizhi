@@ -51,7 +51,7 @@ export function createSampleRecords(): WeightRecord[] {
     let sampleDate = new Date(today.getTime());
     sampleDate.setDate(today.getDate() - (sampleWeights.length - 1 - index));
     result.push({
-      id: index + 1,
+      id: `${index + 1}`,
       date: formatDate(sampleDate),
       weight: sampleWeights[index]
     });
@@ -64,7 +64,7 @@ export function serializeWeightRecords(records: WeightRecord[]): string {
   let sanitizedRecords: WeightRecord[] = [];
   for (let index = 0; index < records.length; index++) {
     sanitizedRecords.push({
-      id: records[index].id,
+      id: `${records[index].id}`,
       date: records[index].date,
       weight: records[index].weight
     });
@@ -86,13 +86,12 @@ export function deserializeWeightRecords(savedText: string): WeightRecord[] {
     let result: WeightRecord[] = [];
     for (let index = 0; index < parsedRecords.length; index++) {
       let currentRecord = parsedRecords[index];
-      let parsedId = Number(currentRecord.id);
       let parsedWeight = Number(currentRecord.weight);
-      if (isNaN(parsedId) || isNaN(parsedWeight)) {
+      if (isNaN(parsedWeight)) {
         continue;
       }
       result.push({
-        id: parsedId,
+        id: `${currentRecord.id}`,
         date: `${currentRecord.date}`,
         weight: parsedWeight
       });
@@ -105,14 +104,15 @@ export function deserializeWeightRecords(savedText: string): WeightRecord[] {
   }
 }
 
-export function getNextWeightRecordId(records: WeightRecord[]): number {
+export function getNextWeightRecordId(records: WeightRecord[]): string {
   let nextId: number = 1;
   for (let index = 0; index < records.length; index++) {
-    if (records[index].id >= nextId) {
-      nextId = records[index].id + 1;
+    let parsedId = Number(records[index].id);
+    if (!isNaN(parsedId) && parsedId >= nextId) {
+      nextId = parsedId + 1;
     }
   }
-  return nextId;
+  return `${nextId}`;
 }
 
 export function getRecentWeightRecords(records: WeightRecord[], limit: number = 7): WeightRecord[] {

@@ -27,6 +27,14 @@ import {
   formatMonthTitle,
   shiftCalendarMonth
 } from '../../utils/MonthCalendarHelper';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import {
+  createEmptyRemoteWeightSummary,
+  fetchWeightRecords,
+  fetchWeightSummary,
+  upsertWeightRecordRemote
+} from '../../utils/ApiService';
 
 const CHART_BAR_GROUP_WIDTH: number = 40;
 const CHART_BAR_GROUP_SPACING: number = 12;
@@ -38,18 +46,26 @@ interface CalendarDayItem extends CalendarMonthCell {
 @Component
 export struct RecordTabPage {
   @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
   @State records: WeightRecord[] = [];
   @State weightInput: string = '';
   @State noticeText: string = '只能记录今天的体重；当天多次提交会覆盖当天记录。';
-  @State nextId: number = 1;
+  @State nextId: string = '1';
   @State useEmojiTag: boolean = true;
   // 记录更新后递增版本号，确保列表 key 能稳定刷新。
   @State recordsVersion: number = 0;
   @State calendarYear: number = new Date().getFullYear();
   @State calendarMonth: number = new Date().getMonth();
+  @State remoteSyncing: boolean = false;
+  @State remoteSummary = createEmptyRemoteWeightSummary();
 
   aboutToAppear(): void {
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
     this.syncRecordsFromStorage();
+    this.syncRemoteWeightData();
   }
 
   private syncRecordsFromStorage(): void {
@@ -88,6 +104,9 @@ export struct RecordTabPage {
   }
 
   getWeeklyAverage(): number {
+    if (this.remoteSummary.recentCount > 0) {
+      return this.remoteSummary.averageWeight;
+    }
     let recentRecords = this.getRecentRecords();
     if (recentRecords.length === 0) {
       return 0;
@@ -101,6 +120,9 @@ export struct RecordTabPage {
   }
 
   getWeeklyChange(): number {
+    if (this.remoteSummary.recentCount > 0) {
+      return this.remoteSummary.changeInRange;
+    }
     let recentRecords = this.getRecentRecords();
     if (recentRecords.length < 2) {
       return 0;
@@ -109,6 +131,9 @@ export struct RecordTabPage {
   }
 
   getTodayChange(): number {
+    if (this.remoteSummary.recentCount > 0) {
+      return this.remoteSummary.changeFromPrevious;
+    }
     let latestRecord = this.getLatestRecord();
     let previousRecord = this.getPreviousRecord();
     if (!latestRecord || !previousRecord) {
@@ -377,6 +402,7 @@ export struct RecordTabPage {
     let nextCursor = shiftCalendarMonth(this.calendarYear, this.calendarMonth, step);
     this.calendarYear = nextCursor.year;
     this.calendarMonth = nextCursor.month;
+    this.syncRemoteWeightData();
   }
 
   private getMonthPrefix(): string {
@@ -485,6 +511,38 @@ export struct RecordTabPage {
     return `本月最近记录：${latestRecord.date} · ${latestRecord.weight.toFixed(1)} kg`;
   }
 
+  private getWeightRangeDateRange(): string[] {
+    let today = new Date();
+    let rollingStart = new Date(today.getTime());
+    rollingStart.setDate(rollingStart.getDate() - 120);
+    let monthStart = new Date(this.calendarYear, this.calendarMonth, 1);
+    let monthEnd = new Date(this.calendarYear, this.calendarMonth + 1, 0);
+    let startDate = rollingStart.getTime() < monthStart.getTime() ? rollingStart : monthStart;
+    let endDate = today.getTime() > monthEnd.getTime() ? today : monthEnd;
+    return [formatDate(startDate), formatDate(endDate)];
+  }
+
+  private async syncRemoteWeightData(): Promise<void> {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    this.remoteSyncing = true;
+    try {
+      let dateRange = this.getWeightRangeDateRange();
+      let remoteRecords = await fetchWeightRecords(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1]);
+      this.records = remoteRecords;
+      this.weightRecordText = serializeWeightRecords(remoteRecords);
+      this.nextId = getNextWeightRecordId(remoteRecords);
+      this.remoteSummary = await fetchWeightSummary(this.apiBaseUrlText, authSession, 7);
+      this.recordsVersion += 1;
+    } catch (error) {
+      this.noticeText = `${error}`;
+    } finally {
+      this.remoteSyncing = false;
+    }
+  }
+
   addOrUpdateRecord(): void {
     let dateValue = this.getTodayDate();
     let weightValue = this.weightInput.trim();
@@ -522,7 +580,7 @@ export struct RecordTabPage {
         date: dateValue,
         weight: parsedWeight
       });
-      this.nextId += 1;
+      this.nextId = `${Date.now()}`;
     }
 
     updatedRecords.sort((left: WeightRecord, right: WeightRecord) => compareRecordDate(left, right));
@@ -533,6 +591,34 @@ export struct RecordTabPage {
     this.noticeText = hasUpdated
       ? `已覆盖今天 ${dateValue} 的体重记录。`
       : `已记录今天 ${dateValue} 的体重：${parsedWeight.toFixed(1)} kg。`;
+  }
+
+  private async submitWeightRecord(): Promise<void> {
+    let dateValue = this.getTodayDate();
+    let weightValue = this.weightInput.trim();
+    let parsedWeight = Number(weightValue);
+    if (isNaN(parsedWeight) || parsedWeight < 20 || parsedWeight > 300) {
+      this.noticeText = '体重请输入 20 到 300 之间的数字，例如 68.5。';
+      return;
+    }
+
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      this.addOrUpdateRecord();
+      return;
+    }
+
+    this.remoteSyncing = true;
+    try {
+      await upsertWeightRecordRemote(this.apiBaseUrlText, authSession, dateValue, parsedWeight);
+      this.weightInput = '';
+      await this.syncRemoteWeightData();
+      this.noticeText = `已同步今天 ${dateValue} 的体重：${parsedWeight.toFixed(1)} kg。`;
+    } catch (error) {
+      this.noticeText = `${error}`;
+    } finally {
+      this.remoteSyncing = false;
+    }
   }
 
   @Builder
@@ -730,50 +816,76 @@ export struct RecordTabPage {
         .alignItems(HorizontalAlign.Start)
         .width('100%')
 
-        Column({ space: 12 }) {
-          Column({ space: 8 }) {
-            Text('当前体重')
-              .fontSize(13)
-              .fontColor('#E3EEFF')
+        Column({ space: 14 }) {
+          Row() {
+            Column({ space: 8 }) {
+              Text('当前体重')
+                .fontSize(13)
+                .fontColor('#E3EEFF')
 
-            Text(this.getCurrentWeightText())
-              .fontSize(26)
-              .fontWeight(FontWeight.Bolder)
-              .fontColor('#FFFFFF')
+              Text(this.getCurrentWeightText())
+                .fontSize(28)
+                .fontWeight(FontWeight.Bolder)
+                .fontColor('#FFFFFF')
 
-            Text(this.getCurrentDateText())
-              .fontSize(12)
+              Text(this.getCurrentDateText())
+                .fontSize(12)
+                .fontColor('#C8DBFF')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+            .alignItems(HorizontalAlign.Start)
+
+            Text(this.remoteSyncing ? '同步中' : '近 7 次概览')
+              .fontSize(11)
+              .fontWeight(FontWeight.Medium)
               .fontColor('#C8DBFF')
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+              .backgroundColor('#2C7CFF')
+              .borderRadius(999)
           }
-          .alignItems(HorizontalAlign.Start)
-          .padding(16)
           .width('100%')
-          .backgroundColor('#0F6BFF')
-          .borderRadius(24)
+          .justifyContent(FlexAlign.SpaceBetween)
+          .alignItems(VerticalAlign.Top)
 
-          Column({ space: 8 }) {
-            Text('近 7 次变化')
-              .fontSize(13)
-              .fontColor('#5373A6')
+          Row({ space: 10 }) {
+            Column({ space: 4 }) {
+              Text('近 7 次变化')
+                .fontSize(11)
+                .fontColor('#C8DBFF')
 
-            Text(this.getWeeklyChangeText())
-              .fontSize(26)
-              .fontWeight(FontWeight.Bolder)
-              .fontColor(this.getWeeklyChange() <= 0 ? '#10B981' : '#FF5A7A')
+              Text(this.getWeeklyChangeText())
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.getWeeklyChange() <= 0 ? '#B9F7D7' : '#FFD1DC')
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
 
-            Text(`平均体重 ${this.getAverageText()}`)
-              .fontSize(12)
-              .fontColor(SECONDARY_TEXT_COLOR)
+            Column({ space: 4 }) {
+              Text('平均体重')
+                .fontSize(11)
+                .fontColor('#C8DBFF')
+
+              Text(this.getAverageText())
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#FFFFFF')
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
           }
-          .alignItems(HorizontalAlign.Start)
-          .padding(16)
           .width('100%')
-          .backgroundColor('#EEF4FF')
-          .borderRadius(24)
+
+          Text('当前体重和变化已经合并展示，趋势图和月历会继续使用同一份记录。')
+            .fontSize(12)
+            .lineHeight(18)
+            .fontColor('#DCE8FF')
         }
         .width('100%')
+        .padding(18)
+        .backgroundColor('#0F6BFF')
+        .borderRadius(24)
 
         this.buildCalendarOverviewCard()
 
@@ -871,7 +983,7 @@ export struct RecordTabPage {
             .backgroundColor('#0F6BFF')
             .borderRadius(18)
             .onClick(() => {
-              this.addOrUpdateRecord();
+              this.submitWeightRecord();
             })
 
           Text(this.noticeText)

@@ -7,13 +7,20 @@ import {
 
 export default function monthCalendarHelperTest() {
   describe('monthCalendarHelperTest', () => {
-    it('buildMonthCalendarRows keeps six rows and monday-first layout', 0, () => {
+    it('buildMonthCalendarRows trims redundant sixth row when month fits five weeks', 0, () => {
       let rows = buildMonthCalendarRows(2026, 3, '2026-04-19');
 
-      expect(rows.length).assertEqual(6);
+      expect(rows.length).assertEqual(5);
       expect(rows[0].length).assertEqual(7);
       expect(rows[0][0].dateText).assertEqual('2026-03-30');
-      expect(rows[5][6].dateText).assertEqual('2026-05-10');
+      expect(rows[4][6].dateText).assertEqual('2026-05-03');
+    });
+
+    it('buildMonthCalendarRows keeps sixth row when current month spans six weeks', 0, () => {
+      let rows = buildMonthCalendarRows(2026, 4, '2026-05-19');
+
+      expect(rows.length).assertEqual(6);
+      expect(rows[5][6].dateText).assertEqual('2026-06-07');
     });
 
     it('buildMonthCalendarRows marks current month and today correctly', 0, () => {

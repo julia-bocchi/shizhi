@@ -49,11 +49,19 @@ import {
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import {
+  WorkoutConfigSnapshot,
   FEEDBACK_STYLE_ALARM,
   FEEDBACK_STYLE_STANDARD,
   TrainingFeedbackResult,
   playTrainingFeedback
 } from '../../utils/TrainingFeedbackHelper';
+import { AuthSession, DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import {
+  createWorkoutRecordRemote,
+  deleteWorkoutTemplateRemote,
+  saveWorkoutTemplateRemote
+} from '../../utils/ApiService';
 
 const SET_TIMER_MODE_AUTO: string = 'auto';
 const SET_TIMER_MODE_MANUAL: string = 'manual';
@@ -79,6 +87,8 @@ struct ExerciseDetailPage {
   @StorageLink('currentExerciseProfileText') currentExerciseProfileText: string = '';
   @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
   @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
 
   @State sessionProfile: UserProfile = createEmptyUserProfile();
   @State savedCustomWorkouts: SavedCustomWorkout[] = [];
@@ -115,6 +125,9 @@ struct ExerciseDetailPage {
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
     this.loadState();
   }
 
@@ -620,6 +633,11 @@ struct ExerciseDetailPage {
     let nextSavedWorkouts: SavedCustomWorkout[] = [];
     let targetId: string = this.selectedSavedWorkoutId;
     let hasUpdated: boolean = false;
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (isAuthSessionValid(authSession)) {
+      this.saveCurrentCustomWorkoutRemote(savedWorkout, authSession);
+      return;
+    }
     for (let index = 0; index < currentSavedWorkouts.length; index++) {
       let currentWorkout: SavedCustomWorkout = currentSavedWorkouts[index];
       if (currentWorkout.id === this.selectedSavedWorkoutId || currentWorkout.name === savedWorkout.name) {
@@ -655,10 +673,56 @@ struct ExerciseDetailPage {
     this.sessionNotice = hasUpdated ? `已更新模板：${savedWorkout.name}。` : `已保存模板：${savedWorkout.name}。`;
   }
 
+  private async saveCurrentCustomWorkoutRemote(savedWorkout: SavedCustomWorkout, authSession: AuthSession): Promise<void> {
+    try {
+      let remoteTemplate = await saveWorkoutTemplateRemote(this.apiBaseUrlText, authSession,
+        this.selectedSavedWorkoutId, {
+          name: savedWorkout.name,
+          mode: savedWorkout.mode,
+          intensity: savedWorkout.intensity,
+          durationMinutes: savedWorkout.durationMinutes,
+          distanceKm: savedWorkout.distanceKm,
+          paceMinutes: savedWorkout.paceMinutes,
+          speedKmH: savedWorkout.speedKmH,
+          count: savedWorkout.count,
+          cadencePerMinute: savedWorkout.cadencePerMinute,
+          sets: savedWorkout.sets,
+          workSeconds: savedWorkout.workSeconds,
+          restSeconds: savedWorkout.restSeconds
+        });
+      let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
+      let nextSavedWorkouts: SavedCustomWorkout[] = [];
+      let hasUpdated = false;
+      for (let index = 0; index < currentSavedWorkouts.length; index++) {
+        if (currentSavedWorkouts[index].id === remoteTemplate.id || currentSavedWorkouts[index].name === remoteTemplate.name) {
+          nextSavedWorkouts.push(remoteTemplate);
+          hasUpdated = true;
+        } else {
+          nextSavedWorkouts.push(currentSavedWorkouts[index]);
+        }
+      }
+      if (!hasUpdated) {
+        nextSavedWorkouts.unshift(remoteTemplate);
+      }
+      this.selectedSavedWorkoutId = remoteTemplate.id;
+      this.currentEditingSavedWorkoutIdText = remoteTemplate.id;
+      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
+      this.syncSavedCustomWorkoutsFromStorage();
+      this.sessionNotice = hasUpdated ? `已更新模板：${remoteTemplate.name}。` : `已保存模板：${remoteTemplate.name}。`;
+    } catch (error) {
+      this.sessionNotice = `${error}`;
+    }
+  }
+
   private deleteCurrentCustomWorkout(): void {
     let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
     let nextSavedWorkouts: SavedCustomWorkout[] = [];
     let removedWorkoutName: string = '';
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (isAuthSessionValid(authSession) && this.selectedSavedWorkoutId.trim().length > 0) {
+      this.deleteCurrentCustomWorkoutRemote(authSession);
+      return;
+    }
     for (let index = 0; index < currentSavedWorkouts.length; index++) {
       let currentWorkout: SavedCustomWorkout = currentSavedWorkouts[index];
       if (currentWorkout.id === this.selectedSavedWorkoutId || currentWorkout.name === this.customName.trim()) {
@@ -676,6 +740,29 @@ struct ExerciseDetailPage {
     this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
     this.syncSavedCustomWorkoutsFromStorage();
     this.sessionNotice = `已删除模板：${removedWorkoutName}。`;
+  }
+
+  private async deleteCurrentCustomWorkoutRemote(authSession: AuthSession): Promise<void> {
+    let removedWorkoutName: string = this.customName.trim();
+    try {
+      await deleteWorkoutTemplateRemote(this.apiBaseUrlText, authSession, this.selectedSavedWorkoutId);
+      let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
+      let nextSavedWorkouts: SavedCustomWorkout[] = [];
+      for (let index = 0; index < currentSavedWorkouts.length; index++) {
+        if (currentSavedWorkouts[index].id === this.selectedSavedWorkoutId) {
+          removedWorkoutName = currentSavedWorkouts[index].name;
+        } else {
+          nextSavedWorkouts.push(currentSavedWorkouts[index]);
+        }
+      }
+      this.selectedSavedWorkoutId = '';
+      this.currentEditingSavedWorkoutIdText = '';
+      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
+      this.syncSavedCustomWorkoutsFromStorage();
+      this.sessionNotice = `已删除模板：${removedWorkoutName}。`;
+    } catch (error) {
+      this.sessionNotice = `${error}`;
+    }
   }
 
   private getSessionActionText(): string {
@@ -893,7 +980,7 @@ struct ExerciseDetailPage {
     return `${Math.round(progressValue * 100)}%`;
   }
 
-  private finishAndSaveSession(): void {
+  private async finishAndSaveSession(): Promise<void> {
     if (this.sessionElapsedSeconds <= 0) {
       this.sessionNotice = '还没有训练记录。';
       return;
@@ -901,9 +988,9 @@ struct ExerciseDetailPage {
     this.clearSessionTimer();
     this.sessionRunning = false;
     let sessionCalories: number = Math.round(this.getLiveCalories() * 10) / 10;
-    let currentRecords: WorkoutRecord[] = deserializeWorkoutRecords(this.workoutRecordText);
     let currentMetrics: WorkoutMetrics = this.getMetrics();
-    currentRecords.unshift({
+    let currentRecords: WorkoutRecord[] = deserializeWorkoutRecords(this.workoutRecordText);
+    let nextRecord: WorkoutRecord = {
       id: `${Date.now()}`,
       date: formatDate(new Date()),
       name: currentMetrics.exerciseName,
@@ -913,7 +1000,41 @@ struct ExerciseDetailPage {
       planId: this.currentExercisePlanIdText,
       distanceKm: currentMetrics.distanceKm,
       count: currentMetrics.count
-    });
+    };
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (isAuthSessionValid(authSession)) {
+      try {
+        nextRecord = await createWorkoutRecordRemote(this.apiBaseUrlText, authSession, {
+          date: nextRecord.date,
+          exerciseId: nextRecord.exerciseId,
+          name: nextRecord.name,
+          calories: nextRecord.calories,
+          durationSeconds: nextRecord.durationSeconds,
+          planId: nextRecord.planId,
+          distanceKm: nextRecord.distanceKm,
+          count: nextRecord.count,
+          configSnapshot: {
+            exerciseId: this.getDraft().exerciseId,
+            customName: this.getDraft().customName,
+            customMode: this.getDraft().customMode,
+            customIntensity: this.getDraft().customIntensity,
+            durationMinutes: this.getDraft().durationMinutes,
+            distanceKm: this.getDraft().distanceKm,
+            paceMinutes: this.getDraft().paceMinutes,
+            speedKmH: this.getDraft().speedKmH,
+            count: this.getDraft().count,
+            cadencePerMinute: this.getDraft().cadencePerMinute,
+            sets: this.getDraft().sets,
+            workSeconds: this.getDraft().workSeconds,
+            restSeconds: this.getDraft().restSeconds
+          }
+        });
+      } catch (error) {
+        this.sessionNotice = `${error}`;
+        return;
+      }
+    }
+    currentRecords.unshift(nextRecord);
     this.workoutRecordText = serializeWorkoutRecords(currentRecords);
     this.syncDraft();
     this.currentExercisePlanIdText = '';

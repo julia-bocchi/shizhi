@@ -6,9 +6,12 @@ import {
 } from '../../constants/AppTheme';
 import { FoodPlanItem } from '../../models/FoodPlan';
 import { FoodMealOption, FOOD_MEAL_OPTIONS } from '../../models/FoodOption';
-import { deserializeFoodPlans } from '../../utils/FoodHelper';
+import { deserializeFoodPlans, serializeFoodPlans } from '../../utils/FoodHelper';
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { fetchFoodPlans } from '../../utils/ApiService';
 
 @Entry
 @Component
@@ -16,21 +19,48 @@ struct FoodPlanPage {
   @StorageLink('foodPlanText') foodPlanText: string = '';
   @StorageLink('currentFoodPlanDateText') currentFoodPlanDateText: string = '';
   @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
 
   @State selectedDate: string = formatDate(new Date());
   @State pageNotice: string = '先选择要安排的餐次，再进入卡片页挑选食物。';
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
     if (this.currentFoodPlanDateText.trim().length > 0) {
       this.selectedDate = this.currentFoodPlanDateText;
     } else {
       this.currentFoodPlanDateText = this.selectedDate;
     }
+    this.syncRemotePlans();
   }
 
   private getAllFoodPlans(): FoodPlanItem[] {
     return deserializeFoodPlans(this.foodPlanText);
+  }
+
+  private async syncRemotePlans(): Promise<void> {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    let fields = this.selectedDate.split('-');
+    if (fields.length < 2) {
+      return;
+    }
+    try {
+      let year = Number(fields[0]);
+      let month = Number(fields[1]) - 1;
+      let rangeStart = formatDate(new Date(year, month, 1));
+      let rangeEnd = formatDate(new Date(year, month + 1, 0));
+      let remotePlans = await fetchFoodPlans(this.apiBaseUrlText, authSession, rangeStart, rangeEnd);
+      this.foodPlanText = serializeFoodPlans(remotePlans);
+    } catch (error) {
+      this.pageNotice = `${error}`;
+    }
   }
 
   private goBack(): void {
