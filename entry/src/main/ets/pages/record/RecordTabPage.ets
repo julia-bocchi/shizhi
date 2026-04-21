@@ -33,6 +33,7 @@ import {
   createEmptyRemoteWeightSummary,
   fetchWeightRecords,
   fetchWeightSummary,
+  RemoteWeightSummary,
   upsertWeightRecordRemote
 } from '../../utils/ApiService';
 
@@ -58,7 +59,7 @@ export struct RecordTabPage {
   @State calendarYear: number = new Date().getFullYear();
   @State calendarMonth: number = new Date().getMonth();
   @State remoteSyncing: boolean = false;
-  @State remoteSummary = createEmptyRemoteWeightSummary();
+  @State remoteSummary: RemoteWeightSummary = createEmptyRemoteWeightSummary();
 
   aboutToAppear(): void {
     if (this.apiBaseUrlText.trim().length === 0) {
@@ -850,37 +851,38 @@ export struct RecordTabPage {
 
           Row({ space: 10 }) {
             Column({ space: 4 }) {
-              Text('近 7 次变化')
+              Text('近 7 次')
                 .fontSize(11)
                 .fontColor('#C8DBFF')
 
               Text(this.getWeeklyChangeText())
-                .fontSize(18)
+                .fontSize(17)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(this.getWeeklyChange() <= 0 ? '#B9F7D7' : '#FFD1DC')
             }
             .layoutWeight(1)
             .alignItems(HorizontalAlign.Start)
+            .padding(12)
+            .backgroundColor('#2C7CFF')
+            .borderRadius(18)
 
             Column({ space: 4 }) {
-              Text('平均体重')
+              Text('近 7 次均值')
                 .fontSize(11)
                 .fontColor('#C8DBFF')
 
               Text(this.getAverageText())
-                .fontSize(18)
+                .fontSize(17)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#FFFFFF')
             }
             .layoutWeight(1)
             .alignItems(HorizontalAlign.Start)
+            .padding(12)
+            .backgroundColor('#2C7CFF')
+            .borderRadius(18)
           }
           .width('100%')
-
-          Text('当前体重和变化已经合并展示，趋势图和月历会继续使用同一份记录。')
-            .fontSize(12)
-            .lineHeight(18)
-            .fontColor('#DCE8FF')
         }
         .width('100%')
         .padding(18)

@@ -380,6 +380,24 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 0, 'ok', plan);
       return;
     }
+    if (pathname.startsWith('/api/v1/food-plans/') && req.method === 'PUT') {
+      const planId = decodeURIComponent(pathname.split('/').pop());
+      const body = await parseBody(req);
+      const target = user.foodPlans.find(item => item.id === planId);
+      if (!target) {
+        sendJson(res, 404, '饮食计划不存在', {}, 404);
+        return;
+      }
+      if (body.mealType !== undefined) {
+        target.mealType = `${body.mealType || target.mealType}`;
+      }
+      if (body.notes !== undefined) {
+        target.notes = `${body.notes || ''}`;
+      }
+      saveStore(store);
+      sendJson(res, 0, 'ok', target);
+      return;
+    }
     if (pathname.startsWith('/api/v1/food-plans/') && req.method === 'DELETE') {
       const planId = decodeURIComponent(pathname.split('/').pop());
       user.foodPlans = user.foodPlans.filter(item => item.id !== planId);

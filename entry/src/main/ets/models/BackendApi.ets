@@ -146,6 +146,11 @@ export interface CreateFoodPlanPayload {
   notes: string;
 }
 
+export interface UpdateFoodPlanPayload {
+  mealType: string;
+  notes: string;
+}
+
 export interface CreateWorkoutPlanPayload {
   date: string;
   title: string;

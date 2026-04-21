@@ -70,17 +70,19 @@ export function buildMonthCalendarRows(
     }
   }
 
-  if (rows.length === 6) {
+  while (rows.length > 4) {
+    let lastRow = rows[rows.length - 1];
     let lastRowHasCurrentMonthDate = false;
-    for (let index = 0; index < rows[5].length; index++) {
-      if (rows[5][index].isCurrentMonth) {
+    for (let index = 0; index < lastRow.length; index++) {
+      if (lastRow[index].isCurrentMonth) {
         lastRowHasCurrentMonthDate = true;
         break;
       }
     }
-    if (!lastRowHasCurrentMonthDate) {
-      rows.pop();
+    if (lastRowHasCurrentMonthDate) {
+      break;
     }
+    rows.pop();
   }
 
   return rows;

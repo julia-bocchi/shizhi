@@ -11,6 +11,7 @@ import {
   BackendFoodOption,
   BackendFoodPlan,
   BackendWeightRecord,
+  BackendWorkoutType,
   BackendWorkoutPlan,
   BackendWorkoutRecord,
   BackendWorkoutTemplate,
@@ -21,6 +22,7 @@ import {
   CreateWorkoutTemplatePayload,
   LoginRequestPayload,
   LoginResponseData,
+  UpdateFoodPlanPayload,
   UpdateWeightPayload,
   WeightSummaryResponseData,
   WorkoutDailySummaryResponseData,
@@ -47,7 +49,7 @@ interface WorkoutPlansResponseData {
 }
 
 interface WorkoutTypesResponseData {
-  items: Object[];
+  items: BackendWorkoutType[];
 }
 
 interface WorkoutRecordsResponseData {
@@ -201,6 +203,16 @@ function mapBackendWorkoutTemplate(template: BackendWorkoutTemplate): SavedCusto
     workSeconds: sanitizeString(template.workSeconds, '0'),
     restSeconds: sanitizeString(template.restSeconds, '0')
   };
+}
+
+export async function fetchWorkoutTypes(baseUrl: string, authSession: AuthSession): Promise<BackendWorkoutType[]> {
+  let data = await requestApiData<WorkoutTypesResponseData>({
+    baseUrl: baseUrl,
+    path: '/workout-types',
+    method: http.RequestMethod.GET,
+    authSession: authSession
+  });
+  return data.items;
 }
 
 function buildMetaFromDraftText(planId: string, draftText: string): WorkoutPlanLocalMeta {
@@ -401,6 +413,27 @@ export async function createCustomFoodOptionRemote(baseUrl: string, authSession:
   return mapBackendFoodOption(data);
 }
 
+export async function updateCustomFoodOptionRemote(baseUrl: string, authSession: AuthSession,
+  foodId: string, payload: CreateFoodOptionPayload): Promise<FoodOption> {
+  let data = await requestApiData<BackendFoodOption>({
+    baseUrl: baseUrl,
+    path: `/food-options/custom/${encodeURIComponent(foodId)}`,
+    method: http.RequestMethod.PUT,
+    authSession: authSession,
+    body: payload
+  });
+  return mapBackendFoodOption(data);
+}
+
+export async function deleteCustomFoodOptionRemote(baseUrl: string, authSession: AuthSession, foodId: string): Promise<void> {
+  await requestApiData<Object>({
+    baseUrl: baseUrl,
+    path: `/food-options/custom/${encodeURIComponent(foodId)}`,
+    method: http.RequestMethod.DELETE,
+    authSession: authSession
+  });
+}
+
 export async function fetchFoodPlans(baseUrl: string, authSession: AuthSession, startDate: string, endDate: string): Promise<FoodPlanItem[]> {
   let data = await requestApiData<FoodPlansResponseData>({
     baseUrl: baseUrl,
@@ -424,6 +457,18 @@ export async function createFoodPlanRemote(baseUrl: string, authSession: AuthSes
     baseUrl: baseUrl,
     path: '/food-plans',
     method: http.RequestMethod.POST,
+    authSession: authSession,
+    body: payload
+  });
+  return mapBackendFoodPlan(data);
+}
+
+export async function updateFoodPlanRemote(baseUrl: string, authSession: AuthSession,
+  planId: string, payload: UpdateFoodPlanPayload): Promise<FoodPlanItem> {
+  let data = await requestApiData<BackendFoodPlan>({
+    baseUrl: baseUrl,
+    path: `/food-plans/${encodeURIComponent(planId)}`,
+    method: http.RequestMethod.PUT,
     authSession: authSession,
     body: payload
   });

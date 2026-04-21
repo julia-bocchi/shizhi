@@ -7,6 +7,14 @@ import {
 
 export default function monthCalendarHelperTest() {
   describe('monthCalendarHelperTest', () => {
+    it('buildMonthCalendarRows trims redundant fifth row when month fits four weeks', 0, () => {
+      let rows = buildMonthCalendarRows(2021, 1, '2021-02-14');
+
+      expect(rows.length).assertEqual(4);
+      expect(rows[0][0].dateText).assertEqual('2021-02-01');
+      expect(rows[3][6].dateText).assertEqual('2021-02-28');
+    });
+
     it('buildMonthCalendarRows trims redundant sixth row when month fits five weeks', 0, () => {
       let rows = buildMonthCalendarRows(2026, 3, '2026-04-19');
 

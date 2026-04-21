@@ -49,7 +49,6 @@ import {
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import {
-  WorkoutConfigSnapshot,
   FEEDBACK_STYLE_ALARM,
   FEEDBACK_STYLE_STANDARD,
   TrainingFeedbackResult,
