@@ -45,7 +45,7 @@ function createWorkoutRecord(id: string, date: string, calories: number): Workou
   };
 }
 
-function createWeightRecord(id: number, date: string, weight: number): WeightRecord {
+function createWeightRecord(id: string, date: string, weight: number): WeightRecord {
   return {
     id: id,
     date: date,
@@ -121,7 +121,7 @@ export default function homeDashboardHelperTest() {
 
     it('getHomeWeightTrend keeps one record stable', 0, () => {
       let weightRecordText = serializeWeightRecords([
-        createWeightRecord(1, TODAY_TEXT, 68.5)
+        createWeightRecord('1', TODAY_TEXT, 68.5)
       ]);
       let trend = getHomeWeightTrend(weightRecordText, TODAY_TEXT);
       let latestWeight = trend.latestRecord ? trend.latestRecord.weight : 0;
@@ -134,14 +134,14 @@ export default function homeDashboardHelperTest() {
 
     it('getHomeWeightTrend trims to recent seven records', 0, () => {
       let weightRecordText = serializeWeightRecords([
-        createWeightRecord(1, '2026-04-12', 70.0),
-        createWeightRecord(2, '2026-04-13', 69.9),
-        createWeightRecord(3, '2026-04-14', 69.7),
-        createWeightRecord(4, '2026-04-15', 69.6),
-        createWeightRecord(5, '2026-04-16', 69.4),
-        createWeightRecord(6, '2026-04-17', 69.2),
-        createWeightRecord(7, '2026-04-18', 69.1),
-        createWeightRecord(8, TODAY_TEXT, 68.9)
+        createWeightRecord('1', '2026-04-12', 70.0),
+        createWeightRecord('2', '2026-04-13', 69.9),
+        createWeightRecord('3', '2026-04-14', 69.7),
+        createWeightRecord('4', '2026-04-15', 69.6),
+        createWeightRecord('5', '2026-04-16', 69.4),
+        createWeightRecord('6', '2026-04-17', 69.2),
+        createWeightRecord('7', '2026-04-18', 69.1),
+        createWeightRecord('8', TODAY_TEXT, 68.9)
       ]);
       let trend = getHomeWeightTrend(weightRecordText, TODAY_TEXT);
       let latestWeight = trend.latestRecord ? trend.latestRecord.weight : 0;
@@ -170,7 +170,7 @@ export default function homeDashboardHelperTest() {
         createWorkoutRecord('1', TODAY_TEXT, 260)
       ]);
       let weightRecordText = serializeWeightRecords([
-        createWeightRecord(1, TODAY_TEXT, 58.2)
+        createWeightRecord('1', TODAY_TEXT, 58.2)
       ]);
       let reminderItems = getHomeReminderItems(
         userProfileText,

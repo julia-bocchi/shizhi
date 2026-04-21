@@ -21,6 +21,8 @@ import {
   getWorkoutModeLabel,
   getWorkoutTitle,
   serializeExerciseDraft,
+  serializeSavedCustomWorkouts,
+  serializeWorkoutRecords,
   serializeUserProfile
 } from '../../utils/ExerciseHelper';
 import { formatDate } from '../../utils/WeightRecordHelper';
@@ -44,6 +46,20 @@ import {
   formatMonthTitle,
   shiftCalendarMonth
 } from '../../utils/MonthCalendarHelper';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { WorkoutPlanLocalMeta } from '../../models/BackendApi';
+import { deserializeAuthSession, deserializeWorkoutPlanLocalMeta, serializeWorkoutPlanLocalMeta } from '../../utils/AuthStorageHelper';
+import {
+  createEmptyWorkoutDailySummary,
+  createWorkoutPlanRemote,
+  deleteWorkoutPlanRemote,
+  fetchWorkoutDailySummary,
+  fetchWorkoutPlans,
+  fetchWorkoutRecords,
+  fetchWorkoutTemplates,
+  removeWorkoutPlanMeta
+} from '../../utils/ApiService';
+import { buildWorkoutPlanMetaList } from '../../utils/WorkoutPlanMetaHelper';
 
 interface DailyWorkoutSummary {
   calories: number;
@@ -62,11 +78,14 @@ export struct ExerciseTabPage {
   @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
   @StorageLink('workoutRecordText') workoutRecordText: string = '';
   @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
   @StorageLink('currentExerciseDraftText') currentExerciseDraftText: string = '';
   @StorageLink('currentExerciseProfileText') currentExerciseProfileText: string = '';
   @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
   @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
 
   @State savedCustomWorkouts: SavedCustomWorkout[] = [];
   @State workoutPlans: WorkoutPlanItem[] = [];
@@ -81,12 +100,18 @@ export struct ExerciseTabPage {
   @State planGoalValueInput: string = '';
   @State selectedPlanExerciseId: string = '';
   @State selectedPlanSavedWorkoutId: string = '';
+  @State remoteSyncing: boolean = false;
+  @State remoteDailySummary = createEmptyWorkoutDailySummary();
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
     this.exercisePlanPickerVisible = false;
     this.syncSavedCustomWorkoutsFromStorage();
     this.syncWorkoutPlansFromStorage();
+    this.syncRemoteExerciseData();
   }
 
   aboutToDisappear(): void {
@@ -102,6 +127,10 @@ export struct ExerciseTabPage {
     this.workoutPlanRenderVersion += 1;
   }
 
+  private getWorkoutPlanMetaItems(): WorkoutPlanLocalMeta[] {
+    return deserializeWorkoutPlanLocalMeta(this.workoutPlanMetaText);
+  }
+
   private getAllWorkoutPlans(): WorkoutPlanItem[] {
     return this.workoutPlans;
   }
@@ -109,17 +138,62 @@ export struct ExerciseTabPage {
   private saveWorkoutPlans(nextPlans: WorkoutPlanItem[]): void {
     this.workoutPlans = nextPlans.slice();
     this.workoutPlanText = serializeWorkoutPlans(nextPlans);
+    this.workoutPlanMetaText = serializeWorkoutPlanLocalMeta(buildWorkoutPlanMetaList(nextPlans));
     this.workoutPlanRenderVersion += 1;
   }
 
+  private getWorkoutSyncRange(): string[] {
+    let today = new Date();
+    let monthStart = new Date(this.calendarYear, this.calendarMonth, 1);
+    let monthEnd = new Date(this.calendarYear, this.calendarMonth + 1, 0);
+    let rollingStart = new Date(today.getTime());
+    rollingStart.setDate(rollingStart.getDate() - 120);
+    let startDate = rollingStart.getTime() < monthStart.getTime() ? rollingStart : monthStart;
+    let endDate = today.getTime() > monthEnd.getTime() ? today : monthEnd;
+    return [formatDate(startDate), formatDate(endDate)];
+  }
+
+  private async syncRemoteExerciseData(): Promise<void> {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    this.remoteSyncing = true;
+    try {
+      let dateRange = this.getWorkoutSyncRange();
+      let remoteTemplates = await fetchWorkoutTemplates(this.apiBaseUrlText, authSession);
+      this.savedCustomWorkouts = remoteTemplates;
+      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(remoteTemplates);
+
+      let planResult = await fetchWorkoutPlans(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1], this.getWorkoutPlanMetaItems());
+      this.workoutPlans = planResult.plans;
+      this.workoutPlanText = serializeWorkoutPlans(planResult.plans);
+      this.workoutPlanMetaText = serializeWorkoutPlanLocalMeta(planResult.metaItems);
+
+      let remoteRecords = await fetchWorkoutRecords(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1]);
+      this.workoutRecordText = serializeWorkoutRecords(remoteRecords);
+      this.remoteDailySummary = await fetchWorkoutDailySummary(this.apiBaseUrlText, authSession, formatDate(new Date()));
+      this.workoutPlanRenderVersion += 1;
+    } catch (error) {
+    } finally {
+      this.remoteSyncing = false;
+    }
+  }
+
   private getTodaySummary(): DailyWorkoutSummary {
+    let todayText: string = formatDate(new Date());
+    if (this.remoteDailySummary.date === todayText) {
+      return {
+        calories: this.remoteDailySummary.totalCalories,
+        count: this.remoteDailySummary.workoutCount
+      };
+    }
     let records: WorkoutRecord[] = deserializeWorkoutRecords(this.workoutRecordText);
-    let today: string = formatDate(new Date());
     let totalCalories: number = 0;
     let todayCount: number = 0;
 
     for (let index = 0; index < records.length; index++) {
-      if (records[index].date === today) {
+      if (records[index].date === todayText) {
         totalCalories += records[index].calories;
         todayCount += 1;
       }
@@ -186,9 +260,9 @@ export struct ExerciseTabPage {
     this.openDraftFromWorkout(draft, savedWorkout.id);
   }
 
-  private addPlanFromDraft(draft: ExerciseDraft, savedWorkoutId: string, goalValue: number): void {
+  private async addPlanFromDraft(draft: ExerciseDraft, savedWorkoutId: string, goalValue: number): Promise<void> {
     let nextPlans: WorkoutPlanItem[] = this.getAllWorkoutPlans().slice();
-    nextPlans.unshift(createWorkoutPlanItem(
+    let nextPlan = createWorkoutPlanItem(
       this.selectedPlanDate,
       draft,
       this.userProfile,
@@ -196,7 +270,22 @@ export struct ExerciseTabPage {
       this.planNotesInput,
       savedWorkoutId,
       goalValue
-    ));
+    );
+    let authSession = deserializeAuthSession(this.authSessionText);
+    try {
+      if (isAuthSessionValid(authSession)) {
+        nextPlan = await createWorkoutPlanRemote(this.apiBaseUrlText, authSession, {
+          date: this.selectedPlanDate,
+          title: nextPlan.title,
+          notes: this.planNotesInput,
+          savedWorkoutId: savedWorkoutId,
+          draftText: nextPlan.draftText
+        }, nextPlan.goalType, nextPlan.goalValue);
+      }
+    } catch (error) {
+      return;
+    }
+    nextPlans.unshift(nextPlan);
 
     this.saveWorkoutPlans(nextPlans);
     this.planPickerVisible = false;
@@ -250,15 +339,24 @@ export struct ExerciseTabPage {
     this.exercisePlanPickerVisible = true;
   }
 
-  private removeWorkoutPlan(planId: string): void {
+  private async removeWorkoutPlan(planId: string): Promise<void> {
     let currentPlans: WorkoutPlanItem[] = this.getAllWorkoutPlans();
     let nextPlans: WorkoutPlanItem[] = [];
+    let authSession = deserializeAuthSession(this.authSessionText);
+    try {
+      if (isAuthSessionValid(authSession)) {
+        await deleteWorkoutPlanRemote(this.apiBaseUrlText, authSession, planId);
+      }
+    } catch (error) {
+      return;
+    }
     for (let index = 0; index < currentPlans.length; index++) {
       if (currentPlans[index].id !== planId) {
         nextPlans.push(currentPlans[index]);
       }
     }
     this.saveWorkoutPlans(nextPlans);
+    this.workoutPlanMetaText = serializeWorkoutPlanLocalMeta(removeWorkoutPlanMeta(this.getWorkoutPlanMetaItems(), planId));
   }
 
   private openWorkoutPlan(plan: WorkoutPlanItem): void {
@@ -379,7 +477,7 @@ export struct ExerciseTabPage {
     return this.selectedPlanSavedWorkoutId === savedWorkout.id;
   }
 
-  private confirmPlanCreation(): void {
+  private async confirmPlanCreation(): Promise<void> {
     if (!this.hasSelectedPlanChoice()) {
       return;
     }
@@ -388,7 +486,7 @@ export struct ExerciseTabPage {
       this.planGoalValueInput = this.getSelectedPlanGoalPlaceholder();
       return;
     }
-    this.addPlanFromDraft(
+    await this.addPlanFromDraft(
       this.getSelectedPlanDraft(),
       this.selectedPlanSavedWorkoutId,
       goalValue
@@ -596,6 +694,7 @@ export struct ExerciseTabPage {
     this.calendarYear = nextCursor.year;
     this.calendarMonth = nextCursor.month;
     this.selectedPlanDate = this.createMonthDateText(1);
+    this.syncRemoteExerciseData();
   }
 
   private getMonthPrefix(): string {
@@ -1369,6 +1468,10 @@ export struct ExerciseTabPage {
             Text(this.getTodayWorkoutCountText())
               .fontSize(13)
               .fontColor('#C8DBFF')
+
+            Text(this.remoteSyncing ? '联调数据同步中...' : '计划、模板和记录会优先从后端同步。')
+              .fontSize(11)
+              .fontColor('#DCE8FF')
           }
           .alignItems(HorizontalAlign.Start)
           .width('100%')

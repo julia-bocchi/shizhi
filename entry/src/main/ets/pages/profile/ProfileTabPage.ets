@@ -20,12 +20,34 @@ import {
   getProfileTagline,
   serializeUserProfile
 } from '../../utils/ExerciseHelper';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { fetchUserProfile, loginWithPassword, logoutSession, updateUserProfileRemote } from '../../utils/ApiService';
 
 @Component
 export struct ProfileTabPage {
   @Link userProfile: UserProfile;
   @Link userProfileText: string;
   @State profileNotice: string = '资料实时生效，会自动同步到运动页。';
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
+  @State loginUsername: string = '';
+  @State loginPassword: string = '';
+  @State authBusy: boolean = false;
+  @State profileSaving: boolean = false;
+
+  aboutToAppear(): void {
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (this.loginUsername.trim().length === 0 && authSession.username.trim().length > 0) {
+      this.loginUsername = authSession.username;
+    }
+    if (isAuthSessionValid(authSession)) {
+      this.pullProfileFromServer();
+    }
+  }
 
   private commitProfile(nextProfile: UserProfile, noticeText?: string): void {
     this.userProfile = nextProfile;
@@ -69,6 +91,84 @@ export struct ProfileTabPage {
 
   private clearProfile(): void {
     this.commitProfile(createEmptyUserProfile(), '已清空资料，请重新输入你的个人信息。');
+  }
+
+  private getAuthSessionStatusText(): string {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return '未登录';
+    }
+    return `已登录：${authSession.username.trim().length > 0 ? authSession.username.trim() : authSession.userId}`;
+  }
+
+  private getAuthStatusColor(): string {
+    return isAuthSessionValid(deserializeAuthSession(this.authSessionText)) ? '#10B981' : '#FF7A59';
+  }
+
+  private async pullProfileFromServer(): Promise<void> {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    try {
+      let remoteProfile = await fetchUserProfile(this.apiBaseUrlText, authSession);
+      this.commitProfile(remoteProfile, '已从后端拉取最新资料。');
+    } catch (error) {
+      this.profileNotice = `${error}`;
+    }
+  }
+
+  private async handleLogin(): Promise<void> {
+    if (this.authBusy) {
+      return;
+    }
+    if (this.loginUsername.trim().length === 0) {
+      this.profileNotice = '请先填写登录账号。';
+      return;
+    }
+    if (this.loginPassword.length === 0) {
+      this.profileNotice = '请先填写登录密码。';
+      return;
+    }
+    this.authBusy = true;
+    try {
+      let result = await loginWithPassword(this.apiBaseUrlText, this.loginUsername, this.loginPassword);
+      this.authSessionText = result.authSessionText;
+      this.loginPassword = '';
+      let remoteProfile = await fetchUserProfile(this.apiBaseUrlText, result.authSession);
+      this.commitProfile(remoteProfile, '登录成功，已同步后端资料。');
+    } catch (error) {
+      this.profileNotice = `${error}`;
+    } finally {
+      this.authBusy = false;
+    }
+  }
+
+  private handleLogout(): void {
+    let result = logoutSession();
+    this.authSessionText = result.authSessionText;
+    this.loginPassword = '';
+    this.profileNotice = '已退出登录，本地资料仍会保留。';
+  }
+
+  private async saveProfileToServer(): Promise<void> {
+    if (this.profileSaving) {
+      return;
+    }
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      this.profileNotice = '请先登录，再把资料保存到后端。';
+      return;
+    }
+    this.profileSaving = true;
+    try {
+      let remoteProfile = await updateUserProfileRemote(this.apiBaseUrlText, authSession, this.userProfile);
+      this.commitProfile(remoteProfile, '资料已保存到后端。');
+    } catch (error) {
+      this.profileNotice = `${error}`;
+    } finally {
+      this.profileSaving = false;
+    }
   }
 
   private getBmiStatusColor(): string {
@@ -129,6 +229,128 @@ export struct ProfileTabPage {
         .width('100%')
         .padding(18)
         .backgroundColor('#0F6BFF')
+        .borderRadius(24)
+
+        Column({ space: 14 }) {
+          Row() {
+            Column({ space: 4 }) {
+              Text('联调登录')
+                .fontSize(18)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(PRIMARY_TEXT_COLOR)
+
+              Text('登录后会带上 token 请求后端资料与业务接口。')
+                .fontSize(12)
+                .fontColor(SECONDARY_TEXT_COLOR)
+            }
+            .alignItems(HorizontalAlign.Start)
+
+            Text(this.getAuthSessionStatusText())
+              .fontSize(12)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.getAuthStatusColor())
+              .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+              .backgroundColor(this.getAuthStatusColor() === '#10B981' ? '#ECFFF4' : '#FFF0F6')
+              .borderRadius(999)
+          }
+          .width('100%')
+          .justifyContent(FlexAlign.SpaceBetween)
+          .alignItems(VerticalAlign.Top)
+
+          Column({ space: 8 }) {
+            Text('后端地址')
+              .fontSize(12)
+              .fontColor('#5373A6')
+
+            TextInput({ placeholder: DEFAULT_API_BASE_URL, text: this.apiBaseUrlText })
+              .fontSize(15)
+              .fontColor(PRIMARY_TEXT_COLOR)
+              .height(46)
+              .width('100%')
+              .padding({ left: 12, right: 12 })
+              .backgroundColor('#F5F8FF')
+              .borderRadius(16)
+              .onChange((value: string) => {
+                this.apiBaseUrlText = value;
+              })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .width('100%')
+
+          Row({ space: 12 }) {
+            Column({ space: 8 }) {
+              Text('账号')
+                .fontSize(12)
+                .fontColor('#5373A6')
+
+              TextInput({ placeholder: 'demo', text: this.loginUsername })
+                .fontSize(15)
+                .fontColor(PRIMARY_TEXT_COLOR)
+                .height(46)
+                .width('100%')
+                .padding({ left: 12, right: 12 })
+                .backgroundColor('#F5F8FF')
+                .borderRadius(16)
+                .onChange((value: string) => {
+                  this.loginUsername = value;
+                })
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
+
+            Column({ space: 8 }) {
+              Text('密码')
+                .fontSize(12)
+                .fontColor('#5373A6')
+
+              TextInput({ placeholder: '123456', text: this.loginPassword })
+                .fontSize(15)
+                .fontColor(PRIMARY_TEXT_COLOR)
+                .height(46)
+                .width('100%')
+                .padding({ left: 12, right: 12 })
+                .backgroundColor('#F5F8FF')
+                .borderRadius(16)
+                .onChange((value: string) => {
+                  this.loginPassword = value;
+                })
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
+          }
+          .width('100%')
+
+          Row({ space: 10 }) {
+            Button(this.authBusy ? '登录中...' : '登录并同步')
+              .layoutWeight(1)
+              .height(44)
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#FFFFFF')
+              .backgroundColor('#0F6BFF')
+              .borderRadius(18)
+              .onClick(() => {
+                this.handleLogin();
+              })
+
+            Button('退出登录')
+              .layoutWeight(1)
+              .height(44)
+              .fontSize(14)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#0F6BFF')
+              .backgroundColor('#EAF2FF')
+              .borderRadius(18)
+              .onClick(() => {
+                this.handleLogout();
+              })
+          }
+          .width('100%')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+        .padding(18)
+        .backgroundColor(SURFACE_BACKGROUND_COLOR)
         .borderRadius(24)
 
         Column({ space: 14 }) {
@@ -304,6 +526,18 @@ export struct ProfileTabPage {
             .fontSize(13)
             .lineHeight(20)
             .fontColor(SECONDARY_TEXT_COLOR)
+
+          Button(this.profileSaving ? '保存中...' : '保存资料到后端')
+            .width('100%')
+            .height(46)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#FFFFFF')
+            .backgroundColor('#0F6BFF')
+            .borderRadius(18)
+            .onClick(() => {
+              this.saveProfileToServer();
+            })
 
           Button('清空资料')
             .width('100%')

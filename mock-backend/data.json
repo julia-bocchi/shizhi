@@ -1,0 +1,117 @@
+{
+  "users": {
+    "demo": {
+      "userId": "user-demo",
+      "username": "demo",
+      "token": "mock-token-user-demo",
+      "profile": {
+        "nickname": "Julia",
+        "heightCm": "168",
+        "weightKg": "58.2",
+        "age": "27",
+        "gender": "女"
+      },
+      "weightRecords": [
+        { "id": "weight-1", "date": "2026-04-15", "weight": 58.9 },
+        { "id": "weight-2", "date": "2026-04-16", "weight": 58.7 },
+        { "id": "weight-3", "date": "2026-04-17", "weight": 58.5 },
+        { "id": "weight-4", "date": "2026-04-18", "weight": 58.4 },
+        { "id": "weight-5", "date": "2026-04-19", "weight": 58.2 }
+      ],
+      "customFoodOptions": [
+        {
+          "id": "custom-food-demo-1",
+          "source": "custom",
+          "name": "鸡胸肉卷",
+          "description": "自定义高蛋白轻食。",
+          "calories": 310,
+          "serving": "1 份",
+          "mealSuggestion": "午餐",
+          "image": "",
+          "accentColor": "#10B981"
+        }
+      ],
+      "foodPlans": [
+        {
+          "id": "food-plan-1",
+          "date": "2026-04-19",
+          "foodId": "preset-oatmeal",
+          "name": "燕麦牛奶杯",
+          "description": "适合早餐或训练前补充碳水，饱腹感稳定。",
+          "calories": 280,
+          "serving": "1 杯",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "训练前吃",
+          "accentColor": "#D86C3D"
+        },
+        {
+          "id": "food-plan-2",
+          "date": "2026-04-19",
+          "foodId": "custom-food-demo-1",
+          "name": "鸡胸肉卷",
+          "description": "自定义高蛋白轻食。",
+          "calories": 310,
+          "serving": "1 份",
+          "mealType": "lunch",
+          "image": "",
+          "notes": "午休后吃",
+          "accentColor": "#10B981"
+        }
+      ],
+      "workoutTemplates": [
+        {
+          "id": "template-1001",
+          "name": "下班后跳绳",
+          "mode": "count_rate",
+          "intensity": "moderate",
+          "durationMinutes": "20",
+          "distanceKm": "0",
+          "paceMinutes": "0",
+          "speedKmH": "0",
+          "count": "500",
+          "cadencePerMinute": "120",
+          "sets": "4",
+          "workSeconds": "40",
+          "restSeconds": "20"
+        }
+      ],
+      "workoutPlans": [
+        {
+          "id": "plan-1001",
+          "date": "2026-04-19",
+          "title": "晚间跑步",
+          "summary": "配速 + 路程 · 30 分钟 · 286 kcal",
+          "notes": "下班后训练",
+          "draftText": "running%7C%7Cduration%7Cmoderate%7C30%7C5%7C6%7C18%7C300%7C120%7C4%7C40%7C20",
+          "savedWorkoutId": "",
+          "accentColor": "#0F6BFF"
+        }
+      ],
+      "workoutRecords": [
+        {
+          "id": "record-1",
+          "date": "2026-04-18",
+          "name": "跑步",
+          "calories": 286.4,
+          "durationSeconds": 1800,
+          "exerciseId": "running",
+          "planId": "",
+          "distanceKm": 5,
+          "count": 0
+        },
+        {
+          "id": "record-2",
+          "date": "2026-04-19",
+          "name": "跳绳",
+          "calories": 210.5,
+          "durationSeconds": 1200,
+          "exerciseId": "custom",
+          "planId": "",
+          "distanceKm": 0,
+          "count": 500
+        }
+      ]
+    }
+  }
+}

@@ -7,8 +7,10 @@ import {
 import { FoodPlanItem } from '../../models/FoodPlan';
 import { FoodMealOption, FOOD_MEAL_OPTIONS } from '../../models/FoodOption';
 import {
+  deserializeCustomFoodOptions,
   deserializeFoodPlans,
   getFoodMealSortValue,
+  serializeCustomFoodOptions,
   serializeFoodPlans
 } from '../../utils/FoodHelper';
 import {
@@ -20,6 +22,10 @@ import {
 } from '../../utils/MonthCalendarHelper';
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { AuthSession } from '../../models/AuthSession';
+import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { deleteFoodPlanRemote, fetchFoodOptions, fetchFoodPlans } from '../../utils/ApiService';
 
 interface CalendarDayItem extends CalendarMonthCell {
   planCount: number;
@@ -33,8 +39,11 @@ const MAX_DAILY_CALORIE_TARGET: number = 9999;
 export struct FoodTabPage {
   @Link currentTabIndex: number;
   @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
   @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = `${DEFAULT_DAILY_CALORIE_TARGET}`;
   @StorageLink('currentFoodPlanDateText') currentFoodPlanDateText: string = '';
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
 
   @State selectedPlanDate: string = formatDate(new Date());
   @State calendarYear: number = new Date().getFullYear();
@@ -54,12 +63,16 @@ export struct FoodTabPage {
   @State bubbleHighlightOffset: number = 0;
   @State bubbleHaloOpacity: number = 0.14;
   @State bubbleReflectSize: number = 20;
+  @State remoteSyncing: boolean = false;
 
   private bubbleAnimationTimerId: number = -1;
   private bubbleAnimationExpanded: boolean = false;
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
     if (this.currentFoodPlanDateText.trim().length > 0) {
       this.selectedPlanDate = this.currentFoodPlanDateText;
       this.syncCalendarWithDate(this.selectedPlanDate);
@@ -67,6 +80,7 @@ export struct FoodTabPage {
       this.currentFoodPlanDateText = this.selectedPlanDate;
     }
     this.startBubbleAnimation();
+    this.syncRemoteFoodData();
   }
 
   aboutToDisappear(): void {
@@ -98,6 +112,11 @@ export struct FoodTabPage {
   }
 
   private removeFoodPlan(planId: string): void {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (isAuthSessionValid(authSession)) {
+      this.removeFoodPlanRemote(planId, authSession);
+      return;
+    }
     let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
     let nextPlans: FoodPlanItem[] = [];
     for (let index = 0; index < currentPlans.length; index++) {
@@ -106,6 +125,64 @@ export struct FoodTabPage {
       }
     }
     this.foodPlanText = serializeFoodPlans(nextPlans);
+  }
+
+  private async removeFoodPlanRemote(planId: string, authSession: AuthSession): Promise<void> {
+    try {
+      await deleteFoodPlanRemote(this.apiBaseUrlText, authSession, planId);
+      let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
+      let nextPlans: FoodPlanItem[] = [];
+      for (let index = 0; index < currentPlans.length; index++) {
+        if (currentPlans[index].id !== planId) {
+          nextPlans.push(currentPlans[index]);
+        }
+      }
+      this.foodPlanText = serializeFoodPlans(nextPlans);
+    } catch (error) {
+      this.scannerNotice = `${error}`;
+    }
+  }
+
+  private getFoodSyncRange(): string[] {
+    let today = new Date();
+    let monthStart = new Date(this.calendarYear, this.calendarMonth, 1);
+    let monthEnd = new Date(this.calendarYear, this.calendarMonth + 1, 0);
+    let rollingStart = new Date(today.getTime());
+    rollingStart.setDate(rollingStart.getDate() - 120);
+    let startDate = rollingStart.getTime() < monthStart.getTime() ? rollingStart : monthStart;
+    let endDate = today.getTime() > monthEnd.getTime() ? today : monthEnd;
+    return [formatDate(startDate), formatDate(endDate)];
+  }
+
+  private async syncRemoteFoodData(): Promise<void> {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    this.remoteSyncing = true;
+    try {
+      let dateRange = this.getFoodSyncRange();
+      let foodOptions = await fetchFoodOptions(this.apiBaseUrlText, authSession);
+      let mergedOptions = deserializeCustomFoodOptions(this.customFoodOptionText).slice();
+      for (let index = 0; index < foodOptions.length; index++) {
+        let hasMatched = false;
+        for (let optionIndex = 0; optionIndex < mergedOptions.length; optionIndex++) {
+          if (mergedOptions[optionIndex].id === foodOptions[index].id) {
+            mergedOptions[optionIndex] = foodOptions[index];
+            hasMatched = true;
+          }
+        }
+        if (!hasMatched) {
+          mergedOptions.push(foodOptions[index]);
+        }
+      }
+      this.customFoodOptionText = serializeCustomFoodOptions(mergedOptions);
+      this.foodPlanText = serializeFoodPlans(await fetchFoodPlans(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1]));
+    } catch (error) {
+      this.scannerNotice = `${error}`;
+    } finally {
+      this.remoteSyncing = false;
+    }
   }
 
   private getPlansForDate(dateText: string): FoodPlanItem[] {
@@ -477,6 +554,7 @@ export struct FoodTabPage {
     this.selectedPlanDate = this.createMonthDateText(1);
     this.currentFoodPlanDateText = this.selectedPlanDate;
     this.expandedMealType = '';
+    this.syncRemoteFoodData();
   }
 
   private toggleMealSection(mealType: string): void {
@@ -1447,6 +1525,10 @@ export struct FoodTabPage {
               .width('100%')
               .backgroundColor('#EEF4FF')
               .borderRadius(18)
+
+            Text(this.remoteSyncing ? '联调数据同步中...' : '饮食计划和食物类型会优先从后端同步。')
+              .fontSize(11)
+              .fontColor('#4F6690')
           }
           .alignItems(HorizontalAlign.Start)
           .width('100%')

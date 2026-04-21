@@ -1,8 +1,11 @@
 PersistentStorage.persistProp('savedCustomWorkoutText', '');
 PersistentStorage.persistProp('workoutRecordText', '');
 PersistentStorage.persistProp('workoutPlanText', '');
+PersistentStorage.persistProp('workoutPlanMetaText', '');
 PersistentStorage.persistProp('weightRecordText', '');
 PersistentStorage.persistProp('userProfileText', '');
+PersistentStorage.persistProp('apiBaseUrlText', '');
+PersistentStorage.persistProp('authSessionText', '');
 PersistentStorage.persistProp('customFoodOptionText', '');
 PersistentStorage.persistProp('foodPlanText', '');
 PersistentStorage.persistProp('dailyFoodCalorieTargetText', '2000');

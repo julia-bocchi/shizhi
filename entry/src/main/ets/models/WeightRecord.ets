@@ -1,5 +1,5 @@
 export interface WeightRecord {
-  id: number;
+  id: string;
   date: string;
   weight: number;
 }

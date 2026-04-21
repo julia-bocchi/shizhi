@@ -17,6 +17,15 @@ import {
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { AuthSession, DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import {
+  createCustomFoodOptionRemote,
+  createFoodPlanRemote,
+  deleteFoodPlanRemote,
+  fetchFoodOptions,
+  fetchFoodPlans
+} from '../../utils/ApiService';
 
 interface FoodChoiceCardItem {
   id: string;
@@ -37,6 +46,8 @@ struct FoodSelectionPage {
   @StorageLink('foodPlanText') foodPlanText: string = '';
   @StorageLink('currentFoodPlanDateText') currentFoodPlanDateText: string = '';
   @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
+  @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
 
   @State customFoodOptions: FoodOption[] = [];
   @State foodPlans: FoodPlanItem[] = [];
@@ -55,6 +66,9 @@ struct FoodSelectionPage {
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
+    if (this.apiBaseUrlText.trim().length === 0) {
+      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
+    }
     this.customFoodOptions = deserializeCustomFoodOptions(this.customFoodOptionText);
     this.foodPlans = deserializeFoodPlans(this.foodPlanText);
     if (this.currentFoodPlanDateText.trim().length > 0) {
@@ -66,6 +80,7 @@ struct FoodSelectionPage {
       this.selectedMealType = this.currentFoodPlanMealTypeText;
     }
     this.initializeDraftSelections();
+    this.syncRemoteFoodData();
   }
 
   private saveFoodPlans(nextPlans: FoodPlanItem[]): void {
@@ -76,6 +91,27 @@ struct FoodSelectionPage {
   private saveCustomFoodOptions(nextOptions: FoodOption[]): void {
     this.customFoodOptions = nextOptions;
     this.customFoodOptionText = serializeCustomFoodOptions(nextOptions);
+  }
+
+  private async syncRemoteFoodData(): Promise<void> {
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    try {
+      let fields = this.selectedDate.split('-');
+      let year = Number(fields[0]);
+      let month = Number(fields[1]) - 1;
+      let rangeStart = formatDate(new Date(year, month, 1));
+      let rangeEnd = formatDate(new Date(year, month + 1, 0));
+      let remoteOptions = await fetchFoodOptions(this.apiBaseUrlText, authSession);
+      this.customFoodOptions = remoteOptions;
+      this.customFoodOptionText = serializeCustomFoodOptions(remoteOptions);
+      this.foodPlans = await fetchFoodPlans(this.apiBaseUrlText, authSession, rangeStart, rangeEnd);
+      this.foodPlanText = serializeFoodPlans(this.foodPlans);
+      this.initializeDraftSelections();
+    } catch (error) {
+    }
   }
 
   private goBack(): void {
@@ -368,7 +404,7 @@ struct FoodSelectionPage {
     this.customFoodImage = '';
   }
 
-  private saveCustomFoodCard(addToMeal: boolean): void {
+  private async saveCustomFoodCard(addToMeal: boolean): Promise<void> {
     let name: string = this.customFoodName.trim();
     let serving: string = this.customFoodServing.trim();
     let caloriesValue: number = Number(this.customFoodCalories.trim());
@@ -401,6 +437,24 @@ struct FoodSelectionPage {
       accentColor: this.getMealAccentColor()
     };
 
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (isAuthSessionValid(authSession)) {
+      try {
+        customOption = await createCustomFoodOptionRemote(this.apiBaseUrlText, authSession, {
+          name: customOption.name,
+          description: customOption.description,
+          calories: customOption.calories,
+          serving: customOption.serving,
+          mealSuggestion: customOption.mealSuggestion,
+          image: customOption.image,
+          accentColor: customOption.accentColor
+        });
+      } catch (error) {
+        this.pageNotice = `${error}`;
+        return;
+      }
+    }
+
     let nextOptions: FoodOption[] = this.customFoodOptions.slice();
     nextOptions.unshift(customOption);
     this.saveCustomFoodOptions(nextOptions);
@@ -416,7 +470,7 @@ struct FoodSelectionPage {
     this.clearCustomFoodForm();
   }
 
-  private saveTodaySelections(): void {
+  private async saveTodaySelections(): Promise<void> {
     let savedMealPlans: FoodPlanItem[] = this.getCurrentMealPlans();
     if (this.getDraftSelectedCount() === 0 && savedMealPlans.length === 0) {
       this.pageNotice = '还没有选择食物。';
@@ -431,14 +485,36 @@ struct FoodSelectionPage {
     }
 
     let nextMealPlans: FoodPlanItem[] = [];
-    for (let index = 0; index < this.draftSelections.length; index++) {
-      for (let countIndex = 0; countIndex < this.draftSelections[index].count; countIndex++) {
-        nextMealPlans.push(createFoodPlanItem(
-          this.selectedDate,
-          this.draftSelections[index].option,
-          this.selectedMealType,
-          this.planNotesInput
-        ));
+    let authSession = deserializeAuthSession(this.authSessionText);
+    if (isAuthSessionValid(authSession)) {
+      try {
+        for (let index = 0; index < savedMealPlans.length; index++) {
+          await deleteFoodPlanRemote(this.apiBaseUrlText, authSession, savedMealPlans[index].id);
+        }
+        for (let index = 0; index < this.draftSelections.length; index++) {
+          for (let countIndex = 0; countIndex < this.draftSelections[index].count; countIndex++) {
+            nextMealPlans.push(await createFoodPlanRemote(this.apiBaseUrlText, authSession, {
+              date: this.selectedDate,
+              foodId: this.draftSelections[index].option.id,
+              mealType: this.selectedMealType,
+              notes: this.planNotesInput
+            }));
+          }
+        }
+      } catch (error) {
+        this.pageNotice = `${error}`;
+        return;
+      }
+    } else {
+      for (let index = 0; index < this.draftSelections.length; index++) {
+        for (let countIndex = 0; countIndex < this.draftSelections[index].count; countIndex++) {
+          nextMealPlans.push(createFoodPlanItem(
+            this.selectedDate,
+            this.draftSelections[index].option,
+            this.selectedMealType,
+            this.planNotesInput
+          ));
+        }
       }
     }
 
@@ -453,11 +529,17 @@ struct FoodSelectionPage {
 
   private getSortedFoodOptions(): FoodOption[] {
     let result: FoodOption[] = [];
+    let knownIds: string[] = [];
     for (let index = 0; index < PRESET_FOOD_OPTIONS.length; index++) {
       result.push(PRESET_FOOD_OPTIONS[index]);
+      knownIds.push(PRESET_FOOD_OPTIONS[index].id);
     }
     for (let index = 0; index < this.customFoodOptions.length; index++) {
+      if (knownIds.indexOf(this.customFoodOptions[index].id) >= 0) {
+        continue;
+      }
       result.push(this.customFoodOptions[index]);
+      knownIds.push(this.customFoodOptions[index].id);
     }
 
     result.sort((left: FoodOption, right: FoodOption) => {

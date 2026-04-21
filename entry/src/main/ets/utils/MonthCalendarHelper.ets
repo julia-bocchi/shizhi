@@ -70,5 +70,18 @@ export function buildMonthCalendarRows(
     }
   }
 
+  if (rows.length === 6) {
+    let lastRowHasCurrentMonthDate = false;
+    for (let index = 0; index < rows[5].length; index++) {
+      if (rows[5][index].isCurrentMonth) {
+        lastRowHasCurrentMonthDate = true;
+        break;
+      }
+    }
+    if (!lastRowHasCurrentMonthDate) {
+      rows.pop();
+    }
+  }
+
   return rows;
 }
