@@ -18,16 +18,18 @@ import { ProfileTabPage } from './profile/ProfileTabPage';
 import { UserProfile, createEmptyUserProfile } from '../models/UserProfile';
 import { deserializeUserProfile } from '../utils/ExerciseHelper';
 import { EXERCISE_STORAGE_READY } from '../utils/ExerciseStorage';
-import { DEFAULT_API_BASE_URL } from '../models/AuthSession';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../models/AuthSession';
+import { deserializeAuthSession } from '../utils/AuthStorageHelper';
 
 
 @Entry
 @Component
 struct Index {
-  @State currentTabIndex: number = HOME_TAB_INDEX;
+  @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
   @StorageLink('userProfileText') userProfileText: string = '';
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
+  @StorageLink('authSessionText') authSessionText: string = '';
   @State userProfile: UserProfile = createEmptyUserProfile();
 
   // 系统返回键监听（标准、无报错）
@@ -47,7 +49,10 @@ struct Index {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
     this.userProfile = deserializeUserProfile(this.userProfileText);
-
+    if (this.currentTabIndex === PROFILE_TAB_INDEX &&
+      !isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
+      this.currentTabIndex = HOME_TAB_INDEX;
+    }
   }
 
   @Builder

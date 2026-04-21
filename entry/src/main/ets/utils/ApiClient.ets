@@ -1,6 +1,10 @@
 import http from '@ohos.net.http';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AuthSession, isAuthSessionValid } from '../models/AuthSession';
 import { ApiEnvelope } from '../models/BackendApi';
+
+const API_LOG_DOMAIN: number = 0xFF12;
+const API_LOG_TAG: string = 'ApiClient';
 
 export interface QueryParamItem {
   key: string;
@@ -17,9 +21,41 @@ export interface ApiRequestConfig {
 }
 
 interface ApiRequestHeaders {
+  contentType: string;
+  authorization: string;
+  xUserId: string;
+}
+
+interface HttpRequestHeaders {
   'Content-Type': string;
   'Authorization'?: string;
   'X-User-Id'?: string;
+}
+
+interface ApiLogHeaders {
+  contentType: string;
+  authorization: string;
+  xUserId: string;
+}
+
+interface ApiRequestLog {
+  method: string;
+  url: string;
+  headers: ApiLogHeaders;
+  body: string;
+}
+
+interface ApiResponseLog {
+  method: string;
+  url: string;
+  statusCode: number;
+  body: string;
+}
+
+interface ApiErrorLog {
+  method: string;
+  url: string;
+  error: string;
 }
 
 function getHttpResponseText(result: string | Object | ArrayBuffer): string {
@@ -67,16 +103,51 @@ function buildUrl(baseUrl: string, path: string, queryParams?: QueryParamItem[])
   return `${normalizeBaseUrl(baseUrl)}${normalizePath(path)}${buildQueryString(queryParams)}`;
 }
 
+function maskSensitiveText(value: string): string {
+  if (value.trim().length <= 12) {
+    return '***';
+  }
+  return `${value.substring(0, 6)}...${value.substring(value.length - 4)}`;
+}
+
 function buildHeaders(authSession?: AuthSession): ApiRequestHeaders {
   if (authSession && isAuthSessionValid(authSession)) {
     return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${authSession.token.trim()}`,
-      'X-User-Id': authSession.userId.trim()
+      contentType: 'application/json',
+      authorization: `Bearer ${authSession.token.trim()}`,
+      xUserId: authSession.userId.trim()
     };
   }
   return {
-    'Content-Type': 'application/json'
+    contentType: 'application/json',
+    authorization: '',
+    xUserId: ''
+  };
+}
+
+function serializeLogValue(value: Object | string | undefined | null): string {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
+function buildLogHeaders(headers: ApiRequestHeaders): ApiLogHeaders {
+  return {
+    contentType: headers.contentType,
+    authorization: headers.authorization.length > 0 ? maskSensitiveText(headers.authorization) : '',
+    xUserId: headers.xUserId
+  };
+}
+
+function buildHttpHeaders(headers: ApiRequestHeaders): HttpRequestHeaders {
+  return {
+    'Content-Type': headers.contentType,
+    'Authorization': headers.authorization.length > 0 ? headers.authorization : undefined,
+    'X-User-Id': headers.xUserId.length > 0 ? headers.xUserId : undefined
   };
 }
 
@@ -86,10 +157,20 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
   }
 
   let httpRequest = http.createHttp();
+  let requestUrl = buildUrl(config.baseUrl, config.path, config.queryParams);
+  let requestHeaders = buildHeaders(config.authSession);
   try {
-    let response = await httpRequest.request(buildUrl(config.baseUrl, config.path, config.queryParams), {
+    let requestLog: ApiRequestLog = {
+      method: `${config.method}`,
+      url: requestUrl,
+      headers: buildLogHeaders(requestHeaders),
+      body: config.body ? serializeLogValue(config.body) : ''
+    };
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, 'request %{public}s', serializeLogValue(requestLog));
+
+    let response = await httpRequest.request(requestUrl, {
       method: config.method,
-      header: buildHeaders(config.authSession),
+      header: buildHttpHeaders(requestHeaders),
       extraData: config.body ? JSON.stringify(config.body) : '',
       connectTimeout: 10000,
       readTimeout: 20000,
@@ -97,6 +178,13 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
     });
 
     let responseText: string = getHttpResponseText(response.result);
+    let responseLog: ApiResponseLog = {
+      method: `${config.method}`,
+      url: requestUrl,
+      statusCode: response.responseCode,
+      body: responseText
+    };
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, 'response %{public}s', serializeLogValue(responseLog));
     if (response.responseCode >= 400) {
       throw new Error(`请求失败（${response.responseCode}）：${responseText}`);
     }
@@ -111,6 +199,12 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
     if (errorText.trim().length === 0 || errorText === '[object Object]') {
       errorText = '接口请求失败，请检查联调服务与网络。';
     }
+    let errorLog: ApiErrorLog = {
+      method: `${config.method}`,
+      url: requestUrl,
+      error: errorText
+    };
+    hilog.error(API_LOG_DOMAIN, API_LOG_TAG, 'error %{public}s', serializeLogValue(errorLog));
     throw new Error(errorText);
   } finally {
     httpRequest.destroy();

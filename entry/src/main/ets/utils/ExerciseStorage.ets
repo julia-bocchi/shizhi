@@ -19,5 +19,6 @@ PersistentStorage.persistProp('currentExerciseProfileText', '');
 PersistentStorage.persistProp('currentEditingSavedWorkoutIdText', '');
 PersistentStorage.persistProp('currentExercisePlanIdText', '');
 PersistentStorage.persistProp('exercisePlanPickerVisible', false);
+PersistentStorage.persistProp('currentTabIndex', 0);
 
 export const EXERCISE_STORAGE_READY: boolean = true;

@@ -59,13 +59,55 @@ function saveStore(store) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2) + '\n', 'utf8');
 }
 
+function maskSensitiveValue(value) {
+  if (!value) {
+    return '';
+  }
+  const text = `${value}`;
+  if (text.length <= 12) {
+    return '***';
+  }
+  return `${text.slice(0, 6)}...${text.slice(-4)}`;
+}
+
+function stringifyForLog(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return JSON.stringify(value);
+}
+
+function buildRequestLogHeaders(headers) {
+  return {
+    authorization: headers.authorization ? maskSensitiveValue(headers.authorization) : '',
+    xUserId: headers['x-user-id'] || '',
+    contentType: headers['content-type'] || ''
+  };
+}
+
 function sendJson(res, code, message, data, statusCode = 200) {
+  const requestContext = res.__requestContext || null;
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Id',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
   });
+  if (requestContext) {
+    console.log('[mock-backend][response]', JSON.stringify({
+      method: requestContext.method,
+      url: requestContext.url,
+      statusCode,
+      code,
+      message,
+      durationMs: Date.now() - requestContext.startAt,
+      requestBody: requestContext.request && requestContext.request.__loggedBody !== undefined ?
+        requestContext.request.__loggedBody : requestContext.bodyForLog
+    }));
+  }
   res.end(JSON.stringify({ code, message, data }));
 }
 
@@ -77,11 +119,14 @@ function parseBody(req) {
     });
     req.on('end', () => {
       if (!chunks) {
+        req.__loggedBody = {};
         resolve({});
         return;
       }
       try {
-        resolve(JSON.parse(chunks));
+        const parsedBody = JSON.parse(chunks);
+        req.__loggedBody = parsedBody;
+        resolve(parsedBody);
       } catch (error) {
         reject(error);
       }
@@ -213,13 +258,27 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 404, 'Not Found', {}, 404);
     return;
   }
+
+  const urlObj = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  const pathname = urlObj.pathname;
+  res.__requestContext = {
+    method: req.method || 'GET',
+    url: `${pathname}${urlObj.search}`,
+    startAt: Date.now(),
+    bodyForLog: {},
+    headers: buildRequestLogHeaders(req.headers),
+    request: req
+  };
+  console.log('[mock-backend][request]', JSON.stringify({
+    method: res.__requestContext.method,
+    url: res.__requestContext.url,
+    headers: res.__requestContext.headers
+  }));
+
   if (req.method === 'OPTIONS') {
     sendJson(res, 0, 'ok', {});
     return;
   }
-
-  const urlObj = new URL(req.url, `http://127.0.0.1:${PORT}`);
-  const pathname = urlObj.pathname;
   const store = loadStore();
 
   try {

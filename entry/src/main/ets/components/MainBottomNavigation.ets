@@ -6,14 +6,28 @@ import {
   NAV_BORDER_COLOR
 } from '../constants/AppTheme';
 import { BottomTabItem } from '../models/TabItem';
+import { deserializeAuthSession } from '../utils/AuthStorageHelper';
+import { isAuthSessionValid } from '../models/AuthSession';
 
 @Component
 export struct MainBottomNavigation {
   @Link currentIndex: number;
   @Prop items: BottomTabItem[] = [];
+  @StorageLink('authSessionText') authSessionText: string = '';
 
   private isActive(item: BottomTabItem): boolean {
     return item.index === this.currentIndex;
+  }
+
+  private openLoginPage(): void {
+    try {
+      let routeTask: Promise<void> = this.getUIContext().getRouter().pushUrl({
+        url: 'pages/auth/LoginPage'
+      });
+      routeTask.catch(() => {
+      });
+    } catch (error) {
+    }
   }
 
   build() {
@@ -47,6 +61,10 @@ export struct MainBottomNavigation {
           .padding({ top: 12, bottom: 12 })
           .alignItems(HorizontalAlign.Center)
           .onClick(() => {
+            if (item.id === 'profile' && !isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
+              this.openLoginPage();
+              return;
+            }
             this.currentIndex = item.index;
           })
         }, (item: BottomTabItem) => item.id)
