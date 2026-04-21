@@ -22,7 +22,7 @@ export struct MainBottomNavigation {
         ForEach(this.items, (item: BottomTabItem) => {
           Column({ space: 8 }) {
             Text(item.icon)
-              .fontSize(20)
+              .fontSize(item.icon.length > 1 ? 16 : 20)
               .fontWeight(FontWeight.Bold)
               .fontColor(this.isActive(item) ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR)
               .width(38)
@@ -33,7 +33,7 @@ export struct MainBottomNavigation {
               .borderRadius(19)
 
             Text(item.label)
-              .fontSize(13)
+              .fontSize(12)
               .fontWeight(this.isActive(item) ? FontWeight.Bold : FontWeight.Medium)
               .fontColor(this.isActive(item) ? ACTIVE_TAB_COLOR : INACTIVE_TAB_COLOR)
 
@@ -61,6 +61,6 @@ export struct MainBottomNavigation {
         top: 1
       }
     })
-    .padding({ left: 20, right: 20, top: 8, bottom: 12 })
+    .padding({ left: 12, right: 12, top: 8, bottom: 12 })
   }
 }

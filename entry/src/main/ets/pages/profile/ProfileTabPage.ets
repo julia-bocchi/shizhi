@@ -74,18 +74,18 @@ export struct ProfileTabPage {
   private getBmiStatusColor(): string {
     let bmiInfo = getBmiInfo(this.userProfile);
     if (!bmiInfo.hasValue) {
-      return '#7D8794';
+      return '#94A0B4';
     }
     if (bmiInfo.statusText === '偏瘦') {
-      return '#2F6FED';
+      return '#0F6BFF';
     }
     if (bmiInfo.statusText === '正常') {
-      return '#2E8B57';
+      return '#10B981';
     }
     if (bmiInfo.statusText === '超重') {
-      return '#D86C3D';
+      return '#FF7A59';
     }
-    return '#C95F34';
+    return '#FF5A7A';
   }
 
   private isSelectedGender(gender: string): boolean {
@@ -123,12 +123,12 @@ export struct ProfileTabPage {
           Text(getProfileReminderText(this.userProfile))
             .fontSize(13)
             .lineHeight(20)
-            .fontColor('#D8E5FF')
+            .fontColor('#E3EEFF')
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')
         .padding(18)
-        .backgroundColor('#17324D')
+        .backgroundColor('#0F6BFF')
         .borderRadius(24)
 
         Column({ space: 14 }) {
@@ -140,7 +140,7 @@ export struct ProfileTabPage {
           Column({ space: 8 }) {
             Text('昵称（可选）')
               .fontSize(12)
-              .fontColor('#4F6690')
+              .fontColor('#5373A6')
 
             TextInput({ placeholder: '例如 小林', text: this.userProfile.nickname })
               .fontSize(16)
@@ -148,7 +148,7 @@ export struct ProfileTabPage {
               .height(46)
               .width('100%')
               .padding({ left: 12, right: 12 })
-              .backgroundColor('#F6F8FB')
+              .backgroundColor('#F5F8FF')
               .borderRadius(16)
               .onChange((value: string) => {
                 this.updateProfileField('nickname', value);
@@ -161,7 +161,7 @@ export struct ProfileTabPage {
             Column({ space: 8 }) {
               Text('身高')
                 .fontSize(12)
-                .fontColor('#4F6690')
+                .fontColor('#5373A6')
 
               Row({ space: 8 }) {
                 TextInput({ placeholder: '170', text: this.userProfile.heightCm })
@@ -170,7 +170,7 @@ export struct ProfileTabPage {
                   .height(46)
                   .layoutWeight(1)
                   .padding({ left: 12, right: 12 })
-                  .backgroundColor('#F6F8FB')
+                  .backgroundColor('#F5F8FF')
                   .borderRadius(16)
                   .onChange((value: string) => {
                     this.updateProfileField('heightCm', value);
@@ -179,9 +179,9 @@ export struct ProfileTabPage {
                 Text('cm')
                   .fontSize(14)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#2F6FED')
+                  .fontColor('#0F6BFF')
                   .padding({ left: 12, right: 12, top: 11, bottom: 11 })
-                  .backgroundColor('#EAF1FF')
+                  .backgroundColor('#EAF2FF')
                   .borderRadius(14)
               }
               .width('100%')
@@ -192,7 +192,7 @@ export struct ProfileTabPage {
             Column({ space: 8 }) {
               Text('体重')
                 .fontSize(12)
-                .fontColor('#4F6690')
+                .fontColor('#5373A6')
 
               Row({ space: 8 }) {
                 TextInput({ placeholder: '60', text: this.userProfile.weightKg })
@@ -201,7 +201,7 @@ export struct ProfileTabPage {
                   .height(46)
                   .layoutWeight(1)
                   .padding({ left: 12, right: 12 })
-                  .backgroundColor('#F6F8FB')
+                  .backgroundColor('#F5F8FF')
                   .borderRadius(16)
                   .onChange((value: string) => {
                     this.updateProfileField('weightKg', value);
@@ -210,9 +210,9 @@ export struct ProfileTabPage {
                 Text('kg')
                   .fontSize(14)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#D86C3D')
+                  .fontColor('#FF7A59')
                   .padding({ left: 12, right: 12, top: 11, bottom: 11 })
-                  .backgroundColor('#FFF1E8')
+                  .backgroundColor('#FFF0F6')
                   .borderRadius(14)
               }
               .width('100%')
@@ -225,7 +225,7 @@ export struct ProfileTabPage {
           Column({ space: 8 }) {
             Text('年龄')
               .fontSize(12)
-              .fontColor('#4F6690')
+              .fontColor('#5373A6')
 
             Row({ space: 8 }) {
               TextInput({ placeholder: '24', text: this.userProfile.age })
@@ -234,7 +234,7 @@ export struct ProfileTabPage {
                 .height(46)
                 .layoutWeight(1)
                 .padding({ left: 12, right: 12 })
-                .backgroundColor('#F6F8FB')
+                .backgroundColor('#F5F8FF')
                 .borderRadius(16)
                 .onChange((value: string) => {
                   this.updateProfileField('age', value);
@@ -243,9 +243,9 @@ export struct ProfileTabPage {
               Text('岁')
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#2E8B57')
+                .fontColor('#10B981')
                 .padding({ left: 12, right: 12, top: 11, bottom: 11 })
-                .backgroundColor('#EAF5EE')
+                .backgroundColor('#ECFFF4')
                 .borderRadius(14)
             }
             .width('100%')
@@ -256,7 +256,7 @@ export struct ProfileTabPage {
           Column({ space: 8 }) {
             Text('性别')
               .fontSize(12)
-              .fontColor('#4F6690')
+              .fontColor('#5373A6')
 
             Row({ space: 10 }) {
               Button(GENDER_MALE)
@@ -265,7 +265,7 @@ export struct ProfileTabPage {
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.isSelectedGender(GENDER_MALE) ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                .backgroundColor(this.isSelectedGender(GENDER_MALE) ? '#2F6FED' : '#EEF3FF')
+                .backgroundColor(this.isSelectedGender(GENDER_MALE) ? '#0F6BFF' : '#EAF2FF')
                 .borderRadius(16)
                 .onClick(() => {
                   this.updateGender(GENDER_MALE);
@@ -277,7 +277,7 @@ export struct ProfileTabPage {
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.isSelectedGender(GENDER_FEMALE) ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                .backgroundColor(this.isSelectedGender(GENDER_FEMALE) ? '#D86C3D' : '#FFF1E8')
+                .backgroundColor(this.isSelectedGender(GENDER_FEMALE) ? '#FF7A59' : '#FFF0F6')
                 .borderRadius(16)
                 .onClick(() => {
                   this.updateGender(GENDER_FEMALE);
@@ -289,7 +289,7 @@ export struct ProfileTabPage {
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.isSelectedGender(GENDER_UNKNOWN) ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                .backgroundColor(this.isSelectedGender(GENDER_UNKNOWN) ? '#7D8794' : '#F2F4F7')
+                .backgroundColor(this.isSelectedGender(GENDER_UNKNOWN) ? '#94A0B4' : '#F3F6FB')
                 .borderRadius(16)
                 .onClick(() => {
                   this.updateGender(GENDER_UNKNOWN);
@@ -303,15 +303,15 @@ export struct ProfileTabPage {
           Text(this.profileNotice)
             .fontSize(13)
             .lineHeight(20)
-            .fontColor('#667085')
+            .fontColor(SECONDARY_TEXT_COLOR)
 
           Button('清空资料')
             .width('100%')
             .height(46)
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor('#17324D')
-            .backgroundColor('#EEF3FF')
+            .fontColor('#0F6BFF')
+            .backgroundColor('#EAF2FF')
             .borderRadius(18)
             .onClick(() => {
               this.clearProfile();
@@ -359,7 +359,7 @@ export struct ProfileTabPage {
         .alignItems(HorizontalAlign.Start)
         .width('100%')
         .padding(18)
-        .backgroundColor('#F8EEDC')
+        .backgroundColor('#F4F0FF')
         .borderRadius(24)
 
         Column({ space: 10 }) {
@@ -371,12 +371,12 @@ export struct ProfileTabPage {
           Text(getCalorieRequirementText(this.userProfile))
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor('#17324D')
+            .fontColor('#0F6BFF')
 
           Text(getGenderSuggestion(this.userProfile))
             .fontSize(13)
             .lineHeight(20)
-            .fontColor('#667085')
+            .fontColor(SECONDARY_TEXT_COLOR)
 
           Text('运动页采用常见公式估算消耗：MET × 3.5 × 体重(kg) ÷ 200 × 时长(分钟)。')
             .fontSize(12)
@@ -386,7 +386,7 @@ export struct ProfileTabPage {
         .alignItems(HorizontalAlign.Start)
         .width('100%')
         .padding(18)
-        .backgroundColor('#EAF1FF')
+        .backgroundColor('#EFF8FF')
         .borderRadius(24)
       }
       .width('100%')

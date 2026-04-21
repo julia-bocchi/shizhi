@@ -5,487 +5,566 @@ import {
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
 import {
-  AI_ROLE_ASSISTANT,
-  AI_ROLE_USER,
-  AI_TASK_ANALYZE_WEIGHT,
-  AI_TASK_CHAT,
-  AI_TASK_GENERATE_PLAN,
-  AiAssistantConfig,
-  AiChatMessage,
-  AiGeneratedPlanItem,
-  createAiChatMessage,
-  getDefaultAiApiEndpoint,
-  getDefaultAiModel,
-  getDefaultAiApiKey
-} from '../../models/AiAssistant';
-import { EXERCISE_TAB_INDEX } from '../../models/TabItem';
-import { UserProfile } from '../../models/UserProfile';
-import { SavedCustomWorkout } from '../../models/ExerciseOption';
-import { WorkoutPlanItem } from '../../models/WorkoutPlan';
+  AI_TAB_INDEX,
+  EXERCISE_TAB_INDEX,
+  FOOD_TAB_INDEX,
+  RECORD_TAB_INDEX
+} from '../../models/TabItem';
 import { WeightRecord } from '../../models/WeightRecord';
-import { WorkoutRecord } from '../../models/WorkoutRecord';
-import { deserializeExerciseDraft, deserializeSavedCustomWorkouts, deserializeWorkoutRecords } from '../../utils/ExerciseHelper';
-import { requestAiAssistant } from '../../utils/AiAssistantHelper';
 import {
-  deserializeWeightRecords,
-  formatDate,
-  getAverageWeight,
-  getLatestWeightRecord,
-  getRecentWeightRecords,
-  getWeightChange
-} from '../../utils/WeightRecordHelper';
-import {
-  createWorkoutPlanItem,
-  deserializeWorkoutPlans,
-  serializeWorkoutPlans
-} from '../../utils/WorkoutPlanHelper';
+  HomeDashboardCaloriesSummary,
+  HomeReminderItem,
+  HomeWeightTrendSummary,
+  getHomeReminderItems,
+  getHomeWeightTrend,
+  getTodayDashboardCalories
+} from '../../utils/HomeDashboardHelper';
+import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
+import { deserializeUserProfile } from '../../utils/ExerciseHelper';
+import { formatDate } from '../../utils/WeightRecordHelper';
+
+interface HomeQuickEntryItem {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  tabIndex: number;
+  accentColor: string;
+  surfaceColor: string;
+}
+
+const HOME_QUICK_ENTRIES: HomeQuickEntryItem[] = [
+  {
+    id: 'food',
+    icon: '食',
+    title: '饮食',
+    description: '记录摄入热量',
+    tabIndex: FOOD_TAB_INDEX,
+    accentColor: '#F59E0B',
+    surfaceColor: '#FFF8E8'
+  },
+  {
+    id: 'exercise',
+    icon: '动',
+    title: '运动',
+    description: '累计消耗热量',
+    tabIndex: EXERCISE_TAB_INDEX,
+    accentColor: '#FF7A59',
+    surfaceColor: '#FFF1EC'
+  },
+  {
+    id: 'record',
+    icon: '重',
+    title: '记录',
+    description: '查看体重变化',
+    tabIndex: RECORD_TAB_INDEX,
+    accentColor: '#14B8A6',
+    surfaceColor: '#ECFFFB'
+  },
+  {
+    id: 'assistant',
+    icon: 'AI',
+    title: '助手',
+    description: '生成今日建议',
+    tabIndex: AI_TAB_INDEX,
+    accentColor: '#7B61FF',
+    surfaceColor: '#F4F0FF'
+  }
+];
 
 @Component
 export struct HomeTabPage {
   @Link currentTabIndex: number;
-  @Link userProfile: UserProfile;
-  @StorageLink('weightRecordText') weightRecordText: string = '';
-  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
   @StorageLink('workoutRecordText') workoutRecordText: string = '';
-  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
-  @StorageLink('aiApiEndpointText') aiApiEndpointText: string = '';
-  @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
-  @StorageLink('aiModelText') aiModelText: string = '';
-
-  @State questionInput: string = '';
-  @State assistantBusy: boolean = false;
-  @State assistantNotice: string = '配置好接口后，就可以让 AI 分析近期体重并生成可导入训练计划。';
-  @State chatMessages: AiChatMessage[] = [];
-  @State generatedPlans: AiGeneratedPlanItem[] = [];
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = '';
 
   aboutToAppear(): void {
-    this.ensureDefaultAiConfig();
-    if (this.chatMessages.length === 0) {
-      this.chatMessages = [
-        createAiChatMessage(
-          AI_ROLE_ASSISTANT,
-          '我是你的 AI 训练助手。我可以结合最近体重变化回答问题，也能生成训练计划草案，导入后会自动出现在训练页。'
-        )
-      ];
-    }
+    EXERCISE_STORAGE_READY;
   }
 
-  private ensureDefaultAiConfig(): void {
-    if (this.aiApiEndpointText.trim().length === 0) {
-      this.aiApiEndpointText = getDefaultAiApiEndpoint();
-    }
-    if (this.aiModelText.trim().length === 0) {
-      this.aiModelText = getDefaultAiModel();
-    }
-    if (this.aiApiKeyText.trim().length === 0) {
-      this.aiApiKeyText = getDefaultAiApiKey();
-    }
-  }
-
-  private restoreDefaultAiConfig(): void {
-    this.aiApiEndpointText = getDefaultAiApiEndpoint();
-    this.aiModelText = getDefaultAiModel();
-    this.aiApiKeyText = getDefaultAiApiKey();
-    this.assistantNotice = '已恢复 BigModel 默认配置，默认值来自 AiAssistant.ets。';
-  }
-
-  private getAiConfig(): AiAssistantConfig {
-    return {
-      apiEndpoint: this.aiApiEndpointText,
-      apiKey: this.aiApiKeyText,
-      model: this.aiModelText
-    };
-  }
-
-  private getWeightRecords(): WeightRecord[] {
-    return deserializeWeightRecords(this.weightRecordText);
-  }
-
-  private getWorkoutPlans(): WorkoutPlanItem[] {
-    return deserializeWorkoutPlans(this.workoutPlanText);
-  }
-
-  private getWorkoutRecords(): WorkoutRecord[] {
-    return deserializeWorkoutRecords(this.workoutRecordText);
-  }
-
-  private getSavedCustomWorkouts(): SavedCustomWorkout[] {
-    return deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
-  }
-
-  private hasAiConfig(): boolean {
-    return this.aiApiEndpointText.trim().length > 0 &&
-      this.aiApiKeyText.trim().length > 0 &&
-      this.aiModelText.trim().length > 0;
-  }
-
-  private getUserName(): string {
-    return this.userProfile.nickname.trim().length > 0 ? this.userProfile.nickname.trim() : '你';
-  }
-
-  private getLatestWeightText(): string {
-    let latestRecord = getLatestWeightRecord(this.getWeightRecords());
-    if (!latestRecord) {
-      return '--';
-    }
-    return `${latestRecord.weight.toFixed(1)} kg`;
-  }
-
-  private getWeightTrendText(): string {
-    let recentRecords = getRecentWeightRecords(this.getWeightRecords(), 7);
-    if (recentRecords.length < 2) {
-      return '至少记录 2 次体重后，AI 会更容易看出趋势。';
-    }
-
-    let changeValue = getWeightChange(recentRecords);
-    let directionText = changeValue <= 0 ? '下降' : '上升';
-    return `最近 ${recentRecords.length} 次整体${directionText} ${Math.abs(changeValue).toFixed(1)} kg，平均 ${getAverageWeight(recentRecords).toFixed(1)} kg。`;
-  }
-
-  private getPlanCounterText(): string {
-    let planCount = this.getWorkoutPlans().length;
-    return planCount > 0 ? `训练页已保存 ${planCount} 条计划` : '训练页还没有已保存计划';
-  }
-
-  private getAssistantStatusText(): string {
-    if (this.assistantBusy) {
-      return 'AI 正在整理建议，请稍等。';
-    }
-    if (!this.hasAiConfig()) {
-      return '还没填好接口配置，先补上 API 地址、模型和 Key。';
-    }
-    return this.assistantNotice;
-  }
-
-  private addChatMessage(role: string, content: string): void {
-    let nextMessages: AiChatMessage[] = this.chatMessages.slice();
-    nextMessages.push(createAiChatMessage(role, content));
-    this.chatMessages = nextMessages;
-  }
-
-  private async submitToAssistant(task: string, promptText: string): Promise<void> {
-    let trimmedPrompt = promptText.trim();
-    if (trimmedPrompt.length === 0) {
-      this.assistantNotice = '先输入你想问 AI 的内容。';
-      return;
-    }
-    if (this.assistantBusy) {
-      this.assistantNotice = 'AI 还在处理中，稍等一下再发下一条。';
-      return;
-    }
-
-    this.addChatMessage(AI_ROLE_USER, trimmedPrompt);
-    this.questionInput = '';
-    this.assistantBusy = true;
-    this.assistantNotice = task === AI_TASK_GENERATE_PLAN ? '正在生成训练计划草案...' : '正在分析你的数据...';
-
-    try {
-      let savedWorkoutNames: string[] = [];
-      let savedWorkouts: SavedCustomWorkout[] = this.getSavedCustomWorkouts();
-      for (let index = 0; index < savedWorkouts.length; index++) {
-        savedWorkoutNames.push(savedWorkouts[index].name);
-      }
-
-      let response = await requestAiAssistant(this.getAiConfig(), {
-        task: task,
-        userPrompt: trimmedPrompt,
-        profile: this.userProfile,
-        weightRecords: this.getWeightRecords(),
-        workoutRecords: this.getWorkoutRecords(),
-        existingPlanCount: this.getWorkoutPlans().length,
-        savedWorkoutNames: savedWorkoutNames,
-        historyMessages: this.chatMessages
-      });
-
-      this.addChatMessage(AI_ROLE_ASSISTANT, response.reply);
-      if (response.plans.length > 0) {
-        this.generatedPlans = response.plans;
-        this.assistantNotice = `AI 已生成 ${response.plans.length} 条计划草案，你可以先调整再导入。`;
-      } else if (task === AI_TASK_GENERATE_PLAN) {
-        this.generatedPlans = [];
-        this.assistantNotice = 'AI 这次没有返回可导入计划，可以换个问法再试一次。';
-      } else {
-        this.assistantNotice = 'AI 建议已更新。';
-      }
-    } catch (error) {
-      let errorText = `${error}`;
-      if (errorText.trim().length === 0 || errorText === '[object Object]') {
-        errorText = 'AI 请求失败，请检查网络、模型名和 API Key。';
-      }
-      this.addChatMessage(AI_ROLE_ASSISTANT, `这次没有成功：${errorText}`);
-      this.assistantNotice = errorText;
-    } finally {
-      this.assistantBusy = false;
-    }
-  }
-
-  private askAboutWeightTrend(): void {
-    this.submitToAssistant(
-      AI_TASK_ANALYZE_WEIGHT,
-      `请结合${this.getUserName()}最近的体重变化，告诉我最近需要注意什么，并给出 3 条以内的训练和饮食建议。`
-    );
-  }
-
-  private generatePlanDrafts(): void {
-    this.submitToAssistant(
-      AI_TASK_GENERATE_PLAN,
-      `请结合${this.getUserName()}最近的体重和训练情况，为我生成接下来几天适合导入 App 的训练计划。`
-    );
-  }
-
-  private sendFreeQuestion(): void {
-    this.submitToAssistant(AI_TASK_CHAT, this.questionInput);
-  }
-
-  private updateGeneratedPlanField(planId: string, field: string, value: string): void {
-    let nextPlans: AiGeneratedPlanItem[] = [];
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
-      if (currentPlan.id !== planId) {
-        nextPlans.push(currentPlan);
-        continue;
-      }
-
-      nextPlans.push({
-        id: currentPlan.id,
-        date: field === 'date' ? value : currentPlan.date,
-        title: field === 'title' ? value : currentPlan.title,
-        summary: currentPlan.summary,
-        notes: field === 'notes' ? value : currentPlan.notes,
-        draftText: currentPlan.draftText,
-        accentColor: currentPlan.accentColor,
-        imported: currentPlan.imported
-      });
-    }
-    this.generatedPlans = nextPlans;
-  }
-
-  private markPlanImported(planId: string): void {
-    let nextPlans: AiGeneratedPlanItem[] = [];
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
-      nextPlans.push({
-        id: currentPlan.id,
-        date: currentPlan.date,
-        title: currentPlan.title,
-        summary: currentPlan.summary,
-        notes: currentPlan.notes,
-        draftText: currentPlan.draftText,
-        accentColor: currentPlan.accentColor,
-        imported: currentPlan.id === planId ? true : currentPlan.imported
-      });
-    }
-    this.generatedPlans = nextPlans;
-  }
-
-  private importGeneratedPlan(planId: string): void {
-    let targetPlan: AiGeneratedPlanItem | undefined = undefined;
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      if (this.generatedPlans[index].id === planId) {
-        targetPlan = this.generatedPlans[index];
-        break;
-      }
-    }
-
-    if (!targetPlan) {
-      this.assistantNotice = '没有找到这条计划草案，请重新生成一次。';
-      return;
-    }
-    if (targetPlan.imported) {
-      this.assistantNotice = '这条计划已经导入过了。';
-      return;
-    }
-
-    let nextPlans: WorkoutPlanItem[] = this.getWorkoutPlans().slice();
-    let createdPlan = createWorkoutPlanItem(
-      this.normalizePlanDateText(targetPlan.date),
-      deserializeExerciseDraft(targetPlan.draftText),
-      this.userProfile,
-      targetPlan.title,
-      targetPlan.notes
-    );
-    createdPlan.summary = targetPlan.summary.trim().length > 0 ? targetPlan.summary.trim() : createdPlan.summary;
-    createdPlan.accentColor = targetPlan.accentColor;
-    nextPlans.unshift(createdPlan);
-    this.workoutPlanText = serializeWorkoutPlans(nextPlans);
-    this.markPlanImported(planId);
-    this.assistantNotice = `已导入计划「${targetPlan.title}」，现在可以去训练页查看。`;
-  }
-
-  private importAllGeneratedPlans(): void {
-    let nextPlans: WorkoutPlanItem[] = this.getWorkoutPlans().slice();
-    let importedCount: number = 0;
-
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
-      if (currentPlan.imported) {
-        continue;
-      }
-
-      let createdPlan = createWorkoutPlanItem(
-        this.normalizePlanDateText(currentPlan.date),
-        deserializeExerciseDraft(currentPlan.draftText),
-        this.userProfile,
-        currentPlan.title,
-        currentPlan.notes
-      );
-      createdPlan.summary = currentPlan.summary.trim().length > 0 ? currentPlan.summary.trim() : createdPlan.summary;
-      createdPlan.accentColor = currentPlan.accentColor;
-      nextPlans.unshift(createdPlan);
-      importedCount += 1;
-    }
-
-    if (importedCount === 0) {
-      this.assistantNotice = '没有新的计划需要导入。';
-      return;
-    }
-
-    this.workoutPlanText = serializeWorkoutPlans(nextPlans);
-    let markedPlans: AiGeneratedPlanItem[] = [];
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
-      markedPlans.push({
-        id: currentPlan.id,
-        date: currentPlan.date,
-        title: currentPlan.title,
-        summary: currentPlan.summary,
-        notes: currentPlan.notes,
-        draftText: currentPlan.draftText,
-        accentColor: currentPlan.accentColor,
-        imported: true
-      });
-    }
-    this.generatedPlans = markedPlans;
-    this.assistantNotice = `已导入 ${importedCount} 条计划草案。`;
-  }
-
-  private clearGeneratedPlans(): void {
-    this.generatedPlans = [];
-    this.assistantNotice = '已清空当前计划草案。';
-  }
-
-  private normalizePlanDateText(dateText: string): string {
-    let trimmedDate = dateText.trim();
-    let datePattern = /^\d{4}-\d{2}-\d{2}$/;
-    if (datePattern.test(trimmedDate)) {
-      return trimmedDate;
-    }
+  private getTodayText(): string {
     return formatDate(new Date());
   }
 
-  private openExerciseTab(): void {
-    this.currentTabIndex = EXERCISE_TAB_INDEX;
+  private openTab(tabIndex: number): void {
+    this.currentTabIndex = tabIndex;
   }
 
-  private isAssistantMessage(message: AiChatMessage): boolean {
-    return message.role === AI_ROLE_ASSISTANT;
+  private getCalorieSummary(): HomeDashboardCaloriesSummary {
+    return getTodayDashboardCalories(
+      this.foodPlanText,
+      this.workoutRecordText,
+      this.dailyFoodCalorieTargetText,
+      this.getTodayText()
+    );
+  }
+
+  private getWeightTrendSummary(): HomeWeightTrendSummary {
+    return getHomeWeightTrend(this.weightRecordText, this.getTodayText());
+  }
+
+  private getReminderItems(): HomeReminderItem[] {
+    return getHomeReminderItems(
+      this.userProfileText,
+      this.foodPlanText,
+      this.workoutRecordText,
+      this.weightRecordText,
+      this.getTodayText()
+    );
+  }
+
+  private getUserHeadline(): string {
+    let profile = deserializeUserProfile(this.userProfileText);
+    if (profile.nickname.trim().length > 0) {
+      return `${profile.nickname.trim()} 的今日概览`;
+    }
+    return '今日健康概览';
+  }
+
+  private getNetCalorieAccentColor(): string {
+    let summary = this.getCalorieSummary();
+    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
+      return '#0F6BFF';
+    }
+    if (summary.netCalories <= 0) {
+      return '#10B981';
+    }
+    if (summary.netCalories <= 350) {
+      return '#0F6BFF';
+    }
+    return '#FF7A59';
+  }
+
+  private getNetCalorieSurfaceColor(): string {
+    let summary = this.getCalorieSummary();
+    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
+      return '#20456E';
+    }
+    if (summary.netCalories <= 0) {
+      return '#174238';
+    }
+    if (summary.netCalories <= 350) {
+      return '#20456E';
+    }
+    return '#5B2F2D';
+  }
+
+  private getNetCalorieTitleText(): string {
+    let summary = this.getCalorieSummary();
+    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
+      return '今日还没有热量记录';
+    }
+    if (summary.netCalories < 0) {
+      return '净热量已经转负';
+    }
+    if (summary.netCalories === 0) {
+      return '净热量刚好持平';
+    }
+    return '当前净热量';
+  }
+
+  private getNetCalorieDescriptionText(): string {
+    let summary = this.getCalorieSummary();
+    if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
+      return '先去记录饮食或训练，首页会自动同步数据。';
+    }
+    if (summary.netCalories < 0) {
+      return `今天的训练消耗比摄入多 ${Math.round(Math.abs(summary.netCalories))} kcal。`;
+    }
+    if (summary.netCalories === 0) {
+      return '今天摄入和消耗目前相等。';
+    }
+    return `摄入减去消耗后，还剩 ${Math.round(summary.netCalories)} kcal。`;
+  }
+
+  private getTargetStatusText(): string {
+    let summary = this.getCalorieSummary();
+    if (summary.intakeCalories <= 0) {
+      return `今日目标 ${summary.targetCalories} kcal`;
+    }
+    if (summary.remainingTargetCalories >= 0) {
+      return `距离今日饮食目标还差 ${Math.round(summary.remainingTargetCalories)} kcal`;
+    }
+    return `已超过今日饮食目标 ${Math.round(Math.abs(summary.remainingTargetCalories))} kcal`;
+  }
+
+  private getProgressWidthText(): string {
+    let summary = this.getCalorieSummary();
+    let ratio = Math.round(summary.intakeProgress * 100);
+    if (ratio <= 0) {
+      return '0%';
+    }
+    if (ratio < 10) {
+      return '10%';
+    }
+    return `${ratio}%`;
+  }
+
+  private getWeightTrendBadgeText(): string {
+    let trendSummary = this.getWeightTrendSummary();
+    if (trendSummary.recentRecords.length < 2) {
+      return '待形成趋势';
+    }
+    if (trendSummary.changeValue <= -0.3) {
+      return '近 7 次下降';
+    }
+    if (trendSummary.changeValue >= 0.3) {
+      return '近 7 次回升';
+    }
+    return '近 7 次平稳';
+  }
+
+  private getLatestWeightText(): string {
+    let trendSummary = this.getWeightTrendSummary();
+    if (!trendSummary.latestRecord) {
+      return '--';
+    }
+    return `${trendSummary.latestRecord.weight.toFixed(1)} kg`;
+  }
+
+  private getWeightChangeText(): string {
+    let trendSummary = this.getWeightTrendSummary();
+    if (trendSummary.recentRecords.length < 2) {
+      return '继续记录形成趋势';
+    }
+    let directionText: string = trendSummary.changeValue <= 0 ? '下降' : '上升';
+    return `${directionText} ${Math.abs(trendSummary.changeValue).toFixed(1)} kg`;
+  }
+
+  private getWeightSublineText(): string {
+    let trendSummary = this.getWeightTrendSummary();
+    if (!trendSummary.latestRecord) {
+      return '还没有体重记录';
+    }
+    if (trendSummary.hasTodayRecord) {
+      return `今日已记录 · 近期均值 ${trendSummary.averageWeight.toFixed(1)} kg`;
+    }
+    return `最近记录 ${trendSummary.latestRecord.date} · 近期均值 ${trendSummary.averageWeight.toFixed(1)} kg`;
+  }
+
+  private getWeightMinValue(): number {
+    let records = this.getWeightTrendSummary().recentRecords;
+    if (records.length === 0) {
+      return 0;
+    }
+
+    let minValue = records[0].weight;
+    for (let index = 1; index < records.length; index++) {
+      if (records[index].weight < minValue) {
+        minValue = records[index].weight;
+      }
+    }
+    return minValue;
+  }
+
+  private getWeightMaxValue(): number {
+    let records = this.getWeightTrendSummary().recentRecords;
+    if (records.length === 0) {
+      return 0;
+    }
+
+    let maxValue = records[0].weight;
+    for (let index = 1; index < records.length; index++) {
+      if (records[index].weight > maxValue) {
+        maxValue = records[index].weight;
+      }
+    }
+    return maxValue;
+  }
+
+  private getWeightBarHeight(record: WeightRecord): number {
+    let minValue = this.getWeightMinValue();
+    let maxValue = this.getWeightMaxValue();
+    let range = maxValue - minValue;
+    if (range <= 0) {
+      return 58;
+    }
+    let ratio = (record.weight - minValue) / range;
+    return 34 + Math.round(ratio * 54);
+  }
+
+  private getWeightBarColor(record: WeightRecord): string {
+    let trendSummary = this.getWeightTrendSummary();
+    if (trendSummary.latestRecord && trendSummary.latestRecord.id === record.id) {
+      return '#0F6BFF';
+    }
+    return '#93C5FD';
+  }
+
+  private getWeightShortDate(dateText: string): string {
+    if (dateText.length < 10) {
+      return dateText;
+    }
+    return `${dateText.substring(5, 7)}/${dateText.substring(8, 10)}`;
+  }
+
+  private getQuickEntryStatusText(entryId: string): string {
+    let calorieSummary = this.getCalorieSummary();
+    let trendSummary = this.getWeightTrendSummary();
+    if (entryId === 'food') {
+      if (calorieSummary.intakeCalories > 0) {
+        return `已记录 ${Math.round(calorieSummary.intakeCalories)} kcal`;
+      }
+      return '今天还没记饮食';
+    }
+    if (entryId === 'exercise') {
+      if (calorieSummary.burnedCalories > 0) {
+        return `已消耗 ${Math.round(calorieSummary.burnedCalories)} kcal`;
+      }
+      return '今天还没训练';
+    }
+    if (entryId === 'record') {
+      if (trendSummary.hasTodayRecord && trendSummary.latestRecord) {
+        return `今日 ${trendSummary.latestRecord.weight.toFixed(1)} kg`;
+      }
+      return '今天还没记体重';
+    }
+    if (this.getReminderItems()[0].id === 'assistant') {
+      return '数据已齐，可以直接分析';
+    }
+    return '根据今天的记录给建议';
   }
 
   @Builder
-  buildConfigCard() {
-    Column({ space: 12 }) {
+  private buildOverviewCard() {
+    Column({ space: 16 }) {
       Row() {
         Column({ space: 4 }) {
-          Text('AI 接口配置')
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(PRIMARY_TEXT_COLOR)
+          Text(this.getUserHeadline())
+            .fontSize(24)
+            .fontWeight(FontWeight.Bolder)
+            .fontColor('#FFFFFF')
 
-          Text('默认会从 AiAssistant.ets 读取 BigModel 的接口地址、模型和 API Key，也可以在页面里临时修改。')
+          Text(this.getTodayText())
             .fontSize(12)
-            .lineHeight(18)
-            .fontColor(SECONDARY_TEXT_COLOR)
+            .fontColor('#D3E2F5')
         }
         .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
 
-        Text(this.hasAiConfig() ? '可调用' : '待配置')
-          .fontSize(12)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.hasAiConfig() ? '#2E8B57' : '#C95F34')
+        Text('今日总览')
+          .fontSize(11)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#FFFFFF')
           .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-        .backgroundColor(this.hasAiConfig() ? '#EAF5EE' : '#FFF1E8')
-        .borderRadius(999)
+          .backgroundColor(this.getNetCalorieAccentColor())
+          .borderRadius(999)
       }
       .width('100%')
+      .justifyContent(FlexAlign.SpaceBetween)
       .alignItems(VerticalAlign.Top)
 
-      Button('恢复 BigModel 默认')
-        .width('100%')
-        .height(40)
-        .fontSize(14)
-        .fontWeight(FontWeight.Medium)
-        .fontColor('#17324D')
-        .backgroundColor('#EEF3FF')
-        .borderRadius(18)
-        .onClick(() => {
-          this.restoreDefaultAiConfig();
-        })
-
       Column({ space: 8 }) {
-        Text('接口地址')
-          .fontSize(12)
-          .fontColor('#4F6690')
-        TextInput({ placeholder: getDefaultAiApiEndpoint(), text: this.aiApiEndpointText })
-          .fontSize(15)
-          .fontColor(PRIMARY_TEXT_COLOR)
-          .height(46)
-          .width('100%')
-          .padding({ left: 12, right: 12 })
-          .backgroundColor('#F6F8FB')
-          .borderRadius(16)
-          .onChange((value: string) => {
-            this.aiApiEndpointText = value;
-          })
+        Text(this.getNetCalorieTitleText())
+          .fontSize(13)
+          .fontColor('#BCD1E8')
+
+        Row({ space: 8 }) {
+          Text(`${Math.round(this.getCalorieSummary().netCalories)}`)
+            .fontSize(42)
+            .fontWeight(FontWeight.Bolder)
+            .fontColor('#FFFFFF')
+
+          Text('kcal')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#D8E6F7')
+            .margin({ top: 22 })
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Bottom)
+
+        Text(this.getNetCalorieDescriptionText())
+          .fontSize(13)
+          .lineHeight(20)
+          .fontColor('#D8E6F7')
       }
       .alignItems(HorizontalAlign.Start)
       .width('100%')
 
       Row({ space: 12 }) {
-        Column({ space: 8 }) {
-          Text('模型')
+        Column({ space: 6 }) {
+          Text('摄入热量')
             .fontSize(12)
-            .fontColor('#4F6690')
-          TextInput({ placeholder: getDefaultAiModel(), text: this.aiModelText })
-            .fontSize(15)
-            .fontColor(PRIMARY_TEXT_COLOR)
-            .height(46)
-            .width('100%')
-            .padding({ left: 12, right: 12 })
-            .backgroundColor('#F6F8FB')
-            .borderRadius(16)
-            .onChange((value: string) => {
-              this.aiModelText = value;
-            })
-        }
-        .layoutWeight(1)
-        .alignItems(HorizontalAlign.Start)
+            .fontColor('#A7BED9')
 
-        Column({ space: 8 }) {
-          Text('API Key')
-            .fontSize(12)
-            .fontColor('#4F6690')
-          TextInput({ placeholder: getDefaultAiApiKey(), text: this.aiApiKeyText })
-            .fontSize(15)
-            .fontColor(PRIMARY_TEXT_COLOR)
-            .height(46)
-            .width('100%')
-            .padding({ left: 12, right: 12 })
-            .backgroundColor('#F6F8FB')
-            .borderRadius(16)
-            .onChange((value: string) => {
-              this.aiApiKeyText = value;
-            })
+          Text(`${Math.round(this.getCalorieSummary().intakeCalories)} kcal`)
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#FFFFFF')
         }
-        .layoutWeight(1)
         .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .padding(14)
+        .backgroundColor(this.getNetCalorieSurfaceColor())
+        .borderRadius(20)
+
+        Column({ space: 6 }) {
+          Text('消耗热量')
+            .fontSize(12)
+            .fontColor('#A7BED9')
+
+          Text(`${Math.round(this.getCalorieSummary().burnedCalories)} kcal`)
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#FFFFFF')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .padding(14)
+        .backgroundColor(this.getNetCalorieSurfaceColor())
+        .borderRadius(20)
       }
       .width('100%')
 
-      Text('提示：页面初始值来自 AiAssistant.ets；当前仍是本地持久化存储，方便调试，但不适合生产环境。')
-        .fontSize(12)
-        .lineHeight(18)
-        .fontColor('#667085')
+      Column({ space: 8 }) {
+        Row() {
+          Text(`饮食目标 ${this.getCalorieSummary().targetCalories} kcal`)
+            .fontSize(12)
+            .fontColor('#D8E6F7')
+            .layoutWeight(1)
+
+          Text(this.getTargetStatusText())
+            .fontSize(12)
+            .fontColor('#D8E6F7')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .width('100%')
+
+        Stack({ alignContent: Alignment.Start }) {
+          Text('')
+            .width('100%')
+            .height(8)
+            .backgroundColor('#2E4D71')
+            .borderRadius(999)
+
+          Text('')
+            .width(this.getProgressWidthText())
+            .height(8)
+            .backgroundColor(this.getNetCalorieAccentColor())
+            .borderRadius(999)
+        }
+        .width('100%')
+      }
+      .width('100%')
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
+    .padding(20)
+    .backgroundColor('#17324D')
+    .borderRadius(28)
+  }
+
+  @Builder
+  private buildWeightTrendCard() {
+    Column({ space: 14 }) {
+      Row() {
+        Column({ space: 4 }) {
+          Text('体重变化趋势')
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(PRIMARY_TEXT_COLOR)
+
+          Text(this.getWeightSublineText())
+            .fontSize(12)
+            .fontColor(SECONDARY_TEXT_COLOR)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text(this.getWeightTrendBadgeText())
+          .fontSize(11)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#0F6BFF')
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor('#EAF2FF')
+          .borderRadius(999)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Row({ space: 12 }) {
+        Column({ space: 6 }) {
+          Text('最新体重')
+            .fontSize(12)
+            .fontColor('#5373A6')
+
+          Text(this.getLatestWeightText())
+            .fontSize(26)
+            .fontWeight(FontWeight.Bolder)
+            .fontColor(PRIMARY_TEXT_COLOR)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .padding(14)
+        .backgroundColor('#F5F8FF')
+        .borderRadius(20)
+
+        Column({ space: 6 }) {
+          Text('近 7 次变化')
+            .fontSize(12)
+            .fontColor('#5373A6')
+
+          Text(this.getWeightChangeText())
+            .fontSize(22)
+            .fontWeight(FontWeight.Bolder)
+            .fontColor(this.getWeightTrendSummary().changeValue <= 0 ? '#10B981' : '#FF7A59')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        .padding(14)
+        .backgroundColor('#EEF4FF')
+        .borderRadius(20)
+      }
+      .width('100%')
+
+      if (this.getWeightTrendSummary().recentRecords.length > 0) {
+        Row({ space: 10 }) {
+          ForEach(this.getWeightTrendSummary().recentRecords, (record: WeightRecord) => {
+            Column({ space: 8 }) {
+              Column() {
+                Text('')
+                  .width('100%')
+                  .height(this.getWeightBarHeight(record))
+                  .backgroundColor(this.getWeightBarColor(record))
+                  .borderRadius(12)
+              }
+              .width(24)
+              .height(92)
+              .justifyContent(FlexAlign.End)
+              .backgroundColor('#EAF2FF')
+              .borderRadius(12)
+
+              Text(this.getWeightShortDate(record.date))
+                .fontSize(10)
+                .fontColor('#94A0B4')
+
+              Text(record.weight.toFixed(1))
+                .fontSize(11)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(PRIMARY_TEXT_COLOR)
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Center)
+          }, (record: WeightRecord) => `${record.id}`)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Bottom)
+      } else {
+        Text('开始记录体重后，这里会自动展示最近 7 条趋势。')
+          .fontSize(13)
+          .lineHeight(20)
+          .fontColor(SECONDARY_TEXT_COLOR)
+          .padding(14)
+          .width('100%')
+          .backgroundColor('#F5F8FF')
+          .borderRadius(18)
+      }
     }
     .alignItems(HorizontalAlign.Start)
     .width('100%')
@@ -495,108 +574,77 @@ export struct HomeTabPage {
   }
 
   @Builder
-  buildChatCard() {
-    Column({ space: 14 }) {
+  private buildQuickEntryItem(entry: HomeQuickEntryItem) {
+    Button() {
+      Column({ space: 10 }) {
+        Text(entry.icon)
+          .fontSize(entry.icon.length > 1 ? 14 : 18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(entry.accentColor)
+          .width(38)
+          .height(38)
+          .textAlign(TextAlign.Center)
+          .padding({ top: 8, bottom: 8 })
+          .backgroundColor('#FFFFFF')
+          .borderRadius(19)
+
+        Column({ space: 4 }) {
+          Text(entry.title)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(PRIMARY_TEXT_COLOR)
+
+          Text(entry.description)
+            .fontSize(11)
+            .fontColor(SECONDARY_TEXT_COLOR)
+
+          Text(this.getQuickEntryStatusText(entry.id))
+            .fontSize(11)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(entry.accentColor)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+      }
+      .alignItems(HorizontalAlign.Start)
+      .width('100%')
+    }
+    .layoutWeight(1)
+    .padding(16)
+    .backgroundColor(entry.surfaceColor)
+    .borderRadius(20)
+    .onClick(() => {
+      this.openTab(entry.tabIndex);
+    })
+  }
+
+  @Builder
+  private buildQuickEntryCard() {
+    Column({ space: 12 }) {
       Column({ space: 4 }) {
-        Text('对话与建议')
+        Text('常用入口')
           .fontSize(18)
           .fontWeight(FontWeight.Medium)
           .fontColor(PRIMARY_TEXT_COLOR)
 
-        Text(this.getAssistantStatusText())
+        Text('从首页直接进入常用页面。')
           .fontSize(12)
-          .lineHeight(18)
           .fontColor(SECONDARY_TEXT_COLOR)
       }
       .alignItems(HorizontalAlign.Start)
       .width('100%')
 
-      Row({ space: 10 }) {
-        Button('分析体重趋势')
-          .layoutWeight(1)
-          .height(40)
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#17324D')
-          .backgroundColor('#EEF3FF')
-          .borderRadius(16)
-          .onClick(() => {
-            this.askAboutWeightTrend();
-          })
-
-        Button('生成计划草案')
-          .layoutWeight(1)
-          .height(40)
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#FFFFFF')
-          .backgroundColor('#17324D')
-          .borderRadius(16)
-          .onClick(() => {
-            this.generatePlanDrafts();
-          })
+      Row({ space: 12 }) {
+        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[0])
+        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[1])
       }
       .width('100%')
 
-      Column({ space: 10 }) {
-        ForEach(this.chatMessages, (message: AiChatMessage) => {
-          Column({ space: 6 }) {
-            Text(this.isAssistantMessage(message) ? 'AI 助手' : this.getUserName())
-              .fontSize(11)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(this.isAssistantMessage(message) ? '#4F6690' : '#816A47')
-
-            Text(message.content)
-              .fontSize(14)
-              .lineHeight(22)
-              .fontColor(PRIMARY_TEXT_COLOR)
-              .width('100%')
-          }
-          .alignItems(HorizontalAlign.Start)
-          .width('100%')
-          .padding(14)
-          .backgroundColor(this.isAssistantMessage(message) ? '#F6F8FB' : '#FBF3E4')
-          .borderRadius(18)
-        }, (message: AiChatMessage) => message.id)
-      }
-      .width('100%')
-
-      TextInput({ placeholder: '例如：我最近体重有点反弹，训练应该怎么调？', text: this.questionInput })
-        .fontSize(15)
-        .fontColor(PRIMARY_TEXT_COLOR)
-        .height(46)
-        .width('100%')
-        .padding({ left: 12, right: 12 })
-        .backgroundColor('#F6F8FB')
-        .borderRadius(16)
-        .onChange((value: string) => {
-          this.questionInput = value;
-        })
-
-      Row({ space: 10 }) {
-        Button('发送问题')
-          .layoutWeight(1)
-          .height(42)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#FFFFFF')
-          .backgroundColor(this.assistantBusy ? '#98A2B3' : '#D86C3D')
-          .borderRadius(18)
-          .onClick(() => {
-            this.sendFreeQuestion();
-          })
-
-        Button('去训练页')
-          .width(112)
-          .height(42)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#17324D')
-          .backgroundColor('#EEF3FF')
-          .borderRadius(18)
-          .onClick(() => {
-            this.openExerciseTab();
-          })
+      Row({ space: 12 }) {
+        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[2])
+        this.buildQuickEntryItem(HOME_QUICK_ENTRIES[3])
       }
       .width('100%')
     }
@@ -608,158 +656,64 @@ export struct HomeTabPage {
   }
 
   @Builder
-  buildGeneratedPlanCard() {
-    Column({ space: 14 }) {
-      Row() {
-        Column({ space: 4 }) {
-          Text('训练计划草案')
-            .fontSize(18)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(PRIMARY_TEXT_COLOR)
+  private buildReminderCard() {
+    Column({ space: 12 }) {
+      Column({ space: 4 }) {
+        Text('今日提醒')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(PRIMARY_TEXT_COLOR)
 
-          Text(this.generatedPlans.length > 0 ? `${this.generatedPlans.length} 条待处理草案` : 'AI 返回的计划会先显示在这里，确认后再导入。')
-            .fontSize(12)
-            .lineHeight(18)
-            .fontColor(SECONDARY_TEXT_COLOR)
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-
-        if (this.generatedPlans.length > 0) {
-          Button('全部导入')
-            .height(36)
-            .fontSize(13)
-            .fontWeight(FontWeight.Medium)
-            .fontColor('#FFFFFF')
-            .backgroundColor('#17324D')
-            .borderRadius(18)
-            .onClick(() => {
-              this.importAllGeneratedPlans();
-            })
-        }
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Top)
-
-      if (this.generatedPlans.length === 0) {
-        Text('先点击“生成计划草案”，或在对话里直接让 AI 帮你安排一周训练。')
-          .fontSize(13)
-          .lineHeight(20)
+        Text('优先处理最影响首页数据完整度的几项。')
+          .fontSize(12)
           .fontColor(SECONDARY_TEXT_COLOR)
-          .width('100%')
-          .padding(14)
-          .backgroundColor('#F6F8FB')
-          .borderRadius(18)
       }
+      .alignItems(HorizontalAlign.Start)
+      .width('100%')
 
-      ForEach(this.generatedPlans, (plan: AiGeneratedPlanItem) => {
-        Column({ space: 10 }) {
-          Row() {
-            Text(plan.imported ? '已导入' : '待确认')
-              .fontSize(11)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(plan.imported ? '#2E8B57' : '#4F6690')
-              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-              .backgroundColor(plan.imported ? '#EAF5EE' : '#EEF3FF')
-              .borderRadius(999)
+      ForEach(this.getReminderItems(), (item: HomeReminderItem) => {
+        Button() {
+          Row({ space: 12 }) {
+            Text('')
+              .width(10)
+              .height(10)
+              .backgroundColor(item.accentColor)
+              .borderRadius(5)
 
-            Text(plan.summary)
-              .layoutWeight(1)
+            Column({ space: 4 }) {
+              Text(item.title)
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(PRIMARY_TEXT_COLOR)
+
+              Text(item.description)
+                .fontSize(12)
+                .lineHeight(18)
+                .fontColor(SECONDARY_TEXT_COLOR)
+                .maxLines(2)
+            }
+            .alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)
+
+            Text('去处理')
               .fontSize(12)
-              .fontColor(SECONDARY_TEXT_COLOR)
-              .maxLines(1)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .fontWeight(FontWeight.Bold)
+              .fontColor(item.accentColor)
+              .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+              .backgroundColor('#FFFFFF')
+              .borderRadius(999)
           }
           .width('100%')
           .alignItems(VerticalAlign.Center)
-
-          TextInput({ placeholder: '计划日期 YYYY-MM-DD', text: plan.date })
-            .fontSize(14)
-            .fontColor(PRIMARY_TEXT_COLOR)
-            .height(42)
-            .width('100%')
-            .padding({ left: 12, right: 12 })
-            .backgroundColor('#F6F8FB')
-            .borderRadius(14)
-            .onChange((value: string) => {
-              this.updateGeneratedPlanField(plan.id, 'date', value);
-            })
-
-          TextInput({ placeholder: '计划标题', text: plan.title })
-            .fontSize(15)
-            .fontColor(PRIMARY_TEXT_COLOR)
-            .height(42)
-            .width('100%')
-            .padding({ left: 12, right: 12 })
-            .backgroundColor('#F6F8FB')
-            .borderRadius(14)
-            .onChange((value: string) => {
-              this.updateGeneratedPlanField(plan.id, 'title', value);
-            })
-
-          TextInput({ placeholder: '备注，可继续补充训练安排', text: plan.notes })
-            .fontSize(14)
-            .fontColor(PRIMARY_TEXT_COLOR)
-            .height(42)
-            .width('100%')
-            .padding({ left: 12, right: 12 })
-            .backgroundColor('#F6F8FB')
-            .borderRadius(14)
-            .onChange((value: string) => {
-              this.updateGeneratedPlanField(plan.id, 'notes', value);
-            })
-
-          Row({ space: 10 }) {
-            Button(plan.imported ? '已导入' : '导入计划')
-              .layoutWeight(1)
-              .height(40)
-              .fontSize(14)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#FFFFFF')
-              .backgroundColor(plan.imported ? '#98A2B3' : plan.accentColor)
-              .borderRadius(16)
-              .onClick(() => {
-                this.importGeneratedPlan(plan.id);
-              })
-
-            Button('打开训练页')
-              .width(112)
-              .height(40)
-              .fontSize(13)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#17324D')
-              .backgroundColor('#EEF3FF')
-              .borderRadius(16)
-              .onClick(() => {
-                this.openExerciseTab();
-              })
-          }
-          .width('100%')
         }
-        .alignItems(HorizontalAlign.Start)
         .width('100%')
-        .padding(16)
-        .backgroundColor('#FFFDF8')
-        .borderRadius(20)
-        .border({
-          color: '#E5E9F0',
-          width: 1
+        .padding(14)
+        .backgroundColor('#F7FAFF')
+        .borderRadius(18)
+        .onClick(() => {
+          this.openTab(item.targetTabIndex);
         })
-      }, (plan: AiGeneratedPlanItem) => plan.id)
-
-      if (this.generatedPlans.length > 0) {
-        Button('清空草案')
-          .width('100%')
-          .height(40)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#7A5C2E')
-          .backgroundColor('#F8EEDC')
-          .borderRadius(18)
-          .onClick(() => {
-            this.clearGeneratedPlans();
-          })
-      }
+      }, (item: HomeReminderItem) => item.id)
     }
     .alignItems(HorizontalAlign.Start)
     .width('100%')
@@ -770,52 +724,14 @@ export struct HomeTabPage {
 
   build() {
     Scroll() {
-      Column({ space: 18 }) {
-        Column({ space: 8 }) {
-          Text('AI 训练助手')
-            .fontSize(30)
-            .fontWeight(FontWeight.Bolder)
-            .fontColor(PRIMARY_TEXT_COLOR)
-
-          Text('先看体重趋势，再向 AI 追问建议，最后把计划草案导入训练页。')
-            .fontSize(14)
-            .lineHeight(22)
-            .fontColor(SECONDARY_TEXT_COLOR)
-        }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-
-        Column({ space: 8 }) {
-          Text(`${this.getUserName()} 的近期状态`)
-            .fontSize(14)
-            .fontColor('#D8E5FF')
-
-          Text(this.getLatestWeightText())
-            .fontSize(34)
-            .fontWeight(FontWeight.Bolder)
-            .fontColor('#FFFFFF')
-
-          Text(this.getWeightTrendText())
-            .fontSize(13)
-            .lineHeight(20)
-            .fontColor('#D8E5FF')
-
-          Text(this.getPlanCounterText())
-            .fontSize(12)
-            .fontColor('#B7CAE8')
-        }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-        .padding(18)
-        .backgroundColor('#17324D')
-        .borderRadius(24)
-
-        this.buildConfigCard()
-        this.buildChatCard()
-        this.buildGeneratedPlanCard()
+      Column({ space: 14 }) {
+        this.buildOverviewCard()
+        this.buildWeightTrendCard()
+        this.buildQuickEntryCard()
+        this.buildReminderCard()
       }
       .width('100%')
-      .padding({ left: 20, right: 20, top: 24, bottom: 24 })
+      .padding({ left: 20, right: 20, top: 20, bottom: 28 })
     }
     .width('100%')
     .height('100%')

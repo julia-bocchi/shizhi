@@ -1,6 +1,9 @@
 import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
+import homeDashboardHelperTest from './HomeDashboardHelper.test';
 
 export default function localUnitTest() {
+  homeDashboardHelperTest();
+
   describe('localUnitTest', () => {
     // Defines a test suite. Two parameters are supported: test suite name and test suite function.
     beforeAll(() => {

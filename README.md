@@ -14,11 +14,12 @@
 
 ### 1. AI 助手
 
-- 首页现在是 AI 助手页，可以直接提问训练与体重管理问题。
+- AI 助手现在是独立页签，首页保持空白。
+- AI 页可以直接提问训练与体重管理问题。
 - AI 会读取最近体重记录、最近训练记录和当前用户资料，再输出建议。
 - AI 可以生成训练计划草案，用户可以先修改日期、标题、备注，再导入训练页。
 - 页面里的默认接口地址、默认模型、默认 API Key，来自 [entry/src/main/ets/models/AiAssistant.ets](entry/src/main/ets/models/AiAssistant.ets)。
-- 如果本地已经保存过旧配置，可以在首页点击“恢复 BigModel 默认”重新回填。
+- 如果本地已经保存过旧配置，可以在 AI 助手页点击“恢复默认配置”重新回填。
 
 ### 2. 体重记录
 
@@ -60,7 +61,8 @@ entry/src/main/ets/
 │  ├─ WorkoutPlan.ets           # 训练计划模型
 │  └─ WorkoutRecord.ets         # 训练记录模型
 ├─ pages/
-│  ├─ home/HomeTabPage.ets      # AI 助手页
+│  ├─ home/HomeTabPage.ets      # 空白首页
+│  ├─ assistant/AiAssistantTabPage.ets # AI 助手页
 │  ├─ exercise/                 # 训练页与训练详情页
 │  ├─ record/RecordTabPage.ets  # 体重记录页
 │  ├─ profile/ProfileTabPage.ets# 用户资料页
@@ -77,7 +79,7 @@ entry/src/main/ets/
 
 ### 1. 配置 AI
 
-打开首页 AI 助手页后，页面会优先读取本地已保存配置；如果为空，则使用 `AiAssistant.ets` 中的默认值。
+打开 AI 助手页后，页面会优先读取本地已保存配置；如果为空，则使用 `AiAssistant.ets` 中的默认值。
 
 你可以：
 

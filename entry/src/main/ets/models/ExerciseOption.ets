@@ -85,7 +85,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '按组训练，适合燃脂和爆发力练习。',
     mode: EXERCISE_MODE_SET_TIMER,
     met: 8.5,
-    accentColor: '#D86C3D'
+    accentColor: '#FF6B57'
   },
   {
     id: 'running',
@@ -93,7 +93,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '根据配速和路程估算总时长与热量。',
     mode: EXERCISE_MODE_DISTANCE_PACE,
     met: 9.8,
-    accentColor: '#2F6FED'
+    accentColor: '#0F6BFF'
   },
   {
     id: 'cycling',
@@ -101,7 +101,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '根据均速和路程估算本次运动时长。',
     mode: EXERCISE_MODE_DISTANCE_SPEED,
     met: 7.5,
-    accentColor: '#2E8B57'
+    accentColor: '#10B981'
   },
   {
     id: 'jump_rope',
@@ -109,7 +109,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '根据总个数和频率估算训练时长。',
     mode: EXERCISE_MODE_COUNT_RATE,
     met: 11.8,
-    accentColor: '#C14D7F'
+    accentColor: '#FF4FA3'
   },
   {
     id: 'yoga',
@@ -117,7 +117,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '按持续时长估算消耗，适合拉伸和放松。',
     mode: EXERCISE_MODE_DURATION,
     met: 3.0,
-    accentColor: '#8B6BC7'
+    accentColor: '#7B61FF'
   },
   {
     id: 'strength',
@@ -125,7 +125,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '适合自重或器械训练，支持按组计时。',
     mode: EXERCISE_MODE_SET_TIMER,
     met: 6.0,
-    accentColor: '#355C7D'
+    accentColor: '#14B8A6'
   },
   {
     id: 'custom',
@@ -133,7 +133,7 @@ export const EXERCISE_OPTIONS: ExerciseOption[] = [
     description: '输入关键数据，自行组合时长、组数、次数或距离。',
     mode: EXERCISE_MODE_CUSTOM,
     met: 5.5,
-    accentColor: '#7A5C2E'
+    accentColor: '#FF7A59'
   }
 ];
 
@@ -144,7 +144,7 @@ export const CUSTOM_MODE_OPTIONS: ExerciseOption[] = [
     description: '适合瑜伽、散步、拉伸等持续型运动。',
     mode: EXERCISE_MODE_DURATION,
     met: 5.5,
-    accentColor: '#7A5C2E'
+    accentColor: '#7B61FF'
   },
   {
     id: EXERCISE_MODE_SET_TIMER,
@@ -152,7 +152,7 @@ export const CUSTOM_MODE_OPTIONS: ExerciseOption[] = [
     description: '适合循环训练、力量训练或间歇训练。',
     mode: EXERCISE_MODE_SET_TIMER,
     met: 5.5,
-    accentColor: '#7A5C2E'
+    accentColor: '#7B61FF'
   },
   {
     id: EXERCISE_MODE_COUNT_RATE,
@@ -160,7 +160,7 @@ export const CUSTOM_MODE_OPTIONS: ExerciseOption[] = [
     description: '适合俯卧撑、跳绳、仰卧起坐等计数运动。',
     mode: EXERCISE_MODE_COUNT_RATE,
     met: 5.5,
-    accentColor: '#7A5C2E'
+    accentColor: '#7B61FF'
   },
   {
     id: EXERCISE_MODE_DISTANCE_PACE,
@@ -168,7 +168,7 @@ export const CUSTOM_MODE_OPTIONS: ExerciseOption[] = [
     description: '适合跑步、徒步、游走等有路线的运动。',
     mode: EXERCISE_MODE_DISTANCE_PACE,
     met: 5.5,
-    accentColor: '#7A5C2E'
+    accentColor: '#7B61FF'
   },
   {
     id: EXERCISE_MODE_DISTANCE_SPEED,
@@ -176,7 +176,7 @@ export const CUSTOM_MODE_OPTIONS: ExerciseOption[] = [
     description: '适合骑行、滑板、自行车等速度型运动。',
     mode: EXERCISE_MODE_DISTANCE_SPEED,
     met: 5.5,
-    accentColor: '#7A5C2E'
+    accentColor: '#7B61FF'
   }
 ];
 

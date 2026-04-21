@@ -4,4 +4,8 @@ export interface WorkoutRecord {
   name: string;
   calories: number;
   durationSeconds: number;
+  exerciseId: string;
+  planId: string;
+  distanceKm: number;
+  count: number;
 }

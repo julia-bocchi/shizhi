@@ -21,6 +21,9 @@ import {
   serializeWeightRecords
 } from '../../utils/WeightRecordHelper';
 
+const CHART_BAR_GROUP_WIDTH: number = 40;
+const CHART_BAR_GROUP_SPACING: number = 12;
+
 @Component
 export struct RecordTabPage {
   @StorageLink('weightRecordText') weightRecordText: string = '';
@@ -178,23 +181,23 @@ export struct RecordTabPage {
   getFeedbackBackgroundColor(): string {
     let weeklyChange = this.getWeeklyChange();
     if (weeklyChange <= -0.5) {
-      return '#EAF5EE';
+      return '#ECFFF4';
     }
     if (weeklyChange >= 0.5) {
-      return '#FFF1E8';
+      return '#FFF0F6';
     }
-    return '#EEF3FF';
+    return '#EAF2FF';
   }
 
   getFeedbackAccentColor(): string {
     let weeklyChange = this.getWeeklyChange();
     if (weeklyChange <= -0.5) {
-      return '#2E8B57';
+      return '#10B981';
     }
     if (weeklyChange >= 0.5) {
-      return '#D86C3D';
+      return '#FF7A59';
     }
-    return '#2F6FED';
+    return '#0F6BFF';
   }
 
   getChartBounds(): number[] {
@@ -424,7 +427,7 @@ export struct RecordTabPage {
           Column({ space: 8 }) {
             Text('当前体重')
               .fontSize(13)
-              .fontColor('#D8E5FF')
+              .fontColor('#E3EEFF')
 
             Text(this.getCurrentWeightText())
               .fontSize(26)
@@ -433,34 +436,34 @@ export struct RecordTabPage {
 
             Text(this.getCurrentDateText())
               .fontSize(12)
-              .fontColor('#B7CAE8')
+              .fontColor('#C8DBFF')
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
           .alignItems(HorizontalAlign.Start)
           .padding(16)
           .width('100%')
-          .backgroundColor('#17324D')
+          .backgroundColor('#0F6BFF')
           .borderRadius(24)
 
           Column({ space: 8 }) {
             Text('近 7 次变化')
               .fontSize(13)
-              .fontColor('#7A5C2E')
+              .fontColor('#5373A6')
 
             Text(this.getWeeklyChangeText())
               .fontSize(26)
               .fontWeight(FontWeight.Bolder)
-              .fontColor(this.getWeeklyChange() <= 0 ? '#246B45' : '#C95F34')
+              .fontColor(this.getWeeklyChange() <= 0 ? '#10B981' : '#FF5A7A')
 
             Text(`平均体重 ${this.getAverageText()}`)
               .fontSize(12)
-              .fontColor('#816A47')
+              .fontColor(SECONDARY_TEXT_COLOR)
           }
           .alignItems(HorizontalAlign.Start)
           .padding(16)
           .width('100%')
-          .backgroundColor('#F2E7D8')
+          .backgroundColor('#EEF4FF')
           .borderRadius(24)
         }
         .width('100%')
@@ -477,11 +480,11 @@ export struct RecordTabPage {
                 Text('今日')
                   .fontSize(12)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#866A45')
+                  .fontColor('#5373A6')
 
                 Text('记录日期')
                   .fontSize(12)
-                  .fontColor('#866A45')
+                  .fontColor('#5373A6')
               }
 
               Text(this.getTodayDate())
@@ -491,13 +494,13 @@ export struct RecordTabPage {
 
               Text(`仅支持今天 · ${this.getTodayWeekdayText()}`)
                 .fontSize(12)
-                .fontColor('#866A45')
+                .fontColor('#5373A6')
             }
             .alignItems(HorizontalAlign.Start)
             .justifyContent(FlexAlign.Center)
             .width('100%')
             .padding(14)
-            .backgroundColor('#F8EEDC')
+            .backgroundColor('#F5F8FF')
             .borderRadius(22)
 
             Column({ space: 8 }) {
@@ -505,11 +508,11 @@ export struct RecordTabPage {
                 Text('录入')
                   .fontSize(12)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#4F6690')
+                  .fontColor('#5373A6')
 
                 Text('输入体重')
                   .fontSize(12)
-                  .fontColor('#4F6690')
+                  .fontColor('#5373A6')
               }
 
               Row({ space: 8 }) {
@@ -529,9 +532,9 @@ export struct RecordTabPage {
                 Text('kg')
                   .fontSize(15)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#2F6FED')
+                  .fontColor('#0F6BFF')
                   .padding({ left: 10, right: 10, top: 10, bottom: 10 })
-                  .backgroundColor('#DCE8FF')
+                  .backgroundColor('#DCEBFF')
                   .borderRadius(14)
               }
               .width('100%')
@@ -539,13 +542,13 @@ export struct RecordTabPage {
 
               Text('支持小数，例如 68.5')
                 .fontSize(12)
-                .fontColor('#4F6690')
+                .fontColor('#5373A6')
             }
             .alignItems(HorizontalAlign.Start)
             .justifyContent(FlexAlign.Center)
             .width('100%')
             .padding(14)
-            .backgroundColor('#EAF1FF')
+            .backgroundColor('#EAF2FF')
             .borderRadius(22)
           }
           .width('100%')
@@ -556,7 +559,7 @@ export struct RecordTabPage {
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFF')
-            .backgroundColor('#2F6FED')
+            .backgroundColor('#0F6BFF')
             .borderRadius(18)
             .onClick(() => {
               this.addOrUpdateRecord();
@@ -565,7 +568,7 @@ export struct RecordTabPage {
           Text(this.noticeText)
             .fontSize(13)
             .lineHeight(20)
-            .fontColor('#5D6B7A')
+            .fontColor(SECONDARY_TEXT_COLOR)
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')
@@ -583,21 +586,21 @@ export struct RecordTabPage {
 
               Text(`${this.getRecentRecords().length} 条记录`)
                 .fontSize(12)
-                .fontColor('#7D8794')
+                .fontColor('#94A0B4')
             }
             .alignItems(HorizontalAlign.Start)
 
             Column({ space: 6 }) {
               Text(`柱顶标签：${this.getRecordTagModeText()}`)
                 .fontSize(11)
-                .fontColor('#7D8794')
+                .fontColor('#94A0B4')
 
               Button(this.getRecordTagToggleText())
                 .height(32)
                 .fontSize(12)
                 .fontWeight(FontWeight.Medium)
-                .fontColor('#17324D')
-                .backgroundColor('#E7EEF9')
+                .fontColor('#0F6BFF')
+                .backgroundColor('#E6F0FF')
                 .borderRadius(16)
                 .padding({ left: 12, right: 12 })
                 .onClick(() => {
@@ -612,15 +615,15 @@ export struct RecordTabPage {
 
           Text(`图表范围 ${this.getChartMinWeight().toFixed(1)} kg - ${this.getChartMaxWeight().toFixed(1)} kg`)
             .fontSize(12)
-            .fontColor('#7D8794')
+            .fontColor('#94A0B4')
 
-          Row() {
+          Row({ space: CHART_BAR_GROUP_SPACING }) {
             ForEach(this.getRecentRecords(), (record: WeightRecord) => {
               Column({ space: 8 }) {
                 Text(this.getRecordTag(record))
                   .fontSize(this.getRecordTagFontSize())
                   .fontWeight(FontWeight.Bold)
-                  .fontColor(this.isLatestRecord(record) ? '#2F6FED' : '#7D8794')
+                  .fontColor(this.isLatestRecord(record) ? '#0F6BFF' : '#94A0B4')
                   .maxLines(1)
                   .width('100%')
                   .textAlign(TextAlign.Center)
@@ -629,30 +632,30 @@ export struct RecordTabPage {
                   Text('')
                     .width('100%')
                     .height(this.getBarHeight(record))
-                    .backgroundColor(this.isLatestRecord(record) ? '#2F6FED' : '#8EB4FF')
+                    .backgroundColor(this.isLatestRecord(record) ? '#0F6BFF' : '#8CC4FF')
                     .borderRadius(16)
                 }
                 .width(28)
                 .height(CHART_BAR_TRACK_HEIGHT)
                 .justifyContent(FlexAlign.End)
-                .backgroundColor('#E8EEF9')
+                .backgroundColor('#E6F0FF')
                 .borderRadius(16)
 
                 Text(this.getShortDate(record.date))
                   .fontSize(11)
-                  .fontColor('#7D8794')
+                  .fontColor('#94A0B4')
 
                 Text(record.weight.toFixed(1))
                   .fontSize(12)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(PRIMARY_TEXT_COLOR)
               }
-              .width(40)
+              .width(CHART_BAR_GROUP_WIDTH)
               .alignItems(HorizontalAlign.Center)
             }, (record: WeightRecord) => this.getRecordRenderKey(record))
           }
           .width('100%')
-          .justifyContent(FlexAlign.SpaceBetween)
+          .justifyContent(FlexAlign.Start)
           .alignItems(VerticalAlign.Bottom)
         }
         .alignItems(HorizontalAlign.Start)
@@ -694,7 +697,7 @@ export struct RecordTabPage {
 
                 Text(this.isLatestRecord(record) ? '当前基准记录' : '历史记录')
                   .fontSize(12)
-                  .fontColor('#7D8794')
+                  .fontColor('#94A0B4')
               }
 
               Text(`${record.weight.toFixed(1)} kg`)

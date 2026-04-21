@@ -3,11 +3,18 @@ PersistentStorage.persistProp('workoutRecordText', '');
 PersistentStorage.persistProp('workoutPlanText', '');
 PersistentStorage.persistProp('weightRecordText', '');
 PersistentStorage.persistProp('userProfileText', '');
+PersistentStorage.persistProp('customFoodOptionText', '');
+PersistentStorage.persistProp('foodPlanText', '');
+PersistentStorage.persistProp('dailyFoodCalorieTargetText', '2000');
+PersistentStorage.persistProp('currentFoodPlanDateText', '');
+PersistentStorage.persistProp('currentFoodPlanMealTypeText', '');
 PersistentStorage.persistProp('aiApiEndpointText', '');
 PersistentStorage.persistProp('aiApiKeyText', '');
 PersistentStorage.persistProp('aiModelText', '');
 PersistentStorage.persistProp('currentExerciseDraftText', '');
 PersistentStorage.persistProp('currentExerciseProfileText', '');
 PersistentStorage.persistProp('currentEditingSavedWorkoutIdText', '');
+PersistentStorage.persistProp('currentExercisePlanIdText', '');
+PersistentStorage.persistProp('exercisePlanPickerVisible', false);
 
 export const EXERCISE_STORAGE_READY: boolean = true;

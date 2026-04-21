@@ -4,6 +4,8 @@ export const AI_ROLE_ASSISTANT: string = 'assistant';
 export const AI_TASK_CHAT: string = 'chat';
 export const AI_TASK_ANALYZE_WEIGHT: string = 'analyze_weight';
 export const AI_TASK_GENERATE_PLAN: string = 'generate_plan';
+export const AI_TASK_GENERATE_RECIPE: string = 'generate_recipe';
+export const AI_TASK_GENERATE_FULL_PLAN: string = 'generate_full_plan';
 
 const DEFAULT_AI_API_ENDPOINT: string = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const DEFAULT_AI_MODEL: string = 'glm-5.1';
@@ -32,9 +34,24 @@ export interface AiGeneratedPlanItem {
   imported: boolean;
 }
 
+export interface AiGeneratedFoodPlanItem {
+  id: string;
+  date: string;
+  mealType: string;
+  name: string;
+  description: string;
+  calories: number;
+  serving: string;
+  notes: string;
+  image: string;
+  accentColor: string;
+  imported: boolean;
+}
+
 export interface AiAssistantResponse {
   reply: string;
   plans: AiGeneratedPlanItem[];
+  foodPlans: AiGeneratedFoodPlanItem[];
   rawText: string;
 }
 

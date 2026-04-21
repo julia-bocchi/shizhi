@@ -7,4 +7,8 @@ export interface WorkoutPlanItem {
   draftText: string;
   savedWorkoutId: string;
   accentColor: string;
+  goalType: string;
+  goalValue: number;
+  manuallyCompleted: boolean;
+  collapsed: boolean;
 }

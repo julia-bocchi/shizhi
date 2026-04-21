@@ -78,6 +78,7 @@ struct ExerciseDetailPage {
   @StorageLink('currentExerciseDraftText') currentExerciseDraftText: string = '';
   @StorageLink('currentExerciseProfileText') currentExerciseProfileText: string = '';
   @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
 
   @State sessionProfile: UserProfile = createEmptyUserProfile();
   @State savedCustomWorkouts: SavedCustomWorkout[] = [];
@@ -171,9 +172,10 @@ struct ExerciseDetailPage {
     this.restSeconds = draft.restSeconds;
   }
 
-  private applyDraft(draft: ExerciseDraft, savedWorkoutId: string, noticeText: string): void {
+  private applyDraft(draft: ExerciseDraft, savedWorkoutId: string, noticeText: string, planId: string = ''): void {
     this.selectedSavedWorkoutId = savedWorkoutId;
     this.currentEditingSavedWorkoutIdText = savedWorkoutId;
+    this.currentExercisePlanIdText = planId;
     this.applyDraftFields(draft);
     this.syncDraft();
     this.resetSession(noticeText);
@@ -237,7 +239,7 @@ struct ExerciseDetailPage {
         exerciseId: 'custom',
         savedWorkoutId: savedWorkout.id,
         label: savedWorkout.name,
-        accentColor: '#7A5C2E',
+        accentColor: '#7B61FF',
         isSavedWorkout: true
       });
     }
@@ -900,19 +902,26 @@ struct ExerciseDetailPage {
     this.sessionRunning = false;
     let sessionCalories: number = Math.round(this.getLiveCalories() * 10) / 10;
     let currentRecords: WorkoutRecord[] = deserializeWorkoutRecords(this.workoutRecordText);
+    let currentMetrics: WorkoutMetrics = this.getMetrics();
     currentRecords.unshift({
       id: `${Date.now()}`,
       date: formatDate(new Date()),
-      name: this.getMetrics().exerciseName,
+      name: currentMetrics.exerciseName,
       calories: sessionCalories,
-      durationSeconds: this.sessionElapsedSeconds
+      durationSeconds: this.sessionElapsedSeconds,
+      exerciseId: this.selectedExerciseId,
+      planId: this.currentExercisePlanIdText,
+      distanceKm: currentMetrics.distanceKm,
+      count: currentMetrics.count
     });
     this.workoutRecordText = serializeWorkoutRecords(currentRecords);
     this.syncDraft();
+    this.currentExercisePlanIdText = '';
     this.goBack();
   }
 
   private goBack(): void {
+    this.currentExercisePlanIdText = '';
     try {
       this.getUIContext().getRouter().back();
     } catch (error) {
@@ -925,7 +934,7 @@ struct ExerciseDetailPage {
     Column({ space: 8 }) {
       Text(title)
         .fontSize(12)
-        .fontColor('#4F6690')
+        .fontColor('#5373A6')
       Row({ space: 8 }) {
         TextInput({ placeholder: placeholder, text: textValue })
           .fontSize(16)
@@ -933,7 +942,7 @@ struct ExerciseDetailPage {
           .height(46)
           .layoutWeight(1)
           .padding({ left: 12, right: 12 })
-          .backgroundColor('#F6F8FB')
+          .backgroundColor('#F5F8FF')
           .borderRadius(16)
           .onChange((value: string) => {
             this.updateWorkoutField(field, value);
@@ -953,27 +962,34 @@ struct ExerciseDetailPage {
   }
 
   @Builder
-  buildBottomSwitchBar() {
+  buildTopSwitchBar() {
     Row() {
-      Button('列表')
-        .width(64)
-        .height(42)
-        .fontSize(14)
-        .fontWeight(FontWeight.Medium)
-        .fontColor('#17324D')
-        .backgroundColor('#EEF3FF')
-        .borderRadius(18)
+      // 左侧：返回箭头
+      Image($r('sys.media.ohos_ic_back'))
+        .width(22)
+        .height(22)
+        .borderRadius(21)
         .onClick(() => {
           this.goBack();
         })
+
+      // 中间：标题（自动居中）
+      Text("训练详情")
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(PRIMARY_TEXT_COLOR)
+        .layoutWeight(1)
+        .textAlign(TextAlign.Center)
+
+      // 右侧：左右切换训练（保留）
       Row({ space: 8 }) {
         Button('<')
           .width(42)
           .height(42)
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#17324D')
-          .backgroundColor('#EEF3FF')
+          .fontColor('#0F6BFF')
+          .backgroundColor('#EAF2FF')
           .borderRadius(21)
           .onClick(() => {
             this.switchToAdjacentExercise(-1);
@@ -984,8 +1000,8 @@ struct ExerciseDetailPage {
           .height(42)
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#17324D')
-          .backgroundColor('#EEF3FF')
+          .fontColor('#0F6BFF')
+          .backgroundColor('#EAF2FF')
           .borderRadius(21)
           .onClick(() => {
             this.switchToAdjacentExercise(1);
@@ -997,7 +1013,7 @@ struct ExerciseDetailPage {
     .padding({ left: 16, right: 16, top: 12, bottom: 14 })
     .backgroundColor(SURFACE_BACKGROUND_COLOR)
     .border({
-      color: '#E3EAF4',
+      color: '#D8E4F2',
       width: {
         top: 1
       }
@@ -1005,7 +1021,11 @@ struct ExerciseDetailPage {
   }
 
   build() {
-    Stack({ alignContent: Alignment.Bottom }) {
+    Column() {
+      //顶部固定导航栏
+      this.buildTopSwitchBar() // 直接把底部栏放顶部
+
+      //原来的页面内容
       Scroll() {
       Column({ space: 18 }) {
         Row() {
@@ -1027,7 +1047,7 @@ struct ExerciseDetailPage {
             .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFF')
             .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-            .backgroundColor('#17324D')
+            .backgroundColor('#0F6BFF')
             .borderRadius(999)
         }
         .width('100%')
@@ -1095,16 +1115,16 @@ struct ExerciseDetailPage {
               .opacity(0.18)
 
             Row() {
-              Text('时').layoutWeight(1).textAlign(TextAlign.Center).fontSize(11).fontColor('#DCE9FF')
-              Text('分').layoutWeight(1).textAlign(TextAlign.Center).fontSize(11).fontColor('#DCE9FF')
-              Text('秒').layoutWeight(1).textAlign(TextAlign.Center).fontSize(11).fontColor('#DCE9FF')
+              Text('时').layoutWeight(1).textAlign(TextAlign.Center).fontSize(11).fontColor('#E3EEFF')
+              Text('分').layoutWeight(1).textAlign(TextAlign.Center).fontSize(11).fontColor('#E3EEFF')
+              Text('秒').layoutWeight(1).textAlign(TextAlign.Center).fontSize(11).fontColor('#E3EEFF')
             }
             .width('100%')
           }
 
           Text(this.getClockCaptionText())
             .fontSize(12)
-            .fontColor('#DCE9FF')
+            .fontColor('#E3EEFF')
 
           Text(this.getStageTitle())
             .fontSize(18)
@@ -1114,13 +1134,13 @@ struct ExerciseDetailPage {
           Text(this.getStageDetailText())
             .fontSize(13)
             .lineHeight(20)
-            .fontColor('#EAF1FF')
+            .fontColor('#EFF6FF')
 
           Row({ space: 10 }) {
             Column({ space: 4 }) {
               Text('已训练')
                 .fontSize(11)
-                .fontColor('#DCE9FF')
+                .fontColor('#E3EEFF')
               Text(formatClockText(this.sessionElapsedSeconds))
                 .fontSize(15)
                 .fontWeight(FontWeight.Bold)
@@ -1132,7 +1152,7 @@ struct ExerciseDetailPage {
             Column({ space: 4 }) {
               Text('目标')
                 .fontSize(11)
-                .fontColor('#DCE9FF')
+                .fontColor('#E3EEFF')
               Text(this.getMetrics().durationText)
                 .fontSize(15)
                 .fontWeight(FontWeight.Bold)
@@ -1144,7 +1164,7 @@ struct ExerciseDetailPage {
             Column({ space: 4 }) {
               Text('提醒')
                 .fontSize(11)
-                .fontColor('#DCE9FF')
+                .fontColor('#E3EEFF')
               Text(`${this.reminderCount} 次`)
                 .fontSize(15)
                 .fontWeight(FontWeight.Bold)
@@ -1159,12 +1179,12 @@ struct ExerciseDetailPage {
             Column({ space: 6 }) {
               Text(this.getClockAdjustmentPrimaryText())
                 .fontSize(12)
-                .fontColor('#DCE9FF')
+                .fontColor('#E3EEFF')
 
               if (this.getClockAdjustmentSecondaryText().length > 0) {
                 Text(this.getClockAdjustmentSecondaryText())
                   .fontSize(11)
-                  .fontColor('#EAF1FF')
+                  .fontColor('#EFF6FF')
               }
             }
             .alignItems(HorizontalAlign.Start)
@@ -1177,7 +1197,7 @@ struct ExerciseDetailPage {
               .height(44)
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#17324D')
+              .fontColor('#0F6BFF')
               .backgroundColor('#FFFFFF')
               .borderRadius(18)
               .onClick(() => { this.toggleSession(); })
@@ -1187,7 +1207,7 @@ struct ExerciseDetailPage {
               .fontSize(15)
               .fontWeight(FontWeight.Medium)
               .fontColor('#FFFFFF')
-              .backgroundColor('#17324D')
+              .backgroundColor('#0F6BFF')
               .borderRadius(18)
               .onClick(() => { this.resetSession('训练已重置。'); })
           }
@@ -1199,7 +1219,7 @@ struct ExerciseDetailPage {
               .height(42)
               .fontSize(14)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#17324D')
+              .fontColor('#0F6BFF')
               .backgroundColor('#FFFFFF')
               .borderRadius(18)
               .onClick(() => { this.advanceManualStage(); })
@@ -1211,7 +1231,7 @@ struct ExerciseDetailPage {
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor('#FFFFFF')
-            .backgroundColor('#D86C3D')
+            .backgroundColor('#FF7A59')
             .borderRadius(18)
             .onClick(() => { this.finishAndSaveSession(); })
 
@@ -1221,8 +1241,8 @@ struct ExerciseDetailPage {
               .height(38)
               .fontSize(13)
               .fontWeight(FontWeight.Medium)
-              .fontColor(this.reminderEnabled ? '#17324D' : '#FFFFFF')
-              .backgroundColor(this.reminderEnabled ? '#FFFFFF' : '#355C7D')
+              .fontColor(this.reminderEnabled ? '#0F6BFF' : '#FFFFFF')
+              .backgroundColor(this.reminderEnabled ? '#FFFFFF' : '#14B8A6')
               .borderRadius(16)
               .onClick(() => {
                 this.reminderEnabled = !this.reminderEnabled;
@@ -1232,7 +1252,7 @@ struct ExerciseDetailPage {
               .height(38)
               .fontSize(13)
               .fontWeight(FontWeight.Medium)
-              .fontColor('#17324D')
+              .fontColor('#0F6BFF')
               .backgroundColor('#FFFFFF')
               .borderRadius(16)
               .onClick(() => {
@@ -1255,12 +1275,12 @@ struct ExerciseDetailPage {
           Text(this.lastReminderText)
             .fontSize(12)
             .lineHeight(18)
-            .fontColor('#EAF1FF')
+            .fontColor('#EFF6FF')
 
           Text(this.sessionNotice)
             .fontSize(12)
             .lineHeight(18)
-            .fontColor('#DCE9FF')
+            .fontColor('#E3EEFF')
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')
@@ -1272,10 +1292,10 @@ struct ExerciseDetailPage {
           Text(`${this.getProfileReminderDisplayText()} 缺少体重时热量会显示为 --。`)
             .fontSize(13)
             .lineHeight(20)
-            .fontColor('#8A4B2A')
+            .fontColor('#FF6B57')
             .width('100%')
             .padding(14)
-            .backgroundColor('#FFF1E8')
+            .backgroundColor('#FFF0F6')
             .borderRadius(18)
         }
 
@@ -1291,7 +1311,7 @@ struct ExerciseDetailPage {
               .height(46)
               .width('100%')
               .padding({ left: 12, right: 12 })
-              .backgroundColor('#F6F8FB')
+              .backgroundColor('#F5F8FF')
               .borderRadius(16)
               .onChange((value: string) => {
                 this.updateWorkoutField('customName', value);
@@ -1303,7 +1323,7 @@ struct ExerciseDetailPage {
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.customMode === option.id ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                .backgroundColor(this.customMode === option.id ? '#17324D' : '#F6F8FB')
+                .backgroundColor(this.customMode === option.id ? '#0F6BFF' : '#F5F8FF')
                 .borderRadius(16)
                 .onClick(() => {
                   this.selectCustomMode(option.id);
@@ -1317,7 +1337,7 @@ struct ExerciseDetailPage {
                   .fontSize(14)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(this.customIntensity === option.id ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                  .backgroundColor(this.customIntensity === option.id ? '#7A5C2E' : '#F8EEDC')
+                  .backgroundColor(this.customIntensity === option.id ? '#7B61FF' : '#F2F0FF')
                   .borderRadius(16)
                   .onClick(() => {
                     this.selectCustomIntensity(option.id);
@@ -1332,7 +1352,7 @@ struct ExerciseDetailPage {
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor('#FFFFFF')
-                .backgroundColor('#7A5C2E')
+                .backgroundColor('#7B61FF')
                 .borderRadius(18)
                 .onClick(() => {
                   this.saveCurrentCustomWorkout();
@@ -1342,8 +1362,8 @@ struct ExerciseDetailPage {
                 .height(44)
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
-                .fontColor('#7A5C2E')
-                .backgroundColor('#F8EEDC')
+                .fontColor('#7B61FF')
+                .backgroundColor('#F2F0FF')
                 .borderRadius(18)
                 .onClick(() => {
                   this.deleteCurrentCustomWorkout();
@@ -1371,7 +1391,7 @@ struct ExerciseDetailPage {
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.setTimerMode === SET_TIMER_MODE_AUTO ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                .backgroundColor(this.setTimerMode === SET_TIMER_MODE_AUTO ? '#17324D' : '#EEF3FF')
+                .backgroundColor(this.setTimerMode === SET_TIMER_MODE_AUTO ? '#0F6BFF' : '#EAF2FF')
                 .borderRadius(16)
                 .onClick(() => {
                   this.setTimerMode = SET_TIMER_MODE_AUTO;
@@ -1383,7 +1403,7 @@ struct ExerciseDetailPage {
                 .fontSize(14)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(this.setTimerMode === SET_TIMER_MODE_MANUAL ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
-                .backgroundColor(this.setTimerMode === SET_TIMER_MODE_MANUAL ? '#7A5C2E' : '#F8EEDC')
+                .backgroundColor(this.setTimerMode === SET_TIMER_MODE_MANUAL ? '#7B61FF' : '#F2F0FF')
                 .borderRadius(16)
                 .onClick(() => {
                   this.setTimerMode = SET_TIMER_MODE_MANUAL;
@@ -1393,16 +1413,16 @@ struct ExerciseDetailPage {
             .width('100%')
           }
           if (this.getActiveMode() === EXERCISE_MODE_DURATION) {
-            this.buildInputField('训练时长', '30', this.durationMinutes, '分钟', 'durationMinutes', '#2E8B57', '#EAF5EE')
+            this.buildInputField('训练时长', '30', this.durationMinutes, '分钟', 'durationMinutes', '#10B981', '#ECFFF4')
           }
           if (this.getActiveMode() === EXERCISE_MODE_DISTANCE_PACE) {
             Row({ space: 12 }) {
               Column() {
-                this.buildInputField('路程', '5', this.distanceKm, 'km', 'distanceKm', '#2F6FED', '#EAF1FF')
+                this.buildInputField('路程', '5', this.distanceKm, 'km', 'distanceKm', '#0F6BFF', '#EAF2FF')
               }
               .layoutWeight(1)
               Column() {
-                this.buildInputField('配速', '6', this.paceMinutes, '分/km', 'paceMinutes', '#D86C3D', '#FFF1E8')
+                this.buildInputField('配速', '6', this.paceMinutes, '分/km', 'paceMinutes', '#FF7A59', '#FFF0F6')
               }
               .layoutWeight(1)
             }
@@ -1411,11 +1431,11 @@ struct ExerciseDetailPage {
           if (this.getActiveMode() === EXERCISE_MODE_DISTANCE_SPEED) {
             Row({ space: 12 }) {
               Column() {
-                this.buildInputField('路程', '10', this.distanceKm, 'km', 'distanceKm', '#2F6FED', '#EAF1FF')
+                this.buildInputField('路程', '10', this.distanceKm, 'km', 'distanceKm', '#0F6BFF', '#EAF2FF')
               }
               .layoutWeight(1)
               Column() {
-                this.buildInputField('速度', '18', this.speedKmH, 'km/h', 'speedKmH', '#2E8B57', '#EAF5EE')
+                this.buildInputField('速度', '18', this.speedKmH, 'km/h', 'speedKmH', '#10B981', '#ECFFF4')
               }
               .layoutWeight(1)
             }
@@ -1428,7 +1448,7 @@ struct ExerciseDetailPage {
               }
               .layoutWeight(1)
               Column() {
-                this.buildInputField('节奏', '120', this.cadencePerMinute, '次/分', 'cadencePerMinute', '#2F6FED', '#EAF1FF')
+                this.buildInputField('节奏', '120', this.cadencePerMinute, '次/分', 'cadencePerMinute', '#0F6BFF', '#EAF2FF')
               }
               .layoutWeight(1)
             }
@@ -1438,27 +1458,27 @@ struct ExerciseDetailPage {
             Column({ space: 12 }) {
               Row({ space: 12 }) {
                 Column() {
-                  this.buildInputField('组数', '4', this.sets, '组', 'sets', '#2F6FED', '#EAF1FF')
+                  this.buildInputField('组数', '4', this.sets, '组', 'sets', '#0F6BFF', '#EAF2FF')
                 }
                 .layoutWeight(1)
                 Column() {
-                  this.buildInputField('训练', '40', this.workSeconds, '秒', 'workSeconds', '#D86C3D', '#FFF1E8')
+                  this.buildInputField('训练', '40', this.workSeconds, '秒', 'workSeconds', '#FF7A59', '#FFF0F6')
                 }
                 .layoutWeight(1)
               }
               .width('100%')
-              this.buildInputField('休息', '20', this.restSeconds, '秒', 'restSeconds', '#2E8B57', '#EAF5EE')
+              this.buildInputField('休息', '20', this.restSeconds, '秒', 'restSeconds', '#10B981', '#ECFFF4')
             }
             .width('100%')
           }
           Text(this.getMetrics().validationMessage.length > 0 ? this.getMetrics().validationMessage : this.getMetrics().summaryText)
             .fontSize(13)
             .lineHeight(20)
-            .fontColor(this.getMetrics().validationMessage.length > 0 ? '#C95F34' : '#667085')
+            .fontColor(this.getMetrics().validationMessage.length > 0 ? '#FF5A7A' : '#667085')
           if (this.getMetrics().validationMessage.length === 0) {
             Text(`预计 ${this.getMetrics().durationText} · ${this.getMetrics().calorieText}`)
               .fontSize(12)
-              .fontColor('#4F6690')
+              .fontColor('#5373A6')
           }
         }
         .alignItems(HorizontalAlign.Start)
@@ -1479,7 +1499,6 @@ struct ExerciseDetailPage {
       .friction(0.6)
       .backgroundColor(PAGE_BACKGROUND_COLOR)
 
-      this.buildBottomSwitchBar()
     }
     .width('100%')
     .height('100%')

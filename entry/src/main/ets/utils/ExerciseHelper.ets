@@ -840,7 +840,11 @@ export function serializeWorkoutRecords(records: WorkoutRecord[]): string {
       record.date,
       record.name,
       `${record.calories}`,
-      `${record.durationSeconds}`
+      `${record.durationSeconds}`,
+      record.exerciseId,
+      record.planId,
+      `${record.distanceKm}`,
+      `${record.count}`
     ];
     let encodedFields: string[] = [];
     for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
@@ -876,13 +880,25 @@ export function deserializeWorkoutRecords(savedText: string): WorkoutRecord[] {
     if (isNaN(durationSecondsValue)) {
       durationSecondsValue = 0;
     }
+    let distanceKmValue = fields.length > 7 ? Number(decodePersistedText(fields[7])) : 0;
+    if (isNaN(distanceKmValue)) {
+      distanceKmValue = 0;
+    }
+    let countValue = fields.length > 8 ? Number(decodePersistedText(fields[8])) : 0;
+    if (isNaN(countValue)) {
+      countValue = 0;
+    }
 
     result.push({
       id: decodePersistedText(fields[0]),
       date: decodePersistedText(fields[1]),
       name: decodePersistedText(fields[2]),
       calories: caloriesValue,
-      durationSeconds: durationSecondsValue
+      durationSeconds: durationSecondsValue,
+      exerciseId: fields.length > 5 ? decodePersistedText(fields[5]) : '',
+      planId: fields.length > 6 ? decodePersistedText(fields[6]) : '',
+      distanceKm: distanceKmValue,
+      count: countValue
     });
   }
 
