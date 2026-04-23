@@ -137,7 +137,7 @@ export function createWorkoutPlanItem(date: string, draft: ExerciseDraft, profil
   let goal = getWorkoutPlanGoalFromDraft(draft);
   let normalizedGoalValue = goalValueInput > 0 ? goalValueInput : goal.goalValue;
   return {
-    id: `${Date.now()}-${Math.round(Math.random() * 1000)}`,
+    id: `local-workout-plan-${Date.now()}-${Math.round(Math.random() * 1000)}`,
     date: sanitizeString(date),
     title: title.trim().length > 0 ? title.trim() : getWorkoutTitle(draft),
     summary: buildWorkoutPlanSummary(profile, draft),

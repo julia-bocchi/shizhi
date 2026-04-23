@@ -18,8 +18,9 @@ import { ProfileTabPage } from './profile/ProfileTabPage';
 import { UserProfile, createEmptyUserProfile } from '../models/UserProfile';
 import { deserializeUserProfile } from '../utils/ExerciseHelper';
 import { EXERCISE_STORAGE_READY } from '../utils/ExerciseStorage';
-import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../models/AuthSession';
+import { isAuthSessionValid, resolveApiBaseUrl } from '../models/AuthSession';
 import { deserializeAuthSession } from '../utils/AuthStorageHelper';
+import { SyncRuntimeState, syncPendingOperations } from '../utils/SyncService';
 
 
 @Entry
@@ -30,7 +31,83 @@ struct Index {
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
   @State userProfile: UserProfile = createEmptyUserProfile();
+
+  private syncTimerId: number = -1;
+
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+    this.userProfile = deserializeUserProfile(this.userProfileText);
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+  }
+
+  private startSyncTimer(): void {
+    this.stopSyncTimer();
+    this.syncTimerId = setInterval(() => {
+      this.flushPendingSync();
+    }, 60000);
+  }
+
+  private stopSyncTimer(): void {
+    if (this.syncTimerId >= 0) {
+      clearInterval(this.syncTimerId);
+      this.syncTimerId = -1;
+    }
+  }
 
   // 系统返回键监听（标准、无报错）
   onBackPress(): boolean {
@@ -45,14 +122,18 @@ struct Index {
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
-    if (this.apiBaseUrlText.trim().length === 0) {
-      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
-    }
+    this.apiBaseUrlText = resolveApiBaseUrl(this.apiBaseUrlText);
     this.userProfile = deserializeUserProfile(this.userProfileText);
     if (this.currentTabIndex === PROFILE_TAB_INDEX &&
       !isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
       this.currentTabIndex = HOME_TAB_INDEX;
     }
+    this.flushPendingSync();
+    this.startSyncTimer();
+  }
+
+  aboutToDisappear(): void {
+    this.stopSyncTimer();
   }
 
   @Builder

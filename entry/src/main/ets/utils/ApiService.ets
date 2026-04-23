@@ -307,6 +307,29 @@ export async function loginWithPassword(baseUrl: string, username: string, passw
   };
 }
 
+export async function registerWithPassword(baseUrl: string, username: string, password: string): Promise<LoginResult> {
+  let payload: LoginRequestPayload = {
+    username: username.trim(),
+    password: password
+  };
+  let data = await requestApiData<LoginResponseData>({
+    baseUrl: baseUrl,
+    path: '/auth/register',
+    method: http.RequestMethod.POST,
+    body: payload
+  });
+  let authSession: AuthSession = {
+    userId: sanitizeString(data.userId),
+    username: sanitizeString(data.username, username.trim()),
+    token: sanitizeString(data.token),
+    loginAt: `${Date.now()}`
+  };
+  return {
+    authSession: authSession,
+    authSessionText: serializeAuthSession(authSession)
+  };
+}
+
 export function logoutSession(): LoginResult {
   let authSession = createEmptyAuthSession();
   return {

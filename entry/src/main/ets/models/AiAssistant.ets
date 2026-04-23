@@ -8,7 +8,7 @@ export const AI_TASK_GENERATE_RECIPE: string = 'generate_recipe';
 export const AI_TASK_GENERATE_FULL_PLAN: string = 'generate_full_plan';
 
 const DEFAULT_AI_API_ENDPOINT: string = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-const DEFAULT_AI_MODEL: string = 'glm-5.1';
+const DEFAULT_AI_MODEL: string = 'glm-4.7';
 const DEFAULT_API_KEY: string = 'b844e1495be84545a7f69bff272728ea.VGUBzWlLMX9B8Gsh';
 
 export interface AiAssistantConfig {

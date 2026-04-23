@@ -720,7 +720,7 @@ export function deserializeUserProfile(profileText: string): UserProfile {
 
 export function createSavedCustomWorkoutFromDraft(draft: ExerciseDraft): SavedCustomWorkout {
   return {
-    id: `${Date.now()}`,
+    id: `local-workout-template-${Date.now()}-${Math.round(Math.random() * 1000)}`,
     name: draft.customName.trim(),
     mode: draft.customMode,
     intensity: draft.customIntensity,

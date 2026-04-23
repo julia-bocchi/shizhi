@@ -4,6 +4,9 @@ import {
   SECONDARY_TEXT_COLOR,
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
+import { AiAssistantConfig, getDefaultAiApiEndpoint, getDefaultAiApiKey, getDefaultAiModel } from '../../models/AiAssistant';
+import { RecommendationExerciseCandidate, RecommendationFoodCandidate } from '../../models/AiRecommendation';
+import { EXERCISE_OPTIONS } from '../../models/ExerciseOption';
 import { FoodPlanItem } from '../../models/FoodPlan';
 import { FoodOption, PRESET_FOOD_OPTIONS } from '../../models/FoodOption';
 import {
@@ -14,18 +17,35 @@ import {
   serializeCustomFoodOptions,
   serializeFoodPlans
 } from '../../utils/FoodHelper';
-import { formatDate } from '../../utils/WeightRecordHelper';
+import {
+  getFoodVisualDescriptor,
+  isBuiltinFoodImage,
+  resolveFoodOptionImage,
+  resolveFoodPlanImage
+} from '../../utils/FoodVisualHelper';
+import { deserializeWeightRecords, formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
-import { AuthSession, DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
 import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { deserializeSavedCustomWorkouts, deserializeUserProfile, deserializeWorkoutRecords } from '../../utils/ExerciseHelper';
 import {
-  createCustomFoodOptionRemote,
-  createFoodPlanRemote,
-  deleteFoodPlanRemote,
   fetchFoodOptions,
   fetchFoodPlans
 } from '../../utils/ApiService';
+import { requestAiRecommendations } from '../../utils/AiRecommendationHelper';
+import {
+  getRecommendationRank,
+  getRecommendationScore,
+  serializeRecommendationCache
+} from '../../utils/RecommendationStorageHelper';
+import {
+  createFoodMealReplaceOperation,
+  createFoodOptionUpsertOperation,
+  hasPendingSyncOperation,
+} from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
+import { FoodDraftSelectionItemPayload } from '../../models/SyncPayload';
 
 interface FoodChoiceCardItem {
   id: string;
@@ -48,6 +68,23 @@ struct FoodSelectionPage {
   @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('aiApiEndpointText') aiApiEndpointText: string = '';
+  @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
+  @StorageLink('aiModelText') aiModelText: string = '';
+  @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = '2000';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
 
   @State customFoodOptions: FoodOption[] = [];
   @State foodPlans: FoodPlanItem[] = [];
@@ -63,6 +100,164 @@ struct FoodSelectionPage {
   @State customFoodDescription: string = '';
   @State customFoodImage: string = '';
   @State pageNotice: string = '点击食物卡片可加入待保存清单，点底部栏可调整数量。';
+  @State recommendationBusy: boolean = false;
+
+  private getAiConfig(): AiAssistantConfig {
+    if (this.aiApiEndpointText.trim().length === 0) {
+      this.aiApiEndpointText = getDefaultAiApiEndpoint();
+    }
+    if (this.aiModelText.trim().length === 0) {
+      this.aiModelText = getDefaultAiModel();
+    }
+    if (this.aiApiKeyText.trim().length === 0) {
+      this.aiApiKeyText = getDefaultAiApiKey();
+    }
+    return {
+      apiEndpoint: this.aiApiEndpointText,
+      apiKey: this.aiApiKeyText,
+      model: this.aiModelText
+    };
+  }
+
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+    this.customFoodOptions = deserializeCustomFoodOptions(this.customFoodOptionText);
+    this.foodPlans = deserializeFoodPlans(this.foodPlanText);
+    if (result.syncedCount > 0) {
+      this.initializeDraftSelections();
+      this.pageNotice = '本地数据已自动同步。';
+    } else if (result.lastErrorMessage.trim().length > 0) {
+      this.pageNotice = '已保存到本地，联网后会自动同步。';
+    }
+  }
+
+  private getDailyFoodCalorieTarget(): number {
+    let targetValue = Number(this.dailyFoodCalorieTargetText.trim());
+    if (isNaN(targetValue) || targetValue <= 0) {
+      return 2000;
+    }
+    return targetValue;
+  }
+
+  private getRecommendationFoodCandidates(): RecommendationFoodCandidate[] {
+    let result: RecommendationFoodCandidate[] = [];
+    let options = this.getSortedFoodOptions(false);
+    for (let index = 0; index < options.length; index++) {
+      result.push({
+        id: options[index].id,
+        name: options[index].name,
+        description: options[index].description,
+        mealSuggestion: options[index].mealSuggestion,
+        calories: options[index].calories,
+        serving: options[index].serving
+      });
+    }
+    return result;
+  }
+
+  private getRecommendationExerciseCandidates(): RecommendationExerciseCandidate[] {
+    let result: RecommendationExerciseCandidate[] = [];
+    for (let index = 0; index < EXERCISE_OPTIONS.length; index++) {
+      if (EXERCISE_OPTIONS[index].id === 'custom') {
+        continue;
+      }
+      result.push({
+        id: `exercise:${EXERCISE_OPTIONS[index].id}`,
+        name: EXERCISE_OPTIONS[index].name,
+        description: EXERCISE_OPTIONS[index].description,
+        category: 'preset'
+      });
+    }
+    let savedWorkouts = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
+    for (let index = 0; index < savedWorkouts.length; index++) {
+      result.push({
+        id: `saved:${savedWorkouts[index].id}`,
+        name: savedWorkouts[index].name,
+        description: '自定义训练模板',
+        category: 'saved_template'
+      });
+    }
+    return result;
+  }
+
+  private isFoodAiTopRecommendation(foodId: string): boolean {
+    let rankValue = getRecommendationRank(this.foodRecommendationCacheText, foodId);
+    return rankValue >= 0 && rankValue < 3;
+  }
+
+  private async refreshAiRecommendations(): Promise<void> {
+    if (this.recommendationBusy) {
+      return;
+    }
+    this.recommendationBusy = true;
+    this.pageNotice = 'AI 正在重新整理食物和运动推荐。';
+    try {
+      let response = await requestAiRecommendations(this.getAiConfig(), {
+        profile: deserializeUserProfile(this.userProfileText),
+        weightRecords: deserializeWeightRecords(this.weightRecordText),
+        workoutRecords: deserializeWorkoutRecords(this.workoutRecordText),
+        dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
+        foodCandidates: this.getRecommendationFoodCandidates(),
+        exerciseCandidates: this.getRecommendationExerciseCandidates()
+      });
+      this.foodRecommendationCacheText = serializeRecommendationCache({
+        updatedAt: `${Date.now()}`,
+        reply: response.reply,
+        items: response.foodRankings
+      });
+      this.exerciseRecommendationCacheText = serializeRecommendationCache({
+        updatedAt: `${Date.now()}`,
+        reply: response.reply,
+        items: response.exerciseRankings
+      });
+      this.pageNotice = response.reply.trim().length > 0 ? response.reply : 'AI 推荐已更新。';
+    } catch (error) {
+      this.pageNotice = `${error}`;
+    } finally {
+      this.recommendationBusy = false;
+    }
+  }
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
@@ -80,7 +275,9 @@ struct FoodSelectionPage {
       this.selectedMealType = this.currentFoodPlanMealTypeText;
     }
     this.initializeDraftSelections();
-    this.syncRemoteFoodData();
+    this.flushPendingSync().then(() => {
+      this.syncRemoteFoodData();
+    });
   }
 
   private saveFoodPlans(nextPlans: FoodPlanItem[]): void {
@@ -94,6 +291,11 @@ struct FoodSelectionPage {
   }
 
   private async syncRemoteFoodData(): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'food_option') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'food_meal')) {
+      return;
+    }
     let authSession = deserializeAuthSession(this.authSessionText);
     if (!isAuthSessionValid(authSession)) {
       return;
@@ -105,8 +307,22 @@ struct FoodSelectionPage {
       let rangeStart = formatDate(new Date(year, month, 1));
       let rangeEnd = formatDate(new Date(year, month + 1, 0));
       let remoteOptions = await fetchFoodOptions(this.apiBaseUrlText, authSession);
-      this.customFoodOptions = remoteOptions;
-      this.customFoodOptionText = serializeCustomFoodOptions(remoteOptions);
+      let mergedOptions = this.customFoodOptions.slice();
+      for (let index = 0; index < remoteOptions.length; index++) {
+        let hasMatched = false;
+        for (let optionIndex = 0; optionIndex < mergedOptions.length; optionIndex++) {
+          if (mergedOptions[optionIndex].id === remoteOptions[index].id) {
+            mergedOptions[optionIndex] = remoteOptions[index];
+            hasMatched = true;
+            break;
+          }
+        }
+        if (!hasMatched) {
+          mergedOptions.push(remoteOptions[index]);
+        }
+      }
+      this.customFoodOptions = mergedOptions;
+      this.customFoodOptionText = serializeCustomFoodOptions(mergedOptions);
       this.foodPlans = await fetchFoodPlans(this.apiBaseUrlText, authSession, rangeStart, rangeEnd);
       this.foodPlanText = serializeFoodPlans(this.foodPlans);
       this.initializeDraftSelections();
@@ -174,7 +390,7 @@ struct FoodSelectionPage {
       calories: plan.calories,
       serving: plan.serving,
       mealSuggestion: getFoodMealLabel(plan.mealType),
-      image: plan.image,
+      image: resolveFoodPlanImage(plan),
       accentColor: plan.accentColor
     };
   }
@@ -404,6 +620,17 @@ struct FoodSelectionPage {
     this.customFoodImage = '';
   }
 
+  private getDraftSelectionPayloads(): FoodDraftSelectionItemPayload[] {
+    let result: FoodDraftSelectionItemPayload[] = [];
+    for (let index = 0; index < this.draftSelections.length; index++) {
+      result.push({
+        foodId: this.draftSelections[index].option.id,
+        count: this.draftSelections[index].count
+      });
+    }
+    return result;
+  }
+
   private async saveCustomFoodCard(addToMeal: boolean): Promise<void> {
     let name: string = this.customFoodName.trim();
     let serving: string = this.customFoodServing.trim();
@@ -427,7 +654,7 @@ struct FoodSelectionPage {
     }
 
     let customOption: FoodOption = {
-      id: `custom-food-${Date.now()}`,
+      id: `local-food-option-${Date.now()}-${Math.round(Math.random() * 1000)}`,
       name: name,
       description: this.customFoodDescription.trim().length > 0 ? this.customFoodDescription.trim() : '自定义食物卡片',
       calories: caloriesValue,
@@ -437,33 +664,34 @@ struct FoodSelectionPage {
       accentColor: this.getMealAccentColor()
     };
 
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession)) {
-      try {
-        customOption = await createCustomFoodOptionRemote(this.apiBaseUrlText, authSession, {
-          name: customOption.name,
-          description: customOption.description,
-          calories: customOption.calories,
-          serving: customOption.serving,
-          mealSuggestion: customOption.mealSuggestion,
-          image: customOption.image,
-          accentColor: customOption.accentColor
-        });
-      } catch (error) {
-        this.pageNotice = `${error}`;
-        return;
-      }
-    }
-
     let nextOptions: FoodOption[] = this.customFoodOptions.slice();
     nextOptions.unshift(customOption);
     this.saveCustomFoodOptions(nextOptions);
+    let saveResult = await syncOperationNowOrQueue(this.buildSyncState(), createFoodOptionUpsertOperation(customOption));
+    this.applySyncState(saveResult.state);
+    this.customFoodOptions = deserializeCustomFoodOptions(this.customFoodOptionText);
+    this.foodPlans = deserializeFoodPlans(this.foodPlanText);
+    this.initializeDraftSelections();
+    let savedOption: FoodOption = customOption;
+    for (let index = 0; index < this.customFoodOptions.length; index++) {
+      let currentOption = this.customFoodOptions[index];
+      if (currentOption.id === customOption.id ||
+        (currentOption.name === customOption.name && currentOption.serving === customOption.serving &&
+          currentOption.calories === customOption.calories)) {
+        savedOption = currentOption;
+        break;
+      }
+    }
 
     if (addToMeal) {
-      this.increaseDraftSelection(customOption);
-      this.pageNotice = `已创建 ${customOption.name}，并加入待保存清单。`;
+      this.increaseDraftSelection(savedOption);
+      this.pageNotice = saveResult.syncedImmediately
+        ? `已创建 ${savedOption.name}，已同步并加入待保存清单。`
+        : `已创建 ${savedOption.name}，并加入待保存清单。`;
     } else {
-      this.pageNotice = `已保存自定义食物卡：${customOption.name}。`;
+      this.pageNotice = saveResult.syncedImmediately
+        ? `已保存并同步自定义食物卡：${savedOption.name}。`
+        : `已保存自定义食物卡：${savedOption.name}。`;
     }
 
     this.closeCustomFoodSheet();
@@ -485,64 +713,81 @@ struct FoodSelectionPage {
     }
 
     let nextMealPlans: FoodPlanItem[] = [];
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession)) {
-      try {
-        for (let index = 0; index < savedMealPlans.length; index++) {
-          await deleteFoodPlanRemote(this.apiBaseUrlText, authSession, savedMealPlans[index].id);
-        }
-        for (let index = 0; index < this.draftSelections.length; index++) {
-          for (let countIndex = 0; countIndex < this.draftSelections[index].count; countIndex++) {
-            nextMealPlans.push(await createFoodPlanRemote(this.apiBaseUrlText, authSession, {
-              date: this.selectedDate,
-              foodId: this.draftSelections[index].option.id,
-              mealType: this.selectedMealType,
-              notes: this.planNotesInput
-            }));
-          }
-        }
-      } catch (error) {
-        this.pageNotice = `${error}`;
-        return;
-      }
-    } else {
-      for (let index = 0; index < this.draftSelections.length; index++) {
-        for (let countIndex = 0; countIndex < this.draftSelections[index].count; countIndex++) {
-          nextMealPlans.push(createFoodPlanItem(
-            this.selectedDate,
-            this.draftSelections[index].option,
-            this.selectedMealType,
-            this.planNotesInput
-          ));
-        }
+    for (let index = 0; index < this.draftSelections.length; index++) {
+      for (let countIndex = 0; countIndex < this.draftSelections[index].count; countIndex++) {
+        nextMealPlans.push(createFoodPlanItem(
+          this.selectedDate,
+          this.draftSelections[index].option,
+          this.selectedMealType,
+          this.planNotesInput
+        ));
       }
     }
 
     this.saveFoodPlans(nextMealPlans.concat(remainingPlans));
+    let saveResult = await syncOperationNowOrQueue(this.buildSyncState(), createFoodMealReplaceOperation(
+      this.selectedDate,
+      this.selectedMealType,
+      this.planNotesInput,
+      this.getDraftSelectionPayloads()
+    ));
+    this.applySyncState(saveResult.state);
+    this.customFoodOptions = deserializeCustomFoodOptions(this.customFoodOptionText);
+    this.foodPlans = deserializeFoodPlans(this.foodPlanText);
+    this.initializeDraftSelections();
     this.quantitySheetVisible = false;
     this.customSheetVisible = false;
     this.pageNotice = nextMealPlans.length > 0
-      ? `已保存今天${getFoodMealLabel(this.selectedMealType)}的选择，共 ${nextMealPlans.length} 份。`
-      : `已清空今天${getFoodMealLabel(this.selectedMealType)}的选择。`;
+      ? (saveResult.syncedImmediately
+        ? `已同步今天${getFoodMealLabel(this.selectedMealType)}的选择，共 ${nextMealPlans.length} 份。`
+        : `已保存今天${getFoodMealLabel(this.selectedMealType)}的选择，共 ${nextMealPlans.length} 份；联网后会自动同步。`)
+      : (saveResult.syncedImmediately
+        ? `已同步清空今天${getFoodMealLabel(this.selectedMealType)}的选择。`
+        : `已清空今天${getFoodMealLabel(this.selectedMealType)}的选择；联网后会自动同步。`);
     this.goBack();
   }
 
-  private getSortedFoodOptions(): FoodOption[] {
+  private getSortedFoodOptions(applyAiRanking: boolean = true): FoodOption[] {
     let result: FoodOption[] = [];
     let knownIds: string[] = [];
     for (let index = 0; index < PRESET_FOOD_OPTIONS.length; index++) {
-      result.push(PRESET_FOOD_OPTIONS[index]);
+      result.push({
+        id: PRESET_FOOD_OPTIONS[index].id,
+        name: PRESET_FOOD_OPTIONS[index].name,
+        description: PRESET_FOOD_OPTIONS[index].description,
+        calories: PRESET_FOOD_OPTIONS[index].calories,
+        serving: PRESET_FOOD_OPTIONS[index].serving,
+        mealSuggestion: PRESET_FOOD_OPTIONS[index].mealSuggestion,
+        image: resolveFoodOptionImage(PRESET_FOOD_OPTIONS[index]),
+        accentColor: PRESET_FOOD_OPTIONS[index].accentColor
+      });
       knownIds.push(PRESET_FOOD_OPTIONS[index].id);
     }
     for (let index = 0; index < this.customFoodOptions.length; index++) {
       if (knownIds.indexOf(this.customFoodOptions[index].id) >= 0) {
         continue;
       }
-      result.push(this.customFoodOptions[index]);
+      result.push({
+        id: this.customFoodOptions[index].id,
+        name: this.customFoodOptions[index].name,
+        description: this.customFoodOptions[index].description,
+        calories: this.customFoodOptions[index].calories,
+        serving: this.customFoodOptions[index].serving,
+        mealSuggestion: this.customFoodOptions[index].mealSuggestion,
+        image: resolveFoodOptionImage(this.customFoodOptions[index]),
+        accentColor: this.customFoodOptions[index].accentColor
+      });
       knownIds.push(this.customFoodOptions[index].id);
     }
 
     result.sort((left: FoodOption, right: FoodOption) => {
+      if (applyAiRanking) {
+        let leftScore = getRecommendationScore(this.foodRecommendationCacheText, left.id);
+        let rightScore = getRecommendationScore(this.foodRecommendationCacheText, right.id);
+        if (leftScore !== rightScore) {
+          return rightScore - leftScore;
+        }
+      }
       let leftMatch: number = left.mealSuggestion === getFoodMealLabel(this.selectedMealType) ? 0 : 1;
       let rightMatch: number = right.mealSuggestion === getFoodMealLabel(this.selectedMealType) ? 0 : 1;
       if (leftMatch !== rightMatch) {
@@ -571,7 +816,7 @@ struct FoodSelectionPage {
         calories: 0,
         serving: '点击创建',
         mealSuggestion: getFoodMealLabel(this.selectedMealType),
-        image: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=900&q=80',
+        image: 'builtin:food:custom-card',
         accentColor: this.getMealAccentColor()
       }
     });
@@ -593,19 +838,95 @@ struct FoodSelectionPage {
   }
 
   private getSourceLabel(option: FoodOption): string {
-    if (option.id.indexOf('custom-food-') === 0) {
+    if (this.isFoodAiTopRecommendation(option.id)) {
+      return 'AI 推荐';
+    }
+    if (option.id.indexOf('local-food-option-') === 0 || option.id.indexOf('custom-food-') === 0) {
       return '我的卡片';
     }
     return option.mealSuggestion === getFoodMealLabel(this.selectedMealType) ? '推荐' : '可选';
   }
 
   @Builder
-  buildCreateFoodCard() {
-    Stack({ alignContent: Alignment.BottomStart }) {
-      Image('https://images.unsplash.com/photo-1495195134817-aeb325a55b65?auto=format&fit=crop&w=900&q=80')
+  buildFoodVisual(image: string, title: string, heightValue: number) {
+    if (isBuiltinFoodImage(image)) {
+      Stack({ alignContent: Alignment.BottomStart }) {
+        Column() {
+          Row() {
+            Text(getFoodVisualDescriptor(image, title).primaryText)
+              .fontSize(heightValue >= 200 ? 28 : 14)
+              .fontWeight(FontWeight.Bolder)
+              .fontColor('#FFFFFF')
+              .padding({ left: heightValue >= 200 ? 16 : 10, right: heightValue >= 200 ? 16 : 10, top: 6, bottom: 6 })
+              .backgroundColor('#26000000')
+              .borderRadius(999)
+          }
+          .width('100%')
+          .justifyContent(FlexAlign.End)
+
+          Blank()
+            .layoutWeight(1)
+
+          Row({ space: 10 }) {
+            Text(getFoodVisualDescriptor(image, title).secondaryText)
+              .fontSize(heightValue >= 200 ? 16 : 11)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#FFFFFF')
+              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+              .backgroundColor('#1AFFFFFF')
+              .borderRadius(999)
+
+            Text(title)
+              .fontSize(heightValue >= 200 ? 14 : 10)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#FFFFFF')
+              .maxLines(1)
+          }
+        }
         .width('100%')
         .height('100%')
+        .padding(heightValue >= 200 ? 18 : 10)
+        .backgroundColor(getFoodVisualDescriptor(image, title).bottomColor)
+
+        Text('')
+          .width('72%')
+          .height(heightValue >= 200 ? 92 : 46)
+          .backgroundColor(getFoodVisualDescriptor(image, title).topColor)
+          .borderRadius(heightValue >= 200 ? 28 : 18)
+          .margin({ left: heightValue >= 200 ? 12 : 8, top: heightValue >= 200 ? 12 : 8 })
+
+        Row({ space: heightValue >= 200 ? 14 : 8 }) {
+          Text('')
+            .width(heightValue >= 200 ? 88 : 40)
+            .height(heightValue >= 200 ? 88 : 40)
+            .borderRadius(heightValue >= 200 ? 44 : 20)
+            .backgroundColor('#22FFFFFF')
+
+          Text('')
+            .width(heightValue >= 200 ? 58 : 28)
+            .height(heightValue >= 200 ? 58 : 28)
+            .borderRadius(heightValue >= 200 ? 29 : 14)
+            .backgroundColor(getFoodVisualDescriptor(image, title).accentColor)
+            .margin({ top: heightValue >= 200 ? 44 : 18 })
+        }
+        .padding({ left: heightValue >= 200 ? 18 : 10, top: heightValue >= 200 ? 18 : 10 })
+      }
+      .width('100%')
+      .height(heightValue)
+      .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else {
+      Image(image)
+        .width('100%')
+        .height(heightValue)
         .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    }
+  }
+
+  @Builder
+  buildCreateFoodCard() {
+    Stack({ alignContent: Alignment.BottomStart }) {
+      this.buildFoodVisual('builtin:food:custom-card', '自定义食物', 232)
 
       Column({ space: 8 }) {
         Text('自定义食物')
@@ -621,7 +942,7 @@ struct FoodSelectionPage {
       .alignItems(HorizontalAlign.Start)
       .width('100%')
       .padding(16)
-      .backgroundColor('#990D1628')
+      .backgroundColor('#550D1628')
     }
     .width('100%')
     .height(232)
@@ -634,10 +955,7 @@ struct FoodSelectionPage {
   @Builder
   buildFoodChoiceCard(option: FoodOption) {
     Stack({ alignContent: Alignment.BottomStart }) {
-      Image(option.image)
-        .width('100%')
-        .height('100%')
-        .objectFit(ImageFit.Cover)
+      this.buildFoodVisual(option.image, option.name, 232)
 
       Column({ space: 8 }) {
         Row() {
@@ -756,11 +1074,7 @@ struct FoodSelectionPage {
               Column({ space: 12 }) {
                 ForEach(this.draftSelections, (draft: FoodDraftSelectionItem) => {
                   Column({ space: 14 }) {
-                    Image(draft.option.image)
-                      .width('100%')
-                      .height(120)
-                      .objectFit(ImageFit.Cover)
-                      .borderRadius(18)
+                    this.buildFoodVisual(draft.option.image, draft.option.name, 120)
 
                     Row({ space: 12 }) {
                       Column({ space: 6 }) {
@@ -1152,10 +1466,27 @@ struct FoodSelectionPage {
         Scroll() {
           Column({ space: 18 }) {
             Column({ space: 12 }) {
-              Text(`正在安排 ${getFoodMealLabel(this.selectedMealType)}`)
-                .fontSize(24)
-                .fontWeight(FontWeight.Bolder)
-                .fontColor(PRIMARY_TEXT_COLOR)
+              Row() {
+                Text(`正在安排 ${getFoodMealLabel(this.selectedMealType)}`)
+                  .fontSize(24)
+                  .fontWeight(FontWeight.Bolder)
+                  .fontColor(PRIMARY_TEXT_COLOR)
+                  .layoutWeight(1)
+
+                Button(this.recommendationBusy ? 'AI 排序中' : 'AI 推荐')
+                  .height(34)
+                  .fontSize(12)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#FFFFFF')
+                  .backgroundColor(this.recommendationBusy ? '#98A2B3' : this.getMealAccentColor())
+                  .borderRadius(17)
+                  .onClick(() => {
+                    this.refreshAiRecommendations();
+                  })
+              }
+              .width('100%')
+              .justifyContent(FlexAlign.SpaceBetween)
+              .alignItems(VerticalAlign.Center)
 
               Text(`${this.formatFriendlyDate(this.selectedDate)} · 待保存 ${this.getDraftSelectedCount()} 份 · ${Math.round(this.getDraftSelectedCalories())} kcal`)
                 .fontSize(13)

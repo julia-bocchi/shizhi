@@ -6,6 +6,7 @@ import {
 } from '../../constants/AppTheme';
 import { FoodPlanItem } from '../../models/FoodPlan';
 import { FoodMealOption, FOOD_MEAL_OPTIONS } from '../../models/FoodOption';
+import { FoodDraftSelectionItemPayload } from '../../models/SyncPayload';
 import {
   deserializeCustomFoodOptions,
   deserializeFoodPlans,
@@ -13,6 +14,7 @@ import {
   serializeCustomFoodOptions,
   serializeFoodPlans
 } from '../../utils/FoodHelper';
+import { getFoodVisualDescriptor, isBuiltinFoodImage, resolveFoodPlanImage } from '../../utils/FoodVisualHelper';
 import {
   buildMonthCalendarRows,
   CALENDAR_WEEK_LABELS,
@@ -23,9 +25,10 @@ import {
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
-import { AuthSession } from '../../models/AuthSession';
 import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
-import { deleteFoodPlanRemote, fetchFoodOptions, fetchFoodPlans } from '../../utils/ApiService';
+import { fetchFoodOptions, fetchFoodPlans } from '../../utils/ApiService';
+import { createFoodMealReplaceOperation, hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
 
 interface CalendarDayItem extends CalendarMonthCell {
   planCount: number;
@@ -44,6 +47,19 @@ export struct FoodTabPage {
   @StorageLink('currentFoodPlanDateText') currentFoodPlanDateText: string = '';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
 
   @State selectedPlanDate: string = formatDate(new Date());
   @State calendarYear: number = new Date().getFullYear();
@@ -68,6 +84,56 @@ export struct FoodTabPage {
   private bubbleAnimationTimerId: number = -1;
   private bubbleAnimationExpanded: boolean = false;
 
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+    if (result.syncedCount > 0) {
+      this.scannerNotice = '本地缓存数据已自动同步。';
+    } else if (result.lastErrorMessage.trim().length > 0) {
+      this.scannerNotice = '已保存到本地，联网后会自动同步。';
+    }
+  }
+
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
     if (this.apiBaseUrlText.trim().length === 0) {
@@ -80,7 +146,9 @@ export struct FoodTabPage {
       this.currentFoodPlanDateText = this.selectedPlanDate;
     }
     this.startBubbleAnimation();
-    this.syncRemoteFoodData();
+    this.flushPendingSync().then(() => {
+      this.syncRemoteFoodData();
+    });
   }
 
   aboutToDisappear(): void {
@@ -111,35 +179,58 @@ export struct FoodTabPage {
     }
   }
 
-  private removeFoodPlan(planId: string): void {
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession)) {
-      this.removeFoodPlanRemote(planId, authSession);
-      return;
+  private buildMealReplacePayload(plans: FoodPlanItem[]): FoodDraftSelectionItemPayload[] {
+    let result: FoodDraftSelectionItemPayload[] = [];
+    for (let index = 0; index < plans.length; index++) {
+      let foundIndex = -1;
+      for (let payloadIndex = 0; payloadIndex < result.length; payloadIndex++) {
+        if (result[payloadIndex].foodId === plans[index].foodId) {
+          foundIndex = payloadIndex;
+          break;
+        }
+      }
+      if (foundIndex >= 0) {
+        result[foundIndex] = {
+          foodId: result[foundIndex].foodId,
+          count: result[foundIndex].count + 1
+        };
+      } else {
+        result.push({
+          foodId: plans[index].foodId,
+          count: 1
+        });
+      }
     }
+    return result;
+  }
+
+  private async removeFoodPlan(planId: string): Promise<void> {
     let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
     let nextPlans: FoodPlanItem[] = [];
+    let removedPlan: FoodPlanItem | undefined = undefined;
     for (let index = 0; index < currentPlans.length; index++) {
       if (currentPlans[index].id !== planId) {
         nextPlans.push(currentPlans[index]);
+      } else {
+        removedPlan = currentPlans[index];
       }
     }
     this.foodPlanText = serializeFoodPlans(nextPlans);
-  }
-
-  private async removeFoodPlanRemote(planId: string, authSession: AuthSession): Promise<void> {
-    try {
-      await deleteFoodPlanRemote(this.apiBaseUrlText, authSession, planId);
-      let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
-      let nextPlans: FoodPlanItem[] = [];
-      for (let index = 0; index < currentPlans.length; index++) {
-        if (currentPlans[index].id !== planId) {
-          nextPlans.push(currentPlans[index]);
+    if (removedPlan) {
+      let sameMealPlans: FoodPlanItem[] = [];
+      for (let index = 0; index < nextPlans.length; index++) {
+        if (nextPlans[index].date === removedPlan.date && nextPlans[index].mealType === removedPlan.mealType) {
+          sameMealPlans.push(nextPlans[index]);
         }
       }
-      this.foodPlanText = serializeFoodPlans(nextPlans);
-    } catch (error) {
-      this.scannerNotice = `${error}`;
+      let notesText = sameMealPlans.length > 0 ? sameMealPlans[0].notes : '';
+      let result = await syncOperationNowOrQueue(this.buildSyncState(), createFoodMealReplaceOperation(
+        removedPlan.date,
+        removedPlan.mealType,
+        notesText,
+        this.buildMealReplacePayload(sameMealPlans)
+      ));
+      this.applySyncState(result.state);
     }
   }
 
@@ -155,6 +246,11 @@ export struct FoodTabPage {
   }
 
   private async syncRemoteFoodData(): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'food_option') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'food_meal')) {
+      return;
+    }
     let authSession = deserializeAuthSession(this.authSessionText);
     if (!isAuthSessionValid(authSession)) {
       return;
@@ -182,6 +278,41 @@ export struct FoodTabPage {
       this.scannerNotice = `${error}`;
     } finally {
       this.remoteSyncing = false;
+    }
+  }
+
+  @Builder
+  buildFoodVisual(plan: FoodPlanItem) {
+    if (isBuiltinFoodImage(resolveFoodPlanImage(plan))) {
+      Stack({ alignContent: Alignment.BottomStart }) {
+        Text('')
+          .width('100%')
+          .height('100%')
+          .backgroundColor(getFoodVisualDescriptor(resolveFoodPlanImage(plan), plan.name).bottomColor)
+          .borderRadius(14)
+
+        Text('')
+          .width(36)
+          .height(22)
+          .backgroundColor(getFoodVisualDescriptor(resolveFoodPlanImage(plan), plan.name).topColor)
+          .borderRadius(11)
+          .margin({ left: 8, top: 8 })
+
+        Text(getFoodVisualDescriptor(resolveFoodPlanImage(plan), plan.name).primaryText)
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#FFFFFF')
+          .padding({ left: 8, right: 8, top: 0, bottom: 8 })
+      }
+      .width(52)
+      .height(52)
+      .borderRadius(14)
+    } else {
+      Image(resolveFoodPlanImage(plan))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
     }
   }
 
@@ -662,12 +793,8 @@ export struct FoodTabPage {
           .backgroundColor(plan.accentColor)
           .borderRadius(2)
 
-        if (plan.image.trim().length > 0) {
-          Image(plan.image)
-            .width(52)
-            .height(52)
-            .objectFit(ImageFit.Cover)
-            .borderRadius(14)
+        if (resolveFoodPlanImage(plan).trim().length > 0) {
+          this.buildFoodVisual(plan)
         } else {
           Stack({ alignContent: Alignment.Center }) {
             Text(plan.name.length > 0 ? plan.name.substring(0, 1) : '食')

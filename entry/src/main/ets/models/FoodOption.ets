@@ -41,7 +41,7 @@ export const PRESET_FOOD_OPTIONS: FoodOption[] = [
     calories: 280,
     serving: '1 杯',
     mealSuggestion: '早餐',
-    image: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=80',
+    image: 'builtin:food:oatmeal',
     accentColor: '#D86C3D'
   },
   {
@@ -51,7 +51,7 @@ export const PRESET_FOOD_OPTIONS: FoodOption[] = [
     calories: 320,
     serving: '1 份',
     mealSuggestion: '午餐',
-    image: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=80',
+    image: 'builtin:food:chicken-salad',
     accentColor: '#10B981'
   },
   {
@@ -61,7 +61,7 @@ export const PRESET_FOOD_OPTIONS: FoodOption[] = [
     calories: 410,
     serving: '180 g',
     mealSuggestion: '晚餐',
-    image: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=900&q=80',
+    image: 'builtin:food:salmon',
     accentColor: '#0F6BFF'
   },
   {
@@ -71,7 +71,7 @@ export const PRESET_FOOD_OPTIONS: FoodOption[] = [
     calories: 230,
     serving: '1 碗',
     mealSuggestion: '加餐',
-    image: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?auto=format&fit=crop&w=900&q=80',
+    image: 'builtin:food:yogurt',
     accentColor: '#7B61FF'
   },
   {
@@ -81,7 +81,7 @@ export const PRESET_FOOD_OPTIONS: FoodOption[] = [
     calories: 560,
     serving: '1 份',
     mealSuggestion: '午餐',
-    image: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80',
+    image: 'builtin:food:rice-beef',
     accentColor: '#14B8A6'
   },
   {
@@ -91,7 +91,7 @@ export const PRESET_FOOD_OPTIONS: FoodOption[] = [
     calories: 260,
     serving: '2 片',
     mealSuggestion: '早餐',
-    image: 'https://images.unsplash.com/photo-1525351484163-7529414344d8?auto=format&fit=crop&w=900&q=80',
+    image: 'builtin:food:egg-toast',
     accentColor: '#F59E0B'
   }
 ];

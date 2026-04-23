@@ -12,6 +12,8 @@ import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
 import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
 import { fetchFoodPlans } from '../../utils/ApiService';
+import { hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncPendingOperations } from '../../utils/SyncService';
 
 @Entry
 @Component
@@ -21,9 +23,68 @@ struct FoodPlanPage {
   @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
 
   @State selectedDate: string = formatDate(new Date());
   @State pageNotice: string = '先选择要安排的餐次，再进入卡片页挑选食物。';
+
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+  }
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
@@ -35,7 +96,9 @@ struct FoodPlanPage {
     } else {
       this.currentFoodPlanDateText = this.selectedDate;
     }
-    this.syncRemotePlans();
+    this.flushPendingSync().then(() => {
+      this.syncRemotePlans();
+    });
   }
 
   private getAllFoodPlans(): FoodPlanItem[] {
@@ -43,6 +106,11 @@ struct FoodPlanPage {
   }
 
   private async syncRemotePlans(): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'food_option') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'food_meal')) {
+      return;
+    }
     let authSession = deserializeAuthSession(this.authSessionText);
     if (!isAuthSessionValid(authSession)) {
       return;

@@ -91,7 +91,7 @@ export function deserializeFoodPlans(savedText: string): FoodPlanItem[] {
 
 export function createFoodPlanItem(date: string, option: FoodOption, mealType: string, notes: string): FoodPlanItem {
   return {
-    id: `${Date.now()}-${Math.round(Math.random() * 1000)}`,
+    id: `local-food-plan-${Date.now()}-${Math.round(Math.random() * 1000)}`,
     date: sanitizeString(date),
     foodId: sanitizeString(option.id),
     name: sanitizeString(option.name),

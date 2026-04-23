@@ -12,6 +12,7 @@ import {
   createEmptyUserProfile
 } from '../../models/UserProfile';
 import {
+  deserializeUserProfile,
   getBmiInfo,
   getCalorieRequirementText,
   getGenderSuggestion,
@@ -23,7 +24,9 @@ import {
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
 import { HOME_TAB_INDEX } from '../../models/TabItem';
 import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
-import { fetchUserProfile, logoutSession, updateUserProfileRemote } from '../../utils/ApiService';
+import { fetchUserProfile, logoutSession } from '../../utils/ApiService';
+import { createProfilePutOperation, hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
 
 @Component
 export struct ProfileTabPage {
@@ -33,16 +36,83 @@ export struct ProfileTabPage {
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
   @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
   @State profileSaving: boolean = false;
+
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+    this.userProfile = deserializeUserProfile(this.userProfileText);
+    if (result.syncedCount > 0) {
+      this.profileNotice = '本地资料已自动同步到后端。';
+    } else if (result.lastErrorMessage.trim().length > 0) {
+      this.profileNotice = '资料已保存到本地，联网后会自动同步。';
+    }
+  }
 
   aboutToAppear(): void {
     if (this.apiBaseUrlText.trim().length === 0) {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
     let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession)) {
-      this.pullProfileFromServer();
-    }
+    this.flushPendingSync().then(() => {
+      if (isAuthSessionValid(authSession) && !hasPendingSyncOperation(this.pendingSyncQueueText, 'profile')) {
+        this.pullProfileFromServer();
+      }
+    });
   }
 
   private commitProfile(nextProfile: UserProfile, noticeText?: string): void {
@@ -137,15 +207,13 @@ export struct ProfileTabPage {
     if (this.profileSaving) {
       return;
     }
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (!isAuthSessionValid(authSession)) {
-      this.profileNotice = '请先登录，再把资料保存到后端。';
-      return;
-    }
     this.profileSaving = true;
     try {
-      let remoteProfile = await updateUserProfileRemote(this.apiBaseUrlText, authSession, this.userProfile);
-      this.commitProfile(remoteProfile, '资料已保存到后端。');
+      this.userProfileText = serializeUserProfile(this.userProfile);
+      let result = await syncOperationNowOrQueue(this.buildSyncState(), createProfilePutOperation(this.userProfileText));
+      this.applySyncState(result.state);
+      this.userProfile = deserializeUserProfile(this.userProfileText);
+      this.profileNotice = result.syncedImmediately ? '资料已同步到后端。' : '资料已保存到本地，联网后会自动同步。';
     } catch (error) {
       this.profileNotice = `${error}`;
     } finally {

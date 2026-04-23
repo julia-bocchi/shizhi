@@ -1,10 +1,12 @@
+import { DEFAULT_API_BASE_URL } from '../models/AuthSession';
+
 PersistentStorage.persistProp('savedCustomWorkoutText', '');
 PersistentStorage.persistProp('workoutRecordText', '');
 PersistentStorage.persistProp('workoutPlanText', '');
 PersistentStorage.persistProp('workoutPlanMetaText', '');
 PersistentStorage.persistProp('weightRecordText', '');
 PersistentStorage.persistProp('userProfileText', '');
-PersistentStorage.persistProp('apiBaseUrlText', '');
+PersistentStorage.persistProp('apiBaseUrlText', DEFAULT_API_BASE_URL);
 PersistentStorage.persistProp('authSessionText', '');
 PersistentStorage.persistProp('customFoodOptionText', '');
 PersistentStorage.persistProp('foodPlanText', '');
@@ -14,6 +16,11 @@ PersistentStorage.persistProp('currentFoodPlanMealTypeText', '');
 PersistentStorage.persistProp('aiApiEndpointText', '');
 PersistentStorage.persistProp('aiApiKeyText', '');
 PersistentStorage.persistProp('aiModelText', '');
+PersistentStorage.persistProp('pendingSyncQueueText', '');
+PersistentStorage.persistProp('foodRecommendationCacheText', '');
+PersistentStorage.persistProp('exerciseRecommendationCacheText', '');
+PersistentStorage.persistProp('lastSyncAttemptText', '');
+PersistentStorage.persistProp('lastSyncSuccessText', '');
 PersistentStorage.persistProp('currentExerciseDraftText', '');
 PersistentStorage.persistProp('currentExerciseProfileText', '');
 PersistentStorage.persistProp('currentEditingSavedWorkoutIdText', '');

@@ -6,11 +6,18 @@ import {
 } from '../../constants/AppTheme';
 import {
   EXERCISE_OPTIONS,
+  SavedCustomWorkout,
   ExerciseDraft,
   ExerciseOption,
-  SavedCustomWorkout,
   createDefaultExerciseDraft
 } from '../../models/ExerciseOption';
+import {
+  AiAssistantConfig,
+  getDefaultAiApiEndpoint,
+  getDefaultAiApiKey,
+  getDefaultAiModel
+} from '../../models/AiAssistant';
+import { RecommendationExerciseCandidate, RecommendationFoodCandidate } from '../../models/AiRecommendation';
 import { UserProfile } from '../../models/UserProfile';
 import {
   getActiveWorkoutMode,
@@ -18,17 +25,19 @@ import {
   deserializeExerciseDraft,
   deserializeSavedCustomWorkouts,
   deserializeWorkoutRecords,
+  serializeUserProfile,
   getWorkoutModeLabel,
   getWorkoutTitle,
   serializeExerciseDraft,
   serializeSavedCustomWorkouts,
-  serializeWorkoutRecords,
-  serializeUserProfile
+  serializeWorkoutRecords
 } from '../../utils/ExerciseHelper';
-import { formatDate } from '../../utils/WeightRecordHelper';
+import { deserializeWeightRecords, formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import { WorkoutRecord } from '../../models/WorkoutRecord';
 import { WorkoutPlanItem } from '../../models/WorkoutPlan';
+import { FoodOption, PRESET_FOOD_OPTIONS } from '../../models/FoodOption';
+import { deserializeCustomFoodOptions, deserializeFoodPlans } from '../../utils/FoodHelper';
 import {
   createWorkoutPlanItem,
   deserializeWorkoutPlans,
@@ -51,8 +60,6 @@ import { BackendWorkoutType, WorkoutPlanLocalMeta } from '../../models/BackendAp
 import { deserializeAuthSession, deserializeWorkoutPlanLocalMeta, serializeWorkoutPlanLocalMeta } from '../../utils/AuthStorageHelper';
 import {
   createEmptyWorkoutDailySummary,
-  createWorkoutPlanRemote,
-  deleteWorkoutPlanRemote,
   fetchWorkoutDailySummary,
   fetchWorkoutPlans,
   fetchWorkoutRecords,
@@ -62,6 +69,18 @@ import {
   removeWorkoutPlanMeta
 } from '../../utils/ApiService';
 import { buildWorkoutPlanMetaList } from '../../utils/WorkoutPlanMetaHelper';
+import { requestAiRecommendations } from '../../utils/AiRecommendationHelper';
+import {
+  getRecommendationRank,
+  getRecommendationScore,
+  serializeRecommendationCache
+} from '../../utils/RecommendationStorageHelper';
+import {
+  createWorkoutPlanCreateOperation,
+  createWorkoutPlanDeleteOperation,
+  hasPendingSyncOperation,
+} from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
 
 interface DailyWorkoutSummary {
   calories: number;
@@ -88,6 +107,19 @@ export struct ExerciseTabPage {
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = '2000';
+  @StorageLink('aiApiEndpointText') aiApiEndpointText: string = '';
+  @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
+  @StorageLink('aiModelText') aiModelText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
 
   @State savedCustomWorkouts: SavedCustomWorkout[] = [];
   @State remoteWorkoutTypes: BackendWorkoutType[] = [];
@@ -105,6 +137,74 @@ export struct ExerciseTabPage {
   @State selectedPlanSavedWorkoutId: string = '';
   @State remoteSyncing: boolean = false;
   @State remoteDailySummary: RemoteWorkoutDailySummary = createEmptyWorkoutDailySummary();
+  @State recommendationBusy: boolean = false;
+
+  private getAiConfig(): AiAssistantConfig {
+    if (this.aiApiEndpointText.trim().length === 0) {
+      this.aiApiEndpointText = getDefaultAiApiEndpoint();
+    }
+    if (this.aiModelText.trim().length === 0) {
+      this.aiModelText = getDefaultAiModel();
+    }
+    if (this.aiApiKeyText.trim().length === 0) {
+      this.aiApiKeyText = getDefaultAiApiKey();
+    }
+    return {
+      apiEndpoint: this.aiApiEndpointText,
+      apiKey: this.aiApiKeyText,
+      model: this.aiModelText
+    };
+  }
+
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+    this.syncSavedCustomWorkoutsFromStorage();
+    this.syncWorkoutPlansFromStorage();
+    if (result.syncedCount > 0) {
+      this.remoteSyncing = false;
+    }
+  }
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
@@ -114,7 +214,9 @@ export struct ExerciseTabPage {
     this.exercisePlanPickerVisible = false;
     this.syncSavedCustomWorkoutsFromStorage();
     this.syncWorkoutPlansFromStorage();
-    this.syncRemoteExerciseData();
+    this.flushPendingSync().then(() => {
+      this.syncRemoteExerciseData();
+    });
   }
 
   aboutToDisappear(): void {
@@ -157,6 +259,12 @@ export struct ExerciseTabPage {
   }
 
   private async syncRemoteExerciseData(): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_template') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_plan') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_record')) {
+      return;
+    }
     let authSession = deserializeAuthSession(this.authSessionText);
     if (!isAuthSessionValid(authSession)) {
       return;
@@ -167,8 +275,21 @@ export struct ExerciseTabPage {
       this.remoteWorkoutTypes = await fetchWorkoutTypes(this.apiBaseUrlText, authSession);
 
       let remoteTemplates = await fetchWorkoutTemplates(this.apiBaseUrlText, authSession);
-      this.savedCustomWorkouts = remoteTemplates;
-      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(remoteTemplates);
+      let mergedTemplates: SavedCustomWorkout[] = remoteTemplates.slice();
+      for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
+        let hasMatched = false;
+        for (let templateIndex = 0; templateIndex < mergedTemplates.length; templateIndex++) {
+          if (mergedTemplates[templateIndex].id === this.savedCustomWorkouts[index].id) {
+            hasMatched = true;
+            break;
+          }
+        }
+        if (!hasMatched) {
+          mergedTemplates.push(this.savedCustomWorkouts[index]);
+        }
+      }
+      this.savedCustomWorkouts = mergedTemplates;
+      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(mergedTemplates);
 
       let planResult = await fetchWorkoutPlans(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1], this.getWorkoutPlanMetaItems());
       this.workoutPlans = planResult.plans;
@@ -221,6 +342,133 @@ export struct ExerciseTabPage {
 
   private getExercisePickerCountText(): string {
     return `${this.getPresetExerciseOptions().length + this.getAvailableSavedWorkouts().length} 项训练可选`;
+  }
+
+  private getDailyFoodCalorieTarget(): number {
+    let targetValue = Number(this.dailyFoodCalorieTargetText.trim());
+    if (isNaN(targetValue) || targetValue <= 0) {
+      return 2000;
+    }
+    return targetValue;
+  }
+
+  private getRecommendationFoodCandidates(): RecommendationFoodCandidate[] {
+    let result: RecommendationFoodCandidate[] = [];
+    let currentPlans = deserializeFoodPlans(this.foodPlanText);
+    let knownIds: string[] = [];
+    for (let index = 0; index < PRESET_FOOD_OPTIONS.length; index++) {
+      result.push({
+        id: PRESET_FOOD_OPTIONS[index].id,
+        name: PRESET_FOOD_OPTIONS[index].name,
+        description: PRESET_FOOD_OPTIONS[index].description,
+        mealSuggestion: PRESET_FOOD_OPTIONS[index].mealSuggestion,
+        calories: PRESET_FOOD_OPTIONS[index].calories,
+        serving: PRESET_FOOD_OPTIONS[index].serving
+      });
+      knownIds.push(PRESET_FOOD_OPTIONS[index].id);
+    }
+    let customOptions: FoodOption[] = deserializeCustomFoodOptions(this.customFoodOptionText);
+    for (let index = 0; index < customOptions.length; index++) {
+      if (knownIds.indexOf(customOptions[index].id) >= 0) {
+        continue;
+      }
+      result.push({
+        id: customOptions[index].id,
+        name: customOptions[index].name,
+        description: customOptions[index].description,
+        mealSuggestion: customOptions[index].mealSuggestion,
+        calories: customOptions[index].calories,
+        serving: customOptions[index].serving
+      });
+      knownIds.push(customOptions[index].id);
+    }
+    for (let index = 0; index < currentPlans.length; index++) {
+      if (knownIds.indexOf(currentPlans[index].foodId) >= 0) {
+        continue;
+      }
+      result.push({
+        id: currentPlans[index].foodId,
+        name: currentPlans[index].name,
+        description: currentPlans[index].description,
+        mealSuggestion: currentPlans[index].mealType,
+        calories: currentPlans[index].calories,
+        serving: currentPlans[index].serving
+      });
+      knownIds.push(currentPlans[index].foodId);
+    }
+    return result;
+  }
+
+  private getRecommendationExerciseCandidates(): RecommendationExerciseCandidate[] {
+    let result: RecommendationExerciseCandidate[] = [];
+    for (let index = 0; index < EXERCISE_OPTIONS.length; index++) {
+      if (EXERCISE_OPTIONS[index].id === 'custom') {
+        continue;
+      }
+      result.push({
+        id: `exercise:${EXERCISE_OPTIONS[index].id}`,
+        name: EXERCISE_OPTIONS[index].name,
+        description: EXERCISE_OPTIONS[index].description,
+        category: 'preset'
+      });
+    }
+    for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
+      result.push({
+        id: `saved:${this.savedCustomWorkouts[index].id}`,
+        name: this.savedCustomWorkouts[index].name,
+        description: '自定义训练模板',
+        category: 'saved_template'
+      });
+    }
+    return result;
+  }
+
+  private getExerciseRecommendationId(optionId: string): string {
+    return `exercise:${optionId}`;
+  }
+
+  private getSavedWorkoutRecommendationId(savedWorkoutId: string): string {
+    return `saved:${savedWorkoutId}`;
+  }
+
+  private isExerciseAiTopRecommendation(optionId: string): boolean {
+    let rankValue = getRecommendationRank(this.exerciseRecommendationCacheText, this.getExerciseRecommendationId(optionId));
+    return rankValue >= 0 && rankValue < 3;
+  }
+
+  private isSavedWorkoutAiTopRecommendation(savedWorkoutId: string): boolean {
+    let rankValue = getRecommendationRank(this.exerciseRecommendationCacheText, this.getSavedWorkoutRecommendationId(savedWorkoutId));
+    return rankValue >= 0 && rankValue < 3;
+  }
+
+  private async refreshAiRecommendations(): Promise<void> {
+    if (this.recommendationBusy) {
+      return;
+    }
+    this.recommendationBusy = true;
+    try {
+      let response = await requestAiRecommendations(this.getAiConfig(), {
+        profile: this.userProfile,
+        weightRecords: deserializeWeightRecords(this.weightRecordText),
+        workoutRecords: deserializeWorkoutRecords(this.workoutRecordText),
+        dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
+        foodCandidates: this.getRecommendationFoodCandidates(),
+        exerciseCandidates: this.getRecommendationExerciseCandidates()
+      });
+      this.foodRecommendationCacheText = serializeRecommendationCache({
+        updatedAt: `${Date.now()}`,
+        reply: response.reply,
+        items: response.foodRankings
+      });
+      this.exerciseRecommendationCacheText = serializeRecommendationCache({
+        updatedAt: `${Date.now()}`,
+        reply: response.reply,
+        items: response.exerciseRankings
+      });
+    } catch (error) {
+    } finally {
+      this.recommendationBusy = false;
+    }
   }
 
   private getWorkoutRecords(): WorkoutRecord[] {
@@ -276,23 +524,12 @@ export struct ExerciseTabPage {
       savedWorkoutId,
       goalValue
     );
-    let authSession = deserializeAuthSession(this.authSessionText);
-    try {
-      if (isAuthSessionValid(authSession)) {
-        nextPlan = await createWorkoutPlanRemote(this.apiBaseUrlText, authSession, {
-          date: this.selectedPlanDate,
-          title: nextPlan.title,
-          notes: this.planNotesInput,
-          savedWorkoutId: savedWorkoutId,
-          draftText: nextPlan.draftText
-        }, nextPlan.goalType, nextPlan.goalValue);
-      }
-    } catch (error) {
-      return;
-    }
     nextPlans.unshift(nextPlan);
 
     this.saveWorkoutPlans(nextPlans);
+    let result = await syncOperationNowOrQueue(this.buildSyncState(), createWorkoutPlanCreateOperation(nextPlan));
+    this.applySyncState(result.state);
+    this.syncWorkoutPlansFromStorage();
     this.planPickerVisible = false;
     this.exercisePlanPickerVisible = false;
     this.resetPlanPickerInputs();
@@ -347,14 +584,6 @@ export struct ExerciseTabPage {
   private async removeWorkoutPlan(planId: string): Promise<void> {
     let currentPlans: WorkoutPlanItem[] = this.getAllWorkoutPlans();
     let nextPlans: WorkoutPlanItem[] = [];
-    let authSession = deserializeAuthSession(this.authSessionText);
-    try {
-      if (isAuthSessionValid(authSession)) {
-        await deleteWorkoutPlanRemote(this.apiBaseUrlText, authSession, planId);
-      }
-    } catch (error) {
-      return;
-    }
     for (let index = 0; index < currentPlans.length; index++) {
       if (currentPlans[index].id !== planId) {
         nextPlans.push(currentPlans[index]);
@@ -362,6 +591,9 @@ export struct ExerciseTabPage {
     }
     this.saveWorkoutPlans(nextPlans);
     this.workoutPlanMetaText = serializeWorkoutPlanLocalMeta(removeWorkoutPlanMeta(this.getWorkoutPlanMetaItems(), planId));
+    let result = await syncOperationNowOrQueue(this.buildSyncState(), createWorkoutPlanDeleteOperation(planId));
+    this.applySyncState(result.state);
+    this.syncWorkoutPlansFromStorage();
   }
 
   private openWorkoutPlan(plan: WorkoutPlanItem): void {
@@ -395,64 +627,96 @@ export struct ExerciseTabPage {
   }
 
   private getPresetExerciseOptions(): ExerciseOption[] {
-    if (this.remoteWorkoutTypes.length === 0) {
-      return EXERCISE_OPTIONS;
-    }
-
     let nextOptions: ExerciseOption[] = [];
-    for (let index = 0; index < this.remoteWorkoutTypes.length; index++) {
-      let currentType = this.remoteWorkoutTypes[index];
-      if (currentType.source !== 'preset') {
-        continue;
+    if (this.remoteWorkoutTypes.length === 0) {
+      nextOptions = EXERCISE_OPTIONS.slice();
+    } else {
+      for (let index = 0; index < this.remoteWorkoutTypes.length; index++) {
+        let currentType = this.remoteWorkoutTypes[index];
+        if (currentType.source !== 'preset') {
+          continue;
+        }
+        let localOption = this.findLocalExerciseOptionById(currentType.exerciseId);
+        if (!localOption || localOption.id === 'custom') {
+          continue;
+        }
+        nextOptions.push({
+          id: localOption.id,
+          name: currentType.name.trim().length > 0 ? currentType.name : localOption.name,
+          description: currentType.description.trim().length > 0 ? currentType.description : localOption.description,
+          mode: currentType.mode.trim().length > 0 ? currentType.mode : localOption.mode,
+          met: localOption.met,
+          accentColor: currentType.accentColor.trim().length > 0 ? currentType.accentColor : localOption.accentColor
+        });
       }
-      let localOption = this.findLocalExerciseOptionById(currentType.exerciseId);
-      if (!localOption || localOption.id === 'custom') {
-        continue;
-      }
-      nextOptions.push({
-        id: localOption.id,
-        name: currentType.name.trim().length > 0 ? currentType.name : localOption.name,
-        description: currentType.description.trim().length > 0 ? currentType.description : localOption.description,
-        mode: currentType.mode.trim().length > 0 ? currentType.mode : localOption.mode,
-        met: localOption.met,
-        accentColor: currentType.accentColor.trim().length > 0 ? currentType.accentColor : localOption.accentColor
-      });
     }
 
     let customOption = this.findLocalExerciseOptionById('custom');
-    if (customOption) {
+    if (customOption && nextOptions.indexOf(customOption) < 0) {
       nextOptions.push(customOption);
     }
 
-    return nextOptions.length > 0 ? nextOptions : EXERCISE_OPTIONS;
+    let resultOptions = nextOptions.length > 0 ? nextOptions : EXERCISE_OPTIONS.slice();
+    resultOptions.sort((left: ExerciseOption, right: ExerciseOption) => {
+      if (left.id === 'custom' || right.id === 'custom') {
+        return left.id === 'custom' ? 1 : -1;
+      }
+      let leftScore = getRecommendationScore(this.exerciseRecommendationCacheText, this.getExerciseRecommendationId(left.id));
+      let rightScore = getRecommendationScore(this.exerciseRecommendationCacheText, this.getExerciseRecommendationId(right.id));
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
+      }
+      if (left.name > right.name) {
+        return 1;
+      }
+      if (left.name < right.name) {
+        return -1;
+      }
+      return 0;
+    });
+    return resultOptions;
   }
 
   private getAvailableSavedWorkouts(): SavedCustomWorkout[] {
-    if (this.remoteWorkoutTypes.length === 0) {
-      return this.savedCustomWorkouts;
-    }
-
     let nextWorkouts: SavedCustomWorkout[] = [];
-    let knownIds: string[] = [];
-    for (let index = 0; index < this.remoteWorkoutTypes.length; index++) {
-      let currentType = this.remoteWorkoutTypes[index];
-      if (currentType.source !== 'saved_template') {
-        continue;
+    if (this.remoteWorkoutTypes.length === 0) {
+      nextWorkouts = this.savedCustomWorkouts.slice();
+    } else {
+      let knownIds: string[] = [];
+      for (let index = 0; index < this.remoteWorkoutTypes.length; index++) {
+        let currentType = this.remoteWorkoutTypes[index];
+        if (currentType.source !== 'saved_template') {
+          continue;
+        }
+        let savedWorkout = this.findSavedWorkoutById(currentType.savedWorkoutId);
+        if (!savedWorkout) {
+          continue;
+        }
+        nextWorkouts.push(savedWorkout);
+        knownIds.push(savedWorkout.id);
       }
-      let savedWorkout = this.findSavedWorkoutById(currentType.savedWorkoutId);
-      if (!savedWorkout) {
-        continue;
+  
+      for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
+        if (knownIds.indexOf(this.savedCustomWorkouts[index].id) < 0) {
+          nextWorkouts.push(this.savedCustomWorkouts[index]);
+        }
       }
-      nextWorkouts.push(savedWorkout);
-      knownIds.push(savedWorkout.id);
     }
 
-    for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
-      if (knownIds.indexOf(this.savedCustomWorkouts[index].id) < 0) {
-        nextWorkouts.push(this.savedCustomWorkouts[index]);
+    nextWorkouts.sort((left: SavedCustomWorkout, right: SavedCustomWorkout) => {
+      let leftScore = getRecommendationScore(this.exerciseRecommendationCacheText, this.getSavedWorkoutRecommendationId(left.id));
+      let rightScore = getRecommendationScore(this.exerciseRecommendationCacheText, this.getSavedWorkoutRecommendationId(right.id));
+      if (leftScore !== rightScore) {
+        return rightScore - leftScore;
       }
-    }
-
+      if (left.name > right.name) {
+        return 1;
+      }
+      if (left.name < right.name) {
+        return -1;
+      }
+      return 0;
+    });
     return nextWorkouts;
   }
 
@@ -1409,10 +1673,22 @@ export struct ExerciseTabPage {
               ForEach(this.getPresetExerciseOptions(), (option: ExerciseOption) => {
                 Row({ space: 10 }) {
                   Column({ space: 4 }) {
-                    Text(option.name)
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor(PRIMARY_TEXT_COLOR)
+                    Row({ space: 8 }) {
+                      Text(option.name)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(PRIMARY_TEXT_COLOR)
+
+                      if (this.isExerciseAiTopRecommendation(option.id)) {
+                        Text('AI 推荐')
+                          .fontSize(10)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#FFFFFF')
+                          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                          .backgroundColor(option.accentColor)
+                          .borderRadius(999)
+                      }
+                    }
 
                     Text(option.description)
                       .fontSize(12)
@@ -1451,10 +1727,22 @@ export struct ExerciseTabPage {
                 ForEach(this.getAvailableSavedWorkouts(), (savedWorkout: SavedCustomWorkout) => {
                   Row({ space: 10 }) {
                     Column({ space: 4 }) {
-                      Text(savedWorkout.name)
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor(PRIMARY_TEXT_COLOR)
+                      Row({ space: 8 }) {
+                        Text(savedWorkout.name)
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(PRIMARY_TEXT_COLOR)
+
+                        if (this.isSavedWorkoutAiTopRecommendation(savedWorkout.id)) {
+                          Text('AI 推荐')
+                            .fontSize(10)
+                            .fontWeight(FontWeight.Bold)
+                            .fontColor('#FFFFFF')
+                            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                            .backgroundColor('#7B61FF')
+                            .borderRadius(999)
+                        }
+                      }
 
                       Text('自定义模板')
                         .fontSize(12)
@@ -1564,9 +1852,22 @@ export struct ExerciseTabPage {
                 .fontWeight(FontWeight.Medium)
                 .fontColor(PRIMARY_TEXT_COLOR)
 
-              Text(this.getExercisePickerCountText())
-                .fontSize(12)
-                .fontColor(SECONDARY_TEXT_COLOR)
+              Row({ space: 10 }) {
+                Text(this.getExercisePickerCountText())
+                  .fontSize(12)
+                  .fontColor(SECONDARY_TEXT_COLOR)
+
+                Button(this.recommendationBusy ? 'AI 排序中' : 'AI 推荐')
+                  .height(32)
+                  .fontSize(12)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#FFFFFF')
+                  .backgroundColor(this.recommendationBusy ? '#98A2B3' : '#0F6BFF')
+                  .borderRadius(16)
+                  .onClick(() => {
+                    this.refreshAiRecommendations();
+                  })
+              }
             }
             .width('100%')
             .justifyContent(FlexAlign.SpaceBetween)
@@ -1579,10 +1880,22 @@ export struct ExerciseTabPage {
             ForEach(this.getPresetExerciseOptions(), (option: ExerciseOption) => {
               Column({ space: 10 }) {
                 Column({ space: 6 }) {
-                  Text(option.name)
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(PRIMARY_TEXT_COLOR)
+                  Row({ space: 8 }) {
+                    Text(option.name)
+                      .fontSize(16)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(PRIMARY_TEXT_COLOR)
+
+                    if (this.isExerciseAiTopRecommendation(option.id)) {
+                      Text('AI 推荐')
+                        .fontSize(10)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#FFFFFF')
+                        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                        .backgroundColor(option.accentColor)
+                        .borderRadius(999)
+                    }
+                  }
 
                   Text(option.description)
                     .fontSize(12)
@@ -1637,10 +1950,22 @@ export struct ExerciseTabPage {
               ForEach(this.getAvailableSavedWorkouts(), (savedWorkout: SavedCustomWorkout) => {
                 Column({ space: 10 }) {
                   Column({ space: 6 }) {
-                    Text(savedWorkout.name)
-                      .fontSize(15)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor(PRIMARY_TEXT_COLOR)
+                    Row({ space: 8 }) {
+                      Text(savedWorkout.name)
+                        .fontSize(15)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(PRIMARY_TEXT_COLOR)
+
+                      if (this.isSavedWorkoutAiTopRecommendation(savedWorkout.id)) {
+                        Text('AI 推荐')
+                          .fontSize(10)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#FFFFFF')
+                          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                          .backgroundColor('#7B61FF')
+                          .borderRadius(999)
+                      }
+                    }
 
                     Text('自定义模板，可直接开始训练或加入当前日期计划')
                       .fontSize(12)

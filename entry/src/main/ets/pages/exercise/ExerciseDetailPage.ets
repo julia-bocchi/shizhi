@@ -54,13 +54,13 @@ import {
   TrainingFeedbackResult,
   playTrainingFeedback
 } from '../../utils/TrainingFeedbackHelper';
-import { AuthSession, DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
-import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { DEFAULT_API_BASE_URL } from '../../models/AuthSession';
 import {
-  createWorkoutRecordRemote,
-  deleteWorkoutTemplateRemote,
-  saveWorkoutTemplateRemote
-} from '../../utils/ApiService';
+  createWorkoutRecordCreateOperation,
+  createWorkoutTemplateDeleteOperation,
+  createWorkoutTemplateUpsertOperation
+} from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
 
 const SET_TIMER_MODE_AUTO: string = 'auto';
 const SET_TIMER_MODE_MANUAL: string = 'manual';
@@ -88,6 +88,17 @@ struct ExerciseDetailPage {
   @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
 
   @State sessionProfile: UserProfile = createEmptyUserProfile();
   @State savedCustomWorkouts: SavedCustomWorkout[] = [];
@@ -119,6 +130,52 @@ struct ExerciseDetailPage {
   @State manualStage: string = MANUAL_STAGE_IDLE;
   @State manualStageElapsedSeconds: number = 0;
 
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+    this.syncSavedCustomWorkoutsFromStorage();
+  }
+
   private sessionTimerId: number = -1;
   private feedbackBusy: boolean = false;
 
@@ -128,6 +185,7 @@ struct ExerciseDetailPage {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
     this.loadState();
+    this.flushPendingSync();
   }
 
   aboutToDisappear(): void {
@@ -617,7 +675,7 @@ struct ExerciseDetailPage {
     this.sessionNotice = noticeText;
   }
 
-  private saveCurrentCustomWorkout(): void {
+  private async saveCurrentCustomWorkout(): Promise<void> {
     if (this.selectedExerciseId !== 'custom') {
       this.sessionNotice = '只有自定义运动才能保存模板。';
       return;
@@ -632,11 +690,6 @@ struct ExerciseDetailPage {
     let nextSavedWorkouts: SavedCustomWorkout[] = [];
     let targetId: string = this.selectedSavedWorkoutId;
     let hasUpdated: boolean = false;
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession)) {
-      this.saveCurrentCustomWorkoutRemote(savedWorkout, authSession);
-      return;
-    }
     for (let index = 0; index < currentSavedWorkouts.length; index++) {
       let currentWorkout: SavedCustomWorkout = currentSavedWorkouts[index];
       if (currentWorkout.id === this.selectedSavedWorkoutId || currentWorkout.name === savedWorkout.name) {
@@ -665,67 +718,35 @@ struct ExerciseDetailPage {
       nextSavedWorkouts.unshift(savedWorkout);
       targetId = savedWorkout.id;
     }
+    let queuedTemplate: SavedCustomWorkout = savedWorkout;
+    for (let index = 0; index < nextSavedWorkouts.length; index++) {
+      if (nextSavedWorkouts[index].id === targetId) {
+        queuedTemplate = nextSavedWorkouts[index];
+      }
+    }
     this.selectedSavedWorkoutId = targetId;
     this.currentEditingSavedWorkoutIdText = targetId;
     this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
     this.syncSavedCustomWorkoutsFromStorage();
-    this.sessionNotice = hasUpdated ? `已更新模板：${savedWorkout.name}。` : `已保存模板：${savedWorkout.name}。`;
+    let result = await syncOperationNowOrQueue(this.buildSyncState(), createWorkoutTemplateUpsertOperation(queuedTemplate));
+    this.applySyncState(result.state);
+    this.syncSavedCustomWorkoutsFromStorage();
+    this.selectedSavedWorkoutId = this.currentEditingSavedWorkoutIdText;
+    this.sessionNotice = result.syncedImmediately
+      ? (hasUpdated ? `已更新并同步模板：${savedWorkout.name}。` : `已保存并同步模板：${savedWorkout.name}。`)
+      : (hasUpdated ? `已更新模板：${savedWorkout.name}。` : `已保存模板：${savedWorkout.name}。`);
   }
 
-  private async saveCurrentCustomWorkoutRemote(savedWorkout: SavedCustomWorkout, authSession: AuthSession): Promise<void> {
-    try {
-      let remoteTemplate = await saveWorkoutTemplateRemote(this.apiBaseUrlText, authSession,
-        this.selectedSavedWorkoutId, {
-          name: savedWorkout.name,
-          mode: savedWorkout.mode,
-          intensity: savedWorkout.intensity,
-          durationMinutes: savedWorkout.durationMinutes,
-          distanceKm: savedWorkout.distanceKm,
-          paceMinutes: savedWorkout.paceMinutes,
-          speedKmH: savedWorkout.speedKmH,
-          count: savedWorkout.count,
-          cadencePerMinute: savedWorkout.cadencePerMinute,
-          sets: savedWorkout.sets,
-          workSeconds: savedWorkout.workSeconds,
-          restSeconds: savedWorkout.restSeconds
-        });
-      let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
-      let nextSavedWorkouts: SavedCustomWorkout[] = [];
-      let hasUpdated = false;
-      for (let index = 0; index < currentSavedWorkouts.length; index++) {
-        if (currentSavedWorkouts[index].id === remoteTemplate.id || currentSavedWorkouts[index].name === remoteTemplate.name) {
-          nextSavedWorkouts.push(remoteTemplate);
-          hasUpdated = true;
-        } else {
-          nextSavedWorkouts.push(currentSavedWorkouts[index]);
-        }
-      }
-      if (!hasUpdated) {
-        nextSavedWorkouts.unshift(remoteTemplate);
-      }
-      this.selectedSavedWorkoutId = remoteTemplate.id;
-      this.currentEditingSavedWorkoutIdText = remoteTemplate.id;
-      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
-      this.syncSavedCustomWorkoutsFromStorage();
-      this.sessionNotice = hasUpdated ? `已更新模板：${remoteTemplate.name}。` : `已保存模板：${remoteTemplate.name}。`;
-    } catch (error) {
-      this.sessionNotice = `${error}`;
-    }
-  }
-
-  private deleteCurrentCustomWorkout(): void {
+  private async deleteCurrentCustomWorkout(): Promise<void> {
     let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
     let nextSavedWorkouts: SavedCustomWorkout[] = [];
     let removedWorkoutName: string = '';
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession) && this.selectedSavedWorkoutId.trim().length > 0) {
-      this.deleteCurrentCustomWorkoutRemote(authSession);
-      return;
-    }
+    let removedWorkoutId: string = this.selectedSavedWorkoutId;
     for (let index = 0; index < currentSavedWorkouts.length; index++) {
       let currentWorkout: SavedCustomWorkout = currentSavedWorkouts[index];
       if (currentWorkout.id === this.selectedSavedWorkoutId || currentWorkout.name === this.customName.trim()) {
         removedWorkoutName = currentWorkout.name;
+        removedWorkoutId = currentWorkout.id;
       } else {
         nextSavedWorkouts.push(currentWorkout);
       }
@@ -738,30 +759,13 @@ struct ExerciseDetailPage {
     this.currentEditingSavedWorkoutIdText = '';
     this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
     this.syncSavedCustomWorkoutsFromStorage();
-    this.sessionNotice = `已删除模板：${removedWorkoutName}。`;
-  }
-
-  private async deleteCurrentCustomWorkoutRemote(authSession: AuthSession): Promise<void> {
-    let removedWorkoutName: string = this.customName.trim();
-    try {
-      await deleteWorkoutTemplateRemote(this.apiBaseUrlText, authSession, this.selectedSavedWorkoutId);
-      let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
-      let nextSavedWorkouts: SavedCustomWorkout[] = [];
-      for (let index = 0; index < currentSavedWorkouts.length; index++) {
-        if (currentSavedWorkouts[index].id === this.selectedSavedWorkoutId) {
-          removedWorkoutName = currentSavedWorkouts[index].name;
-        } else {
-          nextSavedWorkouts.push(currentSavedWorkouts[index]);
-        }
-      }
-      this.selectedSavedWorkoutId = '';
-      this.currentEditingSavedWorkoutIdText = '';
-      this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
-      this.syncSavedCustomWorkoutsFromStorage();
-      this.sessionNotice = `已删除模板：${removedWorkoutName}。`;
-    } catch (error) {
-      this.sessionNotice = `${error}`;
-    }
+    let result = await syncOperationNowOrQueue(this.buildSyncState(),
+      createWorkoutTemplateDeleteOperation(removedWorkoutId, removedWorkoutName));
+    this.applySyncState(result.state);
+    this.syncSavedCustomWorkoutsFromStorage();
+    this.sessionNotice = result.syncedImmediately
+      ? `已删除并同步模板：${removedWorkoutName}。`
+      : `已删除模板：${removedWorkoutName}。`;
   }
 
   private getSessionActionText(): string {
@@ -1000,41 +1004,12 @@ struct ExerciseDetailPage {
       distanceKm: currentMetrics.distanceKm,
       count: currentMetrics.count
     };
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (isAuthSessionValid(authSession)) {
-      try {
-        nextRecord = await createWorkoutRecordRemote(this.apiBaseUrlText, authSession, {
-          date: nextRecord.date,
-          exerciseId: nextRecord.exerciseId,
-          name: nextRecord.name,
-          calories: nextRecord.calories,
-          durationSeconds: nextRecord.durationSeconds,
-          planId: nextRecord.planId,
-          distanceKm: nextRecord.distanceKm,
-          count: nextRecord.count,
-          configSnapshot: {
-            exerciseId: this.getDraft().exerciseId,
-            customName: this.getDraft().customName,
-            customMode: this.getDraft().customMode,
-            customIntensity: this.getDraft().customIntensity,
-            durationMinutes: this.getDraft().durationMinutes,
-            distanceKm: this.getDraft().distanceKm,
-            paceMinutes: this.getDraft().paceMinutes,
-            speedKmH: this.getDraft().speedKmH,
-            count: this.getDraft().count,
-            cadencePerMinute: this.getDraft().cadencePerMinute,
-            sets: this.getDraft().sets,
-            workSeconds: this.getDraft().workSeconds,
-            restSeconds: this.getDraft().restSeconds
-          }
-        });
-      } catch (error) {
-        this.sessionNotice = `${error}`;
-        return;
-      }
-    }
+    nextRecord.id = `local-workout-record-${Date.now()}-${Math.round(Math.random() * 1000)}`;
     currentRecords.unshift(nextRecord);
     this.workoutRecordText = serializeWorkoutRecords(currentRecords);
+    let result = await syncOperationNowOrQueue(this.buildSyncState(),
+      createWorkoutRecordCreateOperation(nextRecord, serializeExerciseDraft(this.getDraft())));
+    this.applySyncState(result.state);
     this.syncDraft();
     this.currentExercisePlanIdText = '';
     this.goBack();

@@ -4,9 +4,9 @@ import {
   SECONDARY_TEXT_COLOR,
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
-import { DEFAULT_API_BASE_URL } from '../../models/AuthSession';
+import { DEFAULT_API_BASE_URL, resolveApiBaseUrl } from '../../models/AuthSession';
 import { HOME_TAB_INDEX } from '../../models/TabItem';
-import { loginWithPassword, fetchUserProfile } from '../../utils/ApiService';
+import { fetchUserProfile, loginWithPassword, registerWithPassword } from '../../utils/ApiService';
 import { serializeUserProfile } from '../../utils/ExerciseHelper';
 
 @Entry
@@ -23,9 +23,7 @@ struct LoginPage {
   @State authBusy: boolean = false;
 
   aboutToAppear(): void {
-    if (this.apiBaseUrlText.trim().length === 0) {
-      this.apiBaseUrlText = DEFAULT_API_BASE_URL;
-    }
+    this.apiBaseUrlText = resolveApiBaseUrl(this.apiBaseUrlText);
   }
 
   private goBack(): void {
@@ -40,6 +38,7 @@ struct LoginPage {
     if (this.authBusy) {
       return;
     }
+    this.apiBaseUrlText = resolveApiBaseUrl(this.apiBaseUrlText);
     if (this.username.trim().length === 0) {
       this.loginNotice = '请先填写账号。';
       return;
@@ -58,6 +57,37 @@ struct LoginPage {
       this.currentTabIndex = HOME_TAB_INDEX;
       this.password = '';
       this.loginNotice = '登录成功，正在返回首页。';
+      this.goBack();
+    } catch (error) {
+      this.loginNotice = `${error}`;
+    } finally {
+      this.authBusy = false;
+    }
+  }
+
+  private async handleRegister(): Promise<void> {
+    if (this.authBusy) {
+      return;
+    }
+    this.apiBaseUrlText = resolveApiBaseUrl(this.apiBaseUrlText);
+    if (this.username.trim().length === 0) {
+      this.loginNotice = '请先填写账号。';
+      return;
+    }
+    if (this.password.length === 0) {
+      this.loginNotice = '请先填写密码。';
+      return;
+    }
+
+    this.authBusy = true;
+    try {
+      let registerResult = await registerWithPassword(this.apiBaseUrlText, this.username, this.password);
+      this.authSessionText = registerResult.authSessionText;
+      let remoteProfile = await fetchUserProfile(this.apiBaseUrlText, registerResult.authSession);
+      this.userProfileText = serializeUserProfile(remoteProfile);
+      this.currentTabIndex = HOME_TAB_INDEX;
+      this.password = '';
+      this.loginNotice = '注册成功，正在返回首页。';
       this.goBack();
     } catch (error) {
       this.loginNotice = `${error}`;
@@ -89,7 +119,7 @@ struct LoginPage {
             .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFF')
 
-          Text('当前版本默认使用 mock 或联调后端的账号密码登录。')
+          Text('未注册账号不能直接登录，可先注册再进入。')
             .fontSize(13)
             .lineHeight(20)
             .fontColor('#DCE8FF')
@@ -101,6 +131,31 @@ struct LoginPage {
         .borderRadius(24)
 
         Column({ space: 14 }) {
+          Column({ space: 8 }) {
+            Text('联调后端地址')
+              .fontSize(12)
+              .fontColor('#5373A6')
+
+            TextInput({ placeholder: DEFAULT_API_BASE_URL, text: this.apiBaseUrlText })
+              .fontSize(15)
+              .fontColor(PRIMARY_TEXT_COLOR)
+              .height(46)
+              .width('100%')
+              .padding({ left: 12, right: 12 })
+              .backgroundColor('#F5F8FF')
+              .borderRadius(16)
+              .onChange((value: string) => {
+                this.apiBaseUrlText = value;
+              })
+
+            Text(`DevEco 联调本机 mock 服务时，默认地址为 ${DEFAULT_API_BASE_URL}，如果你的网络环境不同，可以直接改这里。`)
+              .fontSize(12)
+              .lineHeight(18)
+              .fontColor(SECONDARY_TEXT_COLOR)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .width('100%')
+
           Column({ space: 8 }) {
             Text('账号')
               .fontSize(12)
@@ -153,13 +208,25 @@ struct LoginPage {
               this.handleLogin();
             })
 
-          Button('取消')
+          Button(this.authBusy ? '处理中...' : '注册并登录')
             .width('100%')
             .height(44)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
             .fontColor('#0F6BFF')
             .backgroundColor('#EAF2FF')
+            .borderRadius(18)
+            .onClick(() => {
+              this.handleRegister();
+            })
+
+          Button('取消')
+            .width('100%')
+            .height(44)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#0F6BFF')
+            .backgroundColor('#F4F7FD')
             .borderRadius(18)
             .onClick(() => {
               this.goBack();

@@ -34,8 +34,9 @@ import {
   fetchWeightRecords,
   fetchWeightSummary,
   RemoteWeightSummary,
-  upsertWeightRecordRemote
 } from '../../utils/ApiService';
+import { createWeightUpsertOperation, hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
+import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
 
 const CHART_BAR_GROUP_WIDTH: number = 40;
 const CHART_BAR_GROUP_SPACING: number = 12;
@@ -49,6 +50,20 @@ export struct RecordTabPage {
   @StorageLink('weightRecordText') weightRecordText: string = '';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
   @State records: WeightRecord[] = [];
   @State weightInput: string = '';
   @State noticeText: string = '只能记录今天的体重；当天多次提交会覆盖当天记录。';
@@ -61,12 +76,65 @@ export struct RecordTabPage {
   @State remoteSyncing: boolean = false;
   @State remoteSummary: RemoteWeightSummary = createEmptyRemoteWeightSummary();
 
+  private buildSyncState(): SyncRuntimeState {
+    return {
+      apiBaseUrlText: this.apiBaseUrlText,
+      authSessionText: this.authSessionText,
+      userProfileText: this.userProfileText,
+      weightRecordText: this.weightRecordText,
+      customFoodOptionText: this.customFoodOptionText,
+      foodPlanText: this.foodPlanText,
+      savedCustomWorkoutText: this.savedCustomWorkoutText,
+      workoutPlanText: this.workoutPlanText,
+      workoutPlanMetaText: this.workoutPlanMetaText,
+      workoutRecordText: this.workoutRecordText,
+      pendingSyncQueueText: this.pendingSyncQueueText,
+      foodRecommendationCacheText: this.foodRecommendationCacheText,
+      exerciseRecommendationCacheText: this.exerciseRecommendationCacheText,
+      currentEditingSavedWorkoutIdText: this.currentEditingSavedWorkoutIdText,
+      currentExercisePlanIdText: this.currentExercisePlanIdText,
+      lastSyncAttemptText: this.lastSyncAttemptText,
+      lastSyncSuccessText: this.lastSyncSuccessText
+    };
+  }
+
+  private applySyncState(nextState: SyncRuntimeState): void {
+    this.userProfileText = nextState.userProfileText;
+    this.weightRecordText = nextState.weightRecordText;
+    this.customFoodOptionText = nextState.customFoodOptionText;
+    this.foodPlanText = nextState.foodPlanText;
+    this.savedCustomWorkoutText = nextState.savedCustomWorkoutText;
+    this.workoutPlanText = nextState.workoutPlanText;
+    this.workoutPlanMetaText = nextState.workoutPlanMetaText;
+    this.workoutRecordText = nextState.workoutRecordText;
+    this.pendingSyncQueueText = nextState.pendingSyncQueueText;
+    this.foodRecommendationCacheText = nextState.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = nextState.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = nextState.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
+    this.lastSyncAttemptText = nextState.lastSyncAttemptText;
+    this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private async flushPendingSync(): Promise<void> {
+    let result = await syncPendingOperations(this.buildSyncState());
+    this.applySyncState(result.state);
+    this.syncRecordsFromStorage();
+    if (result.syncedCount > 0) {
+      this.noticeText = '本地体重记录已自动同步。';
+    } else if (result.lastErrorMessage.trim().length > 0) {
+      this.noticeText = '体重已保存到本地，联网后会自动同步。';
+    }
+  }
+
   aboutToAppear(): void {
     if (this.apiBaseUrlText.trim().length === 0) {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
     this.syncRecordsFromStorage();
-    this.syncRemoteWeightData();
+    this.flushPendingSync().then(() => {
+      this.syncRemoteWeightData();
+    });
   }
 
   private syncRecordsFromStorage(): void {
@@ -524,6 +592,10 @@ export struct RecordTabPage {
   }
 
   private async syncRemoteWeightData(): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'weight')) {
+      return;
+    }
     let authSession = deserializeAuthSession(this.authSessionText);
     if (!isAuthSessionValid(authSession)) {
       return;
@@ -603,18 +675,15 @@ export struct RecordTabPage {
       return;
     }
 
-    let authSession = deserializeAuthSession(this.authSessionText);
-    if (!isAuthSessionValid(authSession)) {
-      this.addOrUpdateRecord();
-      return;
-    }
-
     this.remoteSyncing = true;
     try {
-      await upsertWeightRecordRemote(this.apiBaseUrlText, authSession, dateValue, parsedWeight);
-      this.weightInput = '';
-      await this.syncRemoteWeightData();
-      this.noticeText = `已同步今天 ${dateValue} 的体重：${parsedWeight.toFixed(1)} kg。`;
+      this.addOrUpdateRecord();
+      let result = await syncOperationNowOrQueue(this.buildSyncState(), createWeightUpsertOperation(dateValue, parsedWeight));
+      this.applySyncState(result.state);
+      this.syncRecordsFromStorage();
+      this.noticeText = result.syncedImmediately
+        ? `已同步今天 ${dateValue} 的体重：${parsedWeight.toFixed(1)} kg。`
+        : `已记录今天 ${dateValue} 的体重：${parsedWeight.toFixed(1)} kg，联网后会自动同步。`;
     } catch (error) {
       this.noticeText = `${error}`;
     } finally {

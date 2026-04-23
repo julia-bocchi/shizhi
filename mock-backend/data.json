@@ -12,13 +12,65 @@
         "gender": "女"
       },
       "weightRecords": [
-        { "id": "weight-1", "date": "2026-04-15", "weight": 58.9 },
-        { "id": "weight-2", "date": "2026-04-16", "weight": 58.7 },
-        { "id": "weight-3", "date": "2026-04-17", "weight": 58.5 },
-        { "id": "weight-4", "date": "2026-04-18", "weight": 58.4 },
-        { "id": "weight-5", "date": "2026-04-19", "weight": 58.2 }
+        {
+          "id": "weight-1",
+          "date": "2026-04-15",
+          "weight": 58.9
+        },
+        {
+          "id": "weight-2",
+          "date": "2026-04-16",
+          "weight": 58.7
+        },
+        {
+          "id": "weight-3",
+          "date": "2026-04-17",
+          "weight": 58.5
+        },
+        {
+          "id": "weight-4",
+          "date": "2026-04-18",
+          "weight": 58.4
+        },
+        {
+          "id": "weight-5",
+          "date": "2026-04-19",
+          "weight": 58.2
+        },
+        {
+          "id": "weight-1776777363698-546",
+          "date": "2026-04-21",
+          "weight": 60
+        },
+        {
+          "id": "weight-1776938837534-577",
+          "date": "2026-04-23",
+          "weight": 68.5
+        }
       ],
       "customFoodOptions": [
+        {
+          "id": "missing-food-002",
+          "source": "custom",
+          "name": "自动补建食物(missing-food-002)",
+          "description": "根据计划保存请求自动补建，方便联调测试。",
+          "calories": 0,
+          "serving": "1 份",
+          "mealSuggestion": "晚餐",
+          "image": "",
+          "accentColor": "#F59E0B"
+        },
+        {
+          "id": "missing-food-001",
+          "source": "custom",
+          "name": "自动补建食物(missing-food-001)",
+          "description": "根据计划保存请求自动补建，方便联调测试。",
+          "calories": 0,
+          "serving": "1 份",
+          "mealSuggestion": "午餐",
+          "image": "",
+          "accentColor": "#F59E0B"
+        },
         {
           "id": "custom-food-demo-1",
           "source": "custom",
@@ -57,9 +109,158 @@
           "image": "",
           "notes": "午休后吃",
           "accentColor": "#10B981"
+        },
+        {
+          "id": "food-plan-1776777405862-799",
+          "date": "2026-04-21",
+          "foodId": "preset-chicken-salad",
+          "name": "鸡胸肉沙拉",
+          "description": "高蛋白、轻负担，适合作为午餐或减脂晚餐。",
+          "calories": 320,
+          "serving": "1 份",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#10B981"
+        },
+        {
+          "id": "food-plan-1776777407914-723",
+          "date": "2026-04-21",
+          "foodId": "preset-chicken-salad",
+          "name": "鸡胸肉沙拉",
+          "description": "高蛋白、轻负担，适合作为午餐或减脂晚餐。",
+          "calories": 320,
+          "serving": "1 份",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#10B981"
+        },
+        {
+          "id": "food-plan-1776777411471-909",
+          "date": "2026-04-21",
+          "foodId": "preset-chicken-salad",
+          "name": "鸡胸肉沙拉",
+          "description": "高蛋白、轻负担，适合作为午餐或减脂晚餐。",
+          "calories": 320,
+          "serving": "1 份",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#10B981"
+        },
+        {
+          "id": "food-plan-1776777413244-429",
+          "date": "2026-04-21",
+          "foodId": "preset-chicken-salad",
+          "name": "鸡胸肉沙拉",
+          "description": "高蛋白、轻负担，适合作为午餐或减脂晚餐。",
+          "calories": 320,
+          "serving": "1 份",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#10B981"
+        },
+        {
+          "id": "food-plan-1776938837728-632",
+          "date": "2026-04-23",
+          "foodId": "preset-oatmeal",
+          "name": "燕麦牛奶杯",
+          "description": "适合早餐或训练前补充碳水，饱腹感稳定。",
+          "calories": 280,
+          "serving": "1 杯",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#D86C3D"
+        },
+        {
+          "id": "food-plan-1776938928463-11",
+          "date": "2026-04-23",
+          "foodId": "custom-food-demo-1",
+          "name": "鸡胸肉卷",
+          "description": "自定义高蛋白轻食。",
+          "calories": 310,
+          "serving": "1 份",
+          "mealType": "lunch",
+          "image": "",
+          "notes": "",
+          "accentColor": "#10B981"
+        },
+        {
+          "id": "food-plan-1776952947892-824",
+          "date": "2026-04-23",
+          "foodId": "missing-food-001",
+          "name": "自动补建食物(missing-food-001)",
+          "description": "根据计划保存请求自动补建，方便联调测试。",
+          "calories": 0,
+          "serving": "1 份",
+          "mealType": "lunch",
+          "image": "",
+          "notes": "test auto create",
+          "accentColor": "#F59E0B"
+        },
+        {
+          "id": "food-plan-1776953256120-672",
+          "date": "2026-04-23",
+          "foodId": "missing-food-002",
+          "name": "自动补建食物(missing-food-002)",
+          "description": "根据计划保存请求自动补建，方便联调测试。",
+          "calories": 0,
+          "serving": "1 份",
+          "mealType": "dinner",
+          "image": "",
+          "notes": "?????",
+          "accentColor": "#F59E0B"
         }
       ],
       "workoutTemplates": [
+        {
+          "id": "missing-template-003",
+          "name": "????",
+          "mode": "distance_pace",
+          "intensity": "moderate",
+          "durationMinutes": "25",
+          "distanceKm": "5",
+          "paceMinutes": "6",
+          "speedKmH": "0",
+          "count": "0",
+          "cadencePerMinute": "0",
+          "sets": "0",
+          "workSeconds": "0",
+          "restSeconds": "0"
+        },
+        {
+          "id": "missing-template-002",
+          "name": "????",
+          "mode": "distance_pace",
+          "intensity": "moderate",
+          "durationMinutes": "25",
+          "distanceKm": "5",
+          "paceMinutes": "6",
+          "speedKmH": "0",
+          "count": "0",
+          "cadencePerMinute": "0",
+          "sets": "0",
+          "workSeconds": "0",
+          "restSeconds": "0"
+        },
+        {
+          "id": "missing-template-001",
+          "name": "??????",
+          "mode": "duration",
+          "intensity": "moderate",
+          "durationMinutes": "25",
+          "distanceKm": "0",
+          "paceMinutes": "0",
+          "speedKmH": "0",
+          "count": "0",
+          "cadencePerMinute": "0",
+          "sets": "0",
+          "workSeconds": "0",
+          "restSeconds": "0"
+        },
         {
           "id": "template-1001",
           "name": "下班后跳绳",
@@ -77,6 +278,56 @@
         }
       ],
       "workoutPlans": [
+        {
+          "id": "plan-1776953312422-872",
+          "date": "2026-04-23",
+          "title": "????",
+          "summary": "跑步 5 km，配速 6 分/km，预计用时 30 分钟。",
+          "notes": "",
+          "draftText": "running||duration|moderate|25|5|6|0|0|0|0|0|0",
+          "savedWorkoutId": "missing-template-003",
+          "accentColor": "#0F6BFF"
+        },
+        {
+          "id": "plan-1776953256137-869",
+          "date": "2026-04-23",
+          "title": "????",
+          "summary": "跑步 5 km，配速 6 分/km，预计用时 30 分钟。",
+          "notes": "",
+          "draftText": "running||duration|moderate|25|5|6|0|0|0|0|0|0",
+          "savedWorkoutId": "missing-template-002",
+          "accentColor": "#0F6BFF"
+        },
+        {
+          "id": "plan-1776952947910-440",
+          "date": "2026-04-23",
+          "title": "??????",
+          "summary": "自动补建运动 持续 25 分钟。",
+          "notes": "",
+          "draftText": "custom|%E8%87%AA%E5%8A%A8%E8%A1%A5%E5%BB%BA%E8%BF%90%E5%8A%A8|duration|moderate|25|0|0|0|0|0|0|0|0",
+          "savedWorkoutId": "missing-template-001",
+          "accentColor": "#FF7A59"
+        },
+        {
+          "id": "plan-1776938837762-117",
+          "date": "2026-04-23",
+          "title": "瑜伽",
+          "summary": "瑜伽 持续 30 分钟。",
+          "notes": "",
+          "draftText": "yoga||duration|moderate|30|5|6|18|300|120|4|40|20",
+          "savedWorkoutId": "",
+          "accentColor": "#7B61FF"
+        },
+        {
+          "id": "plan-1776938837743-340",
+          "date": "2026-04-23",
+          "title": "HIIT 间歇",
+          "summary": "4 组训练，每组 40 秒，组间休息 20 秒，总时长约 4 分钟。",
+          "notes": "",
+          "draftText": "hiit||duration|moderate|30|5|6|18|300|120|4|40|20",
+          "savedWorkoutId": "",
+          "accentColor": "#FF7A59"
+        },
         {
           "id": "plan-1001",
           "date": "2026-04-19",
