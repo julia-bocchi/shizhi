@@ -8,6 +8,7 @@ public class SzFrameworkApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(SzFrameworkApplication.class, args);
+
     }
 
 }

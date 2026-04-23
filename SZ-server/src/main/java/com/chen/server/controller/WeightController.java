@@ -11,7 +11,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 
-@RestController("/v1/weight-records")
+@RestController
+@RequestMapping("/api/v1/weight-records")
 public class WeightController {
 
 

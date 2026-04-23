@@ -4,7 +4,9 @@ import com.chen.server.domain.Vo.WorkoutPlanListResponse;
 import com.chen.server.domain.Vo.WorkoutPlanResponse;
 import com.chen.server.domain.dto.WorkoutPlanQueryRequest;
 import com.chen.server.domain.dto.WorkoutPlanRequest;
+import org.springframework.stereotype.Service;
 
+@Service
 public interface WorkoutPlanService {
 
     WorkoutPlanListResponse queryWorkoutPlans(Long userId, WorkoutPlanQueryRequest queryRequest);

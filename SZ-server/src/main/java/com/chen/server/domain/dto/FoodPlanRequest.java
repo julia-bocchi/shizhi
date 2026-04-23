@@ -1,5 +1,7 @@
 package com.chen.server.domain.dto;
 
+import lombok.Data;
+
 @Data
 public class FoodPlanRequest {
     private String date;

@@ -5,7 +5,9 @@ import com.chen.server.domain.Vo.WorkoutListResponse;
 import com.chen.server.domain.Vo.WorkoutResponse;
 import com.chen.server.domain.dto.WorkoutQueryRequest;
 import com.chen.server.domain.dto.WorkoutRequest;
+import org.springframework.stereotype.Service;
 
+@Service
 public interface WorkoutRecordService {
 
     WorkoutResponse saveWorkout(Long userId, WorkoutRequest request);

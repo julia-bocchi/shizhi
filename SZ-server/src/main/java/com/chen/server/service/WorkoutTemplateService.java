@@ -2,9 +2,10 @@ package com.chen.server.service;
 
 import com.chen.server.domain.Vo.WorkoutTemplateResponse;
 import com.chen.server.domain.dto.WorkoutTemplateRequest;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
-
+@Service
 public interface WorkoutTemplateService {
 
     /**

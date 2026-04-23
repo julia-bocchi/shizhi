@@ -8,12 +8,13 @@ import com.chen.server.domain.entity.WeightRecord;
 import com.chen.server.mapper.WeightRecordMapper;
 import com.chen.server.service.WeightRecordService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
-
+@Service
 public class WeightRecordServiceImpl implements WeightRecordService {
     @Autowired
     private WeightRecordMapper weightRecordMapper;

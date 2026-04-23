@@ -10,7 +10,8 @@ import com.chen.server.service.WorkoutRecordService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-@RestController("/v1/workout-records")
+@RestController
+@RequestMapping("/api/v1/workout-records")
 public class WorkoutController {
     @Autowired
     private WorkoutRecordService workoutRecordService;

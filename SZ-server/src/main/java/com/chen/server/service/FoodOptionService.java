@@ -4,7 +4,9 @@ import com.chen.server.domain.Vo.FoodOptionListResponse;
 import com.chen.server.domain.Vo.FoodOptionResponse;
 import com.chen.server.domain.dto.FoodOptionRequest;
 import com.chen.server.domain.dto.FoodQueryRequest;
+import org.springframework.stereotype.Service;
 
+@Service
 public interface FoodOptionService {
     
     FoodOptionListResponse getFoodOptions(Long userId, FoodQueryRequest queryRequest);

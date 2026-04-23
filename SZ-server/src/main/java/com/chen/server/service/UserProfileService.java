@@ -2,7 +2,9 @@ package com.chen.server.service;
 
 import com.chen.server.domain.Vo.UserProfileResponse;
 import com.chen.server.domain.dto.UserProfileRequest;
+import org.springframework.stereotype.Service;
 
+@Service
 public interface UserProfileService {
 
     /**
