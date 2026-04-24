@@ -1,5 +1,6 @@
 import { FoodOption, FOOD_MEAL_OPTIONS } from '../models/FoodOption';
 import { FoodPlanItem } from '../models/FoodPlan';
+import { buildStableIdentitySuffix, isSameUniqueName } from './IdentityHelper';
 
 function sanitizeString(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
   if (value === undefined || value === null) {
@@ -49,6 +50,77 @@ export function deserializeCustomFoodOptions(savedText: string): FoodOption[] {
   } catch (error) {
     return [];
   }
+}
+
+export interface UpsertCustomFoodOptionResult {
+  options: FoodOption[];
+  option: FoodOption;
+  hasUpdated: boolean;
+}
+
+export function buildCustomFoodIdentityKey(name: string): string {
+  return buildStableIdentitySuffix(name, 'custom-food');
+}
+
+export function createLocalCustomFoodOptionId(name: string): string {
+  return `local-food-option-${buildCustomFoodIdentityKey(name)}`;
+}
+
+export function buildDefaultCustomFoodImage(mealType: string): string {
+  return `builtin:meal:${sanitizeString(mealType, 'breakfast').trim() || 'breakfast'}`;
+}
+
+export function upsertCustomFoodOptionByIdentity(currentOptions: FoodOption[], nextOption: FoodOption,
+  preferredId: string = ''): UpsertCustomFoodOptionResult {
+  let resolvedId: string = sanitizeString(preferredId).trim();
+  let hasUpdated: boolean = false;
+  for (let index = 0; index < currentOptions.length; index++) {
+    let currentOption = currentOptions[index];
+    if ((resolvedId.length > 0 && currentOption.id === resolvedId) || currentOption.id === nextOption.id ||
+      isSameUniqueName(currentOption.name, nextOption.name)) {
+      resolvedId = currentOption.id;
+      hasUpdated = true;
+      break;
+    }
+  }
+  if (resolvedId.length === 0) {
+    let nextOptionId: string = sanitizeString(nextOption.id).trim();
+    resolvedId = nextOptionId.length > 0 ? nextOptionId : createLocalCustomFoodOptionId(nextOption.name);
+  }
+
+  let resolvedOption: FoodOption = {
+    id: resolvedId,
+    name: sanitizeString(nextOption.name).trim(),
+    description: sanitizeString(nextOption.description),
+    calories: sanitizeNumber(nextOption.calories),
+    serving: sanitizeString(nextOption.serving),
+    mealSuggestion: sanitizeString(nextOption.mealSuggestion),
+    image: sanitizeString(nextOption.image),
+    accentColor: sanitizeString(nextOption.accentColor, '#D86C3D')
+  };
+
+  let nextOptions: FoodOption[] = [];
+  let inserted: boolean = false;
+  for (let index = 0; index < currentOptions.length; index++) {
+    let currentOption = currentOptions[index];
+    if (currentOption.id === resolvedOption.id || isSameUniqueName(currentOption.name, resolvedOption.name)) {
+      if (!inserted) {
+        nextOptions.push(resolvedOption);
+        inserted = true;
+      }
+      continue;
+    }
+    nextOptions.push(currentOption);
+  }
+  if (!inserted) {
+    nextOptions.unshift(resolvedOption);
+  }
+
+  return {
+    options: nextOptions,
+    option: resolvedOption,
+    hasUpdated: hasUpdated
+  };
 }
 
 export function serializeFoodPlans(plans: FoodPlanItem[]): string {

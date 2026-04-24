@@ -5,6 +5,9 @@ import {
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
 import {
+  CUSTOM_INTENSITY_OPTIONS,
+  CUSTOM_MODE_OPTIONS,
+  CustomIntensityOption,
   EXERCISE_OPTIONS,
   SavedCustomWorkout,
   ExerciseDraft,
@@ -20,17 +23,20 @@ import {
 import { RecommendationExerciseCandidate, RecommendationFoodCandidate } from '../../models/AiRecommendation';
 import { UserProfile } from '../../models/UserProfile';
 import {
+  createSavedCustomWorkoutFromDraft,
   getActiveWorkoutMode,
   createDraftFromSavedCustomWorkout,
   deserializeExerciseDraft,
   deserializeSavedCustomWorkouts,
   deserializeWorkoutRecords,
+  getWorkoutValidationMessage,
   serializeUserProfile,
   getWorkoutModeLabel,
   getWorkoutTitle,
   serializeExerciseDraft,
   serializeSavedCustomWorkouts,
-  serializeWorkoutRecords
+  serializeWorkoutRecords,
+  upsertSavedCustomWorkoutByIdentity
 } from '../../utils/ExerciseHelper';
 import { deserializeWeightRecords, formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
@@ -78,6 +84,7 @@ import {
 import {
   createWorkoutPlanCreateOperation,
   createWorkoutPlanDeleteOperation,
+  createWorkoutTemplateUpsertOperation,
   hasPendingSyncOperation,
 } from '../../utils/SyncQueueHelper';
 import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
@@ -135,6 +142,20 @@ export struct ExerciseTabPage {
   @State planGoalValueInput: string = '';
   @State selectedPlanExerciseId: string = '';
   @State selectedPlanSavedWorkoutId: string = '';
+  @State customTemplateDialogVisible: boolean = false;
+  @State customTemplateNameInput: string = '';
+  @State customTemplateMode: string = 'duration';
+  @State customTemplateIntensity: string = 'moderate';
+  @State customTemplateDurationMinutes: string = '30';
+  @State customTemplateDistanceKm: string = '5';
+  @State customTemplatePaceMinutes: string = '6';
+  @State customTemplateSpeedKmH: string = '18';
+  @State customTemplateCount: string = '300';
+  @State customTemplateCadencePerMinute: string = '120';
+  @State customTemplateSets: string = '4';
+  @State customTemplateWorkSeconds: string = '40';
+  @State customTemplateRestSeconds: string = '20';
+  @State customTemplateNotice: string = '保存后会实时加入下方“已保存模板”列表。';
   @State remoteSyncing: boolean = false;
   @State remoteDailySummary: RemoteWorkoutDailySummary = createEmptyWorkoutDailySummary();
   @State recommendationBusy: boolean = false;
@@ -223,8 +244,12 @@ export struct ExerciseTabPage {
     this.exercisePlanPickerVisible = false;
   }
 
+  private getSavedWorkoutSource(): SavedCustomWorkout[] {
+    return deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
+  }
+
   private syncSavedCustomWorkoutsFromStorage(): void {
-    this.savedCustomWorkouts = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
+    this.savedCustomWorkouts = this.getSavedWorkoutSource();
   }
 
   private syncWorkoutPlansFromStorage(): void {
@@ -412,10 +437,11 @@ export struct ExerciseTabPage {
         category: 'preset'
       });
     }
-    for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
+    let savedWorkouts = this.getSavedWorkoutSource();
+    for (let index = 0; index < savedWorkouts.length; index++) {
       result.push({
-        id: `saved:${this.savedCustomWorkouts[index].id}`,
-        name: this.savedCustomWorkouts[index].name,
+        id: `saved:${savedWorkouts[index].id}`,
+        name: savedWorkouts[index].name,
         description: '自定义训练模板',
         category: 'saved_template'
       });
@@ -561,6 +587,7 @@ export struct ExerciseTabPage {
   private closePlanPicker(): void {
     this.planPickerVisible = false;
     this.exercisePlanPickerVisible = false;
+    this.closeCustomTemplateDialog();
     this.resetPlanPickerInputs();
     this.resetPlanPickerSelection();
   }
@@ -579,6 +606,94 @@ export struct ExerciseTabPage {
     this.selectPlanSavedWorkout(savedWorkout);
     this.planPickerVisible = true;
     this.exercisePlanPickerVisible = true;
+  }
+
+  private resetCustomTemplateDialog(): void {
+    let draft = createDefaultExerciseDraft();
+    draft.exerciseId = 'custom';
+    this.customTemplateNameInput = '';
+    this.customTemplateMode = draft.customMode;
+    this.customTemplateIntensity = draft.customIntensity;
+    this.customTemplateDurationMinutes = draft.durationMinutes;
+    this.customTemplateDistanceKm = draft.distanceKm;
+    this.customTemplatePaceMinutes = draft.paceMinutes;
+    this.customTemplateSpeedKmH = draft.speedKmH;
+    this.customTemplateCount = draft.count;
+    this.customTemplateCadencePerMinute = draft.cadencePerMinute;
+    this.customTemplateSets = draft.sets;
+    this.customTemplateWorkSeconds = draft.workSeconds;
+    this.customTemplateRestSeconds = draft.restSeconds;
+    this.customTemplateNotice = '保存后会实时加入下方“已保存模板”列表。';
+  }
+
+  private openCustomTemplateDialog(): void {
+    this.resetCustomTemplateDialog();
+    this.customTemplateDialogVisible = true;
+  }
+
+  private closeCustomTemplateDialog(): void {
+    this.customTemplateDialogVisible = false;
+    this.customTemplateNotice = '保存后会实时加入下方“已保存模板”列表。';
+  }
+
+  private updateCustomTemplateField(field: string, value: string): void {
+    if (field === 'customName') {
+      this.customTemplateNameInput = value;
+    } else if (field === 'durationMinutes') {
+      this.customTemplateDurationMinutes = value;
+    } else if (field === 'distanceKm') {
+      this.customTemplateDistanceKm = value;
+    } else if (field === 'paceMinutes') {
+      this.customTemplatePaceMinutes = value;
+    } else if (field === 'speedKmH') {
+      this.customTemplateSpeedKmH = value;
+    } else if (field === 'count') {
+      this.customTemplateCount = value;
+    } else if (field === 'cadencePerMinute') {
+      this.customTemplateCadencePerMinute = value;
+    } else if (field === 'sets') {
+      this.customTemplateSets = value;
+    } else if (field === 'workSeconds') {
+      this.customTemplateWorkSeconds = value;
+    } else if (field === 'restSeconds') {
+      this.customTemplateRestSeconds = value;
+    }
+  }
+
+  private getCustomTemplateDraft(): ExerciseDraft {
+    return {
+      exerciseId: 'custom',
+      customName: this.customTemplateNameInput,
+      customMode: this.customTemplateMode,
+      customIntensity: this.customTemplateIntensity,
+      durationMinutes: this.customTemplateDurationMinutes,
+      distanceKm: this.customTemplateDistanceKm,
+      paceMinutes: this.customTemplatePaceMinutes,
+      speedKmH: this.customTemplateSpeedKmH,
+      count: this.customTemplateCount,
+      cadencePerMinute: this.customTemplateCadencePerMinute,
+      sets: this.customTemplateSets,
+      workSeconds: this.customTemplateWorkSeconds,
+      restSeconds: this.customTemplateRestSeconds
+    };
+  }
+
+  private async saveCustomTemplateFromDialog(): Promise<void> {
+    let draft = this.getCustomTemplateDraft();
+    let validationMessage = getWorkoutValidationMessage(draft);
+    if (validationMessage.length > 0) {
+      this.customTemplateNotice = validationMessage;
+      return;
+    }
+    let currentSavedWorkouts = this.getSavedWorkoutSource();
+    let savedWorkout = createSavedCustomWorkoutFromDraft(draft);
+    let upsertResult = upsertSavedCustomWorkoutByIdentity(currentSavedWorkouts, savedWorkout);
+    this.savedCustomWorkoutText = serializeSavedCustomWorkouts(upsertResult.savedWorkouts);
+    this.syncSavedCustomWorkoutsFromStorage();
+    let result = await syncOperationNowOrQueue(this.buildSyncState(), createWorkoutTemplateUpsertOperation(upsertResult.workout));
+    this.applySyncState(result.state);
+    this.syncSavedCustomWorkoutsFromStorage();
+    this.closeCustomTemplateDialog();
   }
 
   private async removeWorkoutPlan(planId: string): Promise<void> {
@@ -618,9 +733,10 @@ export struct ExerciseTabPage {
   }
 
   private findSavedWorkoutById(savedWorkoutId: string): SavedCustomWorkout | undefined {
-    for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
-      if (this.savedCustomWorkouts[index].id === savedWorkoutId) {
-        return this.savedCustomWorkouts[index];
+    let savedWorkouts = this.getSavedWorkoutSource();
+    for (let index = 0; index < savedWorkouts.length; index++) {
+      if (savedWorkouts[index].id === savedWorkoutId) {
+        return savedWorkouts[index];
       }
     }
     return undefined;
@@ -679,8 +795,9 @@ export struct ExerciseTabPage {
 
   private getAvailableSavedWorkouts(): SavedCustomWorkout[] {
     let nextWorkouts: SavedCustomWorkout[] = [];
+    let savedWorkouts = this.getSavedWorkoutSource();
     if (this.remoteWorkoutTypes.length === 0) {
-      nextWorkouts = this.savedCustomWorkouts.slice();
+      nextWorkouts = savedWorkouts.slice();
     } else {
       let knownIds: string[] = [];
       for (let index = 0; index < this.remoteWorkoutTypes.length; index++) {
@@ -696,9 +813,9 @@ export struct ExerciseTabPage {
         knownIds.push(savedWorkout.id);
       }
   
-      for (let index = 0; index < this.savedCustomWorkouts.length; index++) {
-        if (knownIds.indexOf(this.savedCustomWorkouts[index].id) < 0) {
-          nextWorkouts.push(this.savedCustomWorkouts[index]);
+      for (let index = 0; index < savedWorkouts.length; index++) {
+        if (knownIds.indexOf(savedWorkouts[index].id) < 0) {
+          nextWorkouts.push(savedWorkouts[index]);
         }
       }
     }
@@ -739,6 +856,13 @@ export struct ExerciseTabPage {
   }
 
   private selectPlanExercise(option: ExerciseOption): void {
+    if (option.id === 'custom') {
+      this.selectedPlanExerciseId = '';
+      this.selectedPlanSavedWorkoutId = '';
+      this.planGoalValueInput = '';
+      this.openCustomTemplateDialog();
+      return;
+    }
     this.selectedPlanExerciseId = option.id;
     this.selectedPlanSavedWorkoutId = '';
     this.syncPlanGoalValueInput(this.createDraftFromExerciseOption(option));
@@ -1690,7 +1814,7 @@ export struct ExerciseTabPage {
                       }
                     }
 
-                    Text(option.description)
+                    Text(option.id === 'custom' ? '弹出小窗口填写运动信息，保存后会实时加入下方模板列表。' : option.description)
                       .fontSize(12)
                       .lineHeight(18)
                       .fontColor(SECONDARY_TEXT_COLOR)
@@ -1698,13 +1822,17 @@ export struct ExerciseTabPage {
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
 
-                  Button(this.isPlanExerciseSelected(option) ? '已选' : '选择')
+                  Button(option.id === 'custom' ? '新建' : (this.isPlanExerciseSelected(option) ? '已选' : '选择'))
                     .width(74)
                     .height(36)
                     .fontSize(13)
                     .fontWeight(FontWeight.Medium)
-                    .fontColor(this.isPlanExerciseSelected(option) ? '#FFFFFF' : option.accentColor)
-                    .backgroundColor(this.isPlanExerciseSelected(option) ? option.accentColor : '#FFFFFF')
+                    .fontColor(option.id === 'custom'
+                      ? '#7B61FF'
+                      : (this.isPlanExerciseSelected(option) ? '#FFFFFF' : option.accentColor))
+                    .backgroundColor(option.id === 'custom'
+                      ? '#F2F0FF'
+                      : (this.isPlanExerciseSelected(option) ? option.accentColor : '#FFFFFF'))
                     .borderRadius(18)
                     .onClick(() => {
                       this.selectPlanExercise(option);
@@ -1795,6 +1923,232 @@ export struct ExerciseTabPage {
         .backgroundColor(SURFACE_BACKGROUND_COLOR)
         .borderRadius(28)
         .margin({ bottom: 12 })
+      }
+      .width('100%')
+      .height('100%')
+    }
+  }
+
+  @Builder
+  private buildCustomTemplateInputField(title: string, placeholder: string, textValue: string, unit: string, field: string,
+    unitColor: string, unitBackground: string) {
+    Column({ space: 8 }) {
+      Text(title)
+        .fontSize(12)
+        .fontColor('#5373A6')
+
+      Row({ space: 8 }) {
+        TextInput({ placeholder: placeholder, text: textValue })
+          .fontSize(15)
+          .fontColor(PRIMARY_TEXT_COLOR)
+          .height(44)
+          .layoutWeight(1)
+          .padding({ left: 12, right: 12 })
+          .backgroundColor('#F5F8FF')
+          .borderRadius(16)
+          .onChange((value: string) => {
+            this.updateCustomTemplateField(field, value);
+          })
+
+        Text(unit)
+          .fontSize(13)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(unitColor)
+          .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+          .backgroundColor(unitBackground)
+          .borderRadius(14)
+      }
+      .width('100%')
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
+  }
+
+  @Builder
+  private buildCustomTemplateDialog() {
+    if (this.customTemplateDialogVisible) {
+      Stack({ alignContent: Alignment.Bottom }) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('#66000000')
+          .onClick(() => {
+            this.closeCustomTemplateDialog();
+          })
+
+        Scroll() {
+          Column({ space: 12 }) {
+            Row() {
+              Column({ space: 4 }) {
+                Text('新建自定义模板')
+                  .fontSize(20)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(PRIMARY_TEXT_COLOR)
+
+                Text('填写运动信息后保存，列表会立即刷新。')
+                  .fontSize(12)
+                  .fontColor(SECONDARY_TEXT_COLOR)
+              }
+              .alignItems(HorizontalAlign.Start)
+
+              Button('收起')
+                .height(34)
+                .fontSize(13)
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#7B61FF')
+                .backgroundColor('#F2F0FF')
+                .borderRadius(17)
+                .onClick(() => {
+                  this.closeCustomTemplateDialog();
+                })
+            }
+            .width('100%')
+            .justifyContent(FlexAlign.SpaceBetween)
+
+            TextInput({ placeholder: '例如 羽毛球、爬楼梯', text: this.customTemplateNameInput })
+              .fontSize(15)
+              .fontColor(PRIMARY_TEXT_COLOR)
+              .height(46)
+              .width('100%')
+              .padding({ left: 12, right: 12 })
+              .backgroundColor('#F5F8FF')
+              .borderRadius(16)
+              .onChange((value: string) => {
+                this.updateCustomTemplateField('customName', value);
+              })
+
+            ForEach(CUSTOM_MODE_OPTIONS, (option: ExerciseOption) => {
+              Button(option.name)
+                .width('100%')
+                .height(40)
+                .fontSize(14)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(this.customTemplateMode === option.id ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
+                .backgroundColor(this.customTemplateMode === option.id ? '#0F6BFF' : '#F5F8FF')
+                .borderRadius(16)
+                .onClick(() => {
+                  this.customTemplateMode = option.id;
+                })
+            }, (option: ExerciseOption) => option.id)
+
+            Row({ space: 10 }) {
+              ForEach(CUSTOM_INTENSITY_OPTIONS, (option: CustomIntensityOption) => {
+                Button(option.label)
+                  .layoutWeight(1)
+                  .height(40)
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(this.customTemplateIntensity === option.id ? '#FFFFFF' : PRIMARY_TEXT_COLOR)
+                  .backgroundColor(this.customTemplateIntensity === option.id ? '#7B61FF' : '#F2F0FF')
+                  .borderRadius(16)
+                  .onClick(() => {
+                    this.customTemplateIntensity = option.id;
+                  })
+              }, (option: CustomIntensityOption) => option.id)
+            }
+            .width('100%')
+
+            if (this.customTemplateMode === 'duration') {
+              this.buildCustomTemplateInputField('训练时长', '30', this.customTemplateDurationMinutes, '分钟',
+                'durationMinutes', '#10B981', '#ECFFF4')
+            }
+            if (this.customTemplateMode === 'distance_pace') {
+              Row({ space: 12 }) {
+                Column() {
+                  this.buildCustomTemplateInputField('路程', '5', this.customTemplateDistanceKm, 'km',
+                    'distanceKm', '#0F6BFF', '#EAF2FF')
+                }
+                .layoutWeight(1)
+                Column() {
+                  this.buildCustomTemplateInputField('配速', '6', this.customTemplatePaceMinutes, '分/km',
+                    'paceMinutes', '#FF7A59', '#FFF0F6')
+                }
+                .layoutWeight(1)
+              }
+              .width('100%')
+            }
+            if (this.customTemplateMode === 'distance_speed') {
+              Row({ space: 12 }) {
+                Column() {
+                  this.buildCustomTemplateInputField('路程', '10', this.customTemplateDistanceKm, 'km',
+                    'distanceKm', '#0F6BFF', '#EAF2FF')
+                }
+                .layoutWeight(1)
+                Column() {
+                  this.buildCustomTemplateInputField('速度', '18', this.customTemplateSpeedKmH, 'km/h',
+                    'speedKmH', '#10B981', '#ECFFF4')
+                }
+                .layoutWeight(1)
+              }
+              .width('100%')
+            }
+            if (this.customTemplateMode === 'count_rate') {
+              Row({ space: 12 }) {
+                Column() {
+                  this.buildCustomTemplateInputField('个数', '300', this.customTemplateCount, '次',
+                    'count', '#C14D7F', '#FFE7F1')
+                }
+                .layoutWeight(1)
+                Column() {
+                  this.buildCustomTemplateInputField('节奏', '120', this.customTemplateCadencePerMinute, '次/分',
+                    'cadencePerMinute', '#0F6BFF', '#EAF2FF')
+                }
+                .layoutWeight(1)
+              }
+              .width('100%')
+            }
+            if (this.customTemplateMode === 'set_timer') {
+              Column({ space: 12 }) {
+                Row({ space: 12 }) {
+                  Column() {
+                    this.buildCustomTemplateInputField('组数', '4', this.customTemplateSets, '组',
+                      'sets', '#0F6BFF', '#EAF2FF')
+                  }
+                  .layoutWeight(1)
+                  Column() {
+                    this.buildCustomTemplateInputField('训练', '40', this.customTemplateWorkSeconds, '秒',
+                      'workSeconds', '#FF7A59', '#FFF0F6')
+                  }
+                  .layoutWeight(1)
+                }
+                .width('100%')
+                this.buildCustomTemplateInputField('休息', '20', this.customTemplateRestSeconds, '秒',
+                  'restSeconds', '#10B981', '#ECFFF4')
+              }
+              .width('100%')
+            }
+
+            Text(this.customTemplateNotice)
+              .fontSize(12)
+              .lineHeight(18)
+              .fontColor(this.customTemplateNotice === '保存后会实时加入下方“已保存模板”列表。' ? '#667085' : '#FF6B57')
+              .width('100%')
+              .padding(12)
+              .backgroundColor('#F8FAFC')
+              .borderRadius(16)
+
+            Button('保存模板')
+              .width('100%')
+              .height(44)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor('#FFFFFF')
+              .backgroundColor('#7B61FF')
+              .borderRadius(18)
+              .onClick(() => {
+                this.saveCustomTemplateFromDialog();
+              })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .width('100%')
+          .padding({ left: 20, right: 20, top: 18, bottom: 24 })
+          .backgroundColor(SURFACE_BACKGROUND_COLOR)
+          .borderRadius(28)
+        }
+        .width('92%')
+        .height('76%')
+        .margin({ bottom: 12 })
+        .scrollBar(BarState.Auto)
       }
       .width('100%')
       .height('100%')
@@ -2028,6 +2382,7 @@ export struct ExerciseTabPage {
       .backgroundColor(PAGE_BACKGROUND_COLOR)
 
       this.buildPlanPickerSheet()
+      this.buildCustomTemplateDialog()
     }
     .width('100%')
     .height('100%')

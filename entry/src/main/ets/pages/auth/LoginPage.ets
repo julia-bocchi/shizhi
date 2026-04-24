@@ -4,7 +4,7 @@ import {
   SECONDARY_TEXT_COLOR,
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
-import { DEFAULT_API_BASE_URL, resolveApiBaseUrl } from '../../models/AuthSession';
+import { resolveApiBaseUrl } from '../../models/AuthSession';
 import { HOME_TAB_INDEX } from '../../models/TabItem';
 import { fetchUserProfile, loginWithPassword, registerWithPassword } from '../../utils/ApiService';
 import { serializeUserProfile } from '../../utils/ExerciseHelper';
@@ -59,7 +59,7 @@ struct LoginPage {
       this.loginNotice = '登录成功，正在返回首页。';
       this.goBack();
     } catch (error) {
-      this.loginNotice = `${error}`;
+      this.loginNotice = '登录失败，请检查账号、密码或服务状态后重试。';
     } finally {
       this.authBusy = false;
     }
@@ -90,7 +90,7 @@ struct LoginPage {
       this.loginNotice = '注册成功，正在返回首页。';
       this.goBack();
     } catch (error) {
-      this.loginNotice = `${error}`;
+      this.loginNotice = '注册失败，请检查账号是否已存在后重试。';
     } finally {
       this.authBusy = false;
     }
@@ -114,12 +114,12 @@ struct LoginPage {
         .width('100%')
 
         Column({ space: 10 }) {
-          Text('联调账号登录')
+          Text('账号登录')
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .fontColor('#FFFFFF')
 
-          Text('未注册账号不能直接登录，可先注册再进入。')
+          Text('输入账号和密码后即可登录，未注册可以直接创建账号。')
             .fontSize(13)
             .lineHeight(20)
             .fontColor('#DCE8FF')
@@ -131,31 +131,6 @@ struct LoginPage {
         .borderRadius(24)
 
         Column({ space: 14 }) {
-          Column({ space: 8 }) {
-            Text('联调后端地址')
-              .fontSize(12)
-              .fontColor('#5373A6')
-
-            TextInput({ placeholder: DEFAULT_API_BASE_URL, text: this.apiBaseUrlText })
-              .fontSize(15)
-              .fontColor(PRIMARY_TEXT_COLOR)
-              .height(46)
-              .width('100%')
-              .padding({ left: 12, right: 12 })
-              .backgroundColor('#F5F8FF')
-              .borderRadius(16)
-              .onChange((value: string) => {
-                this.apiBaseUrlText = value;
-              })
-
-            Text(`DevEco 联调本机 mock 服务时，默认地址为 ${DEFAULT_API_BASE_URL}，如果你的网络环境不同，可以直接改这里。`)
-              .fontSize(12)
-              .lineHeight(18)
-              .fontColor(SECONDARY_TEXT_COLOR)
-          }
-          .alignItems(HorizontalAlign.Start)
-          .width('100%')
-
           Column({ space: 8 }) {
             Text('账号')
               .fontSize(12)

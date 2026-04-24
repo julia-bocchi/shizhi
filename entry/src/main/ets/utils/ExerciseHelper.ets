@@ -24,6 +24,13 @@ import {
   createEmptyUserProfile
 } from '../models/UserProfile';
 import { WorkoutRecord } from '../models/WorkoutRecord';
+import { buildStableIdentitySuffix, isSameUniqueName } from './IdentityHelper';
+
+export interface UpsertSavedCustomWorkoutResult {
+  savedWorkouts: SavedCustomWorkout[];
+  workout: SavedCustomWorkout;
+  hasUpdated: boolean;
+}
 
 export interface BmiInfo {
   hasValue: boolean;
@@ -720,7 +727,7 @@ export function deserializeUserProfile(profileText: string): UserProfile {
 
 export function createSavedCustomWorkoutFromDraft(draft: ExerciseDraft): SavedCustomWorkout {
   return {
-    id: `local-workout-template-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+    id: createLocalSavedCustomWorkoutId(draft.customName),
     name: draft.customName.trim(),
     mode: draft.customMode,
     intensity: draft.customIntensity,
@@ -733,6 +740,72 @@ export function createSavedCustomWorkoutFromDraft(draft: ExerciseDraft): SavedCu
     sets: draft.sets,
     workSeconds: draft.workSeconds,
     restSeconds: draft.restSeconds
+  };
+}
+
+export function buildSavedWorkoutIdentityKey(name: string): string {
+  return buildStableIdentitySuffix(name, 'custom-workout');
+}
+
+export function createLocalSavedCustomWorkoutId(name: string): string {
+  return `local-workout-template-${buildSavedWorkoutIdentityKey(name)}`;
+}
+
+export function upsertSavedCustomWorkoutByIdentity(currentSavedWorkouts: SavedCustomWorkout[], nextWorkout: SavedCustomWorkout,
+  preferredId: string = ''): UpsertSavedCustomWorkoutResult {
+  let resolvedId: string = `${preferredId}`.trim();
+  let hasUpdated: boolean = false;
+  for (let index = 0; index < currentSavedWorkouts.length; index++) {
+    let currentWorkout = currentSavedWorkouts[index];
+    if ((resolvedId.length > 0 && currentWorkout.id === resolvedId) || currentWorkout.id === nextWorkout.id ||
+      isSameUniqueName(currentWorkout.name, nextWorkout.name)) {
+      resolvedId = currentWorkout.id;
+      hasUpdated = true;
+      break;
+    }
+  }
+  if (resolvedId.length === 0) {
+    let nextWorkoutId: string = `${nextWorkout.id}`.trim();
+    resolvedId = nextWorkoutId.length > 0 ? nextWorkoutId : createLocalSavedCustomWorkoutId(nextWorkout.name);
+  }
+
+  let resolvedWorkout: SavedCustomWorkout = {
+    id: resolvedId,
+    name: nextWorkout.name.trim(),
+    mode: nextWorkout.mode,
+    intensity: nextWorkout.intensity,
+    durationMinutes: nextWorkout.durationMinutes,
+    distanceKm: nextWorkout.distanceKm,
+    paceMinutes: nextWorkout.paceMinutes,
+    speedKmH: nextWorkout.speedKmH,
+    count: nextWorkout.count,
+    cadencePerMinute: nextWorkout.cadencePerMinute,
+    sets: nextWorkout.sets,
+    workSeconds: nextWorkout.workSeconds,
+    restSeconds: nextWorkout.restSeconds
+  };
+
+  let nextSavedWorkouts: SavedCustomWorkout[] = [];
+  let inserted: boolean = false;
+  for (let index = 0; index < currentSavedWorkouts.length; index++) {
+    let currentWorkout = currentSavedWorkouts[index];
+    if (currentWorkout.id === resolvedWorkout.id || isSameUniqueName(currentWorkout.name, resolvedWorkout.name)) {
+      if (!inserted) {
+        nextSavedWorkouts.push(resolvedWorkout);
+        inserted = true;
+      }
+      continue;
+    }
+    nextSavedWorkouts.push(currentWorkout);
+  }
+  if (!inserted) {
+    nextSavedWorkouts.unshift(resolvedWorkout);
+  }
+
+  return {
+    savedWorkouts: nextSavedWorkouts,
+    workout: resolvedWorkout,
+    hasUpdated: hasUpdated
   };
 }
 

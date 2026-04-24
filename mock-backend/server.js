@@ -483,6 +483,38 @@ function trimDecimal(value) {
   return text.endsWith('.0') ? text.slice(0, -2) : text;
 }
 
+function normalizeUniqueName(name) {
+  return `${name || ''}`.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function buildIdentityKey(name, fallbackValue = 'item') {
+  const normalizedName = normalizeUniqueName(name);
+  if (!normalizedName) {
+    return fallbackValue;
+  }
+  const slugText = normalizedName
+    .replace(/\s+/g, '-')
+    .replace(/[^0-9a-z\u4e00-\u9fa5-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slugText || fallbackValue;
+}
+
+function findItemByIdentity(items, identityKey, name) {
+  const normalizedIdentityKey = `${identityKey || ''}`.trim();
+  const normalizedName = normalizeUniqueName(name);
+  return items.find(item => {
+    const currentIdentityKey = `${item.identityKey || ''}`.trim();
+    if (normalizedIdentityKey && currentIdentityKey === normalizedIdentityKey) {
+      return true;
+    }
+    if (normalizedName && normalizeUniqueName(item.name) === normalizedName) {
+      return true;
+    }
+    return false;
+  });
+}
+
 function formatDurationMinutes(minutes) {
   const normalized = Math.round(parsePositiveNumber(minutes));
   if (normalized <= 0) {
@@ -804,8 +836,28 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/food-options/custom' && req.method === 'POST') {
       const body = await parseBody(req);
+      const identityKey = `${body.identityKey || ''}`.trim() || buildIdentityKey(body.name, 'custom-food');
+      const existingItem = findItemByIdentity(user.customFoodOptions, identityKey, body.name);
+      if (existingItem) {
+        Object.assign(existingItem, {
+          identityKey,
+          source: 'custom',
+          name: `${body.name || existingItem.name || ''}`,
+          description: `${body.description || ''}`,
+          calories: Number(body.calories || 0),
+          serving: `${body.serving || ''}`,
+          mealSuggestion: `${body.mealSuggestion || ''}`,
+          image: `${body.image || ''}`,
+          accentColor: `${body.accentColor || '#10B981'}`
+        });
+        saveStore(store);
+        logSyncCache('food-option:post-upsert', user, body, existingItem);
+        sendJson(res, 0, 'ok', existingItem);
+        return;
+      }
       const item = {
         id: nextId('custom-food'),
+        identityKey,
         source: 'custom',
         name: `${body.name || ''}`,
         description: `${body.description || ''}`,
@@ -938,7 +990,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/v1/workout-templates' && req.method === 'POST') {
       const body = await parseBody(req);
-      const template = { id: nextId('template'), ...body };
+      const identityKey = `${body.identityKey || ''}`.trim() || buildIdentityKey(body.name, 'custom-workout');
+      const existingTemplate = findItemByIdentity(user.workoutTemplates, identityKey, body.name);
+      if (existingTemplate) {
+        Object.assign(existingTemplate, { identityKey, ...body });
+        saveStore(store);
+        logSyncCache('workout-template:post-upsert', user, body, existingTemplate);
+        sendJson(res, 0, 'ok', existingTemplate);
+        return;
+      }
+      const template = { id: nextId('template'), identityKey, ...body };
       user.workoutTemplates.unshift(template);
       saveStore(store);
       logSyncCache('workout-template:post', user, body, template);

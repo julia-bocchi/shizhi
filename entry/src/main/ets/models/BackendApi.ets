@@ -130,6 +130,7 @@ export interface UpdateWeightPayload {
 }
 
 export interface CreateFoodOptionPayload {
+  identityKey?: string;
   name: string;
   description: string;
   calories: number;
@@ -172,6 +173,7 @@ export interface CreateWorkoutRecordPayload {
 }
 
 export interface CreateWorkoutTemplatePayload {
+  identityKey?: string;
   name: string;
   mode: string;
   intensity: string;

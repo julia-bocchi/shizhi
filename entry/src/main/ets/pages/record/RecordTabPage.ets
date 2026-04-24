@@ -40,6 +40,7 @@ import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from
 
 const CHART_BAR_GROUP_WIDTH: number = 40;
 const CHART_BAR_GROUP_SPACING: number = 12;
+const RECENT_CHART_DAYS: number = 7;
 
 interface CalendarDayItem extends CalendarMonthCell {
   hasRecord: boolean;
@@ -154,6 +155,26 @@ export struct RecordTabPage {
       return sortedRecords;
     }
     return sortedRecords.slice(sortedRecords.length - 7, sortedRecords.length);
+  }
+
+  getRecentChartRecords(): WeightRecord[] {
+    let sortedRecords = this.getSortedRecords();
+    if (sortedRecords.length === 0) {
+      return [];
+    }
+    let today = new Date();
+    let startDate = new Date(today.getTime());
+    startDate.setDate(today.getDate() - (RECENT_CHART_DAYS - 1));
+    let startDateText = formatDate(startDate);
+    let endDateText = formatDate(today);
+    let result: WeightRecord[] = [];
+    for (let index = 0; index < sortedRecords.length; index++) {
+      let currentRecord = sortedRecords[index];
+      if (currentRecord.date >= startDateText && currentRecord.date <= endDateText) {
+        result.push(currentRecord);
+      }
+    }
+    return result;
   }
 
   getLatestRecord(): WeightRecord | undefined {
@@ -308,7 +329,7 @@ export struct RecordTabPage {
   }
 
   getChartBounds(): number[] {
-    let recentRecords = this.getRecentRecords();
+    let recentRecords = this.getRecentChartRecords();
     if (recentRecords.length === 0) {
       return [0, CHART_MIN_SPAN];
     }
@@ -402,7 +423,7 @@ export struct RecordTabPage {
   }
 
   getRecordDelta(record: WeightRecord): number {
-    let recentRecords = this.getRecentRecords();
+    let recentRecords = this.getRecentChartRecords();
     for (let index = 0; index < recentRecords.length; index++) {
       if (recentRecords[index].id === record.id) {
         if (index === 0) {
@@ -1076,7 +1097,7 @@ export struct RecordTabPage {
                 .fontWeight(FontWeight.Medium)
                 .fontColor(PRIMARY_TEXT_COLOR)
 
-              Text(`${this.getRecentRecords().length} 条记录`)
+          Text(`近 ${RECENT_CHART_DAYS} 天 ${this.getRecentChartRecords().length} 条记录`)
                 .fontSize(12)
                 .fontColor('#94A0B4')
             }
@@ -1110,7 +1131,7 @@ export struct RecordTabPage {
             .fontColor('#94A0B4')
 
           Row({ space: CHART_BAR_GROUP_SPACING }) {
-            ForEach(this.getRecentRecords(), (record: WeightRecord) => {
+            ForEach(this.getRecentChartRecords(), (record: WeightRecord) => {
               Column({ space: 8 }) {
                 Text(this.getRecordTag(record))
                   .fontSize(this.getRecordTagFontSize())

@@ -10,12 +10,15 @@ import { EXERCISE_OPTIONS } from '../../models/ExerciseOption';
 import { FoodPlanItem } from '../../models/FoodPlan';
 import { FoodOption, PRESET_FOOD_OPTIONS } from '../../models/FoodOption';
 import {
+  buildDefaultCustomFoodImage,
+  createLocalCustomFoodOptionId,
   createFoodPlanItem,
   deserializeCustomFoodOptions,
   deserializeFoodPlans,
   getFoodMealLabel,
   serializeCustomFoodOptions,
-  serializeFoodPlans
+  serializeFoodPlans,
+  upsertCustomFoodOptionByIdentity
 } from '../../utils/FoodHelper';
 import {
   getFoodVisualDescriptor,
@@ -648,36 +651,29 @@ struct FoodSelectionPage {
       this.pageNotice = '请填写份量，例如 1 份、150 g。';
       return;
     }
-    if (this.customFoodImage.trim().length === 0) {
-      this.pageNotice = '请先从相册选择一张食物图片。';
-      return;
-    }
 
     let customOption: FoodOption = {
-      id: `local-food-option-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+      id: createLocalCustomFoodOptionId(name),
       name: name,
       description: this.customFoodDescription.trim().length > 0 ? this.customFoodDescription.trim() : '自定义食物卡片',
       calories: caloriesValue,
       serving: serving,
       mealSuggestion: getFoodMealLabel(this.selectedMealType),
-      image: this.customFoodImage.trim(),
+      image: this.customFoodImage.trim().length > 0 ? this.customFoodImage.trim() : buildDefaultCustomFoodImage(this.selectedMealType),
       accentColor: this.getMealAccentColor()
     };
 
-    let nextOptions: FoodOption[] = this.customFoodOptions.slice();
-    nextOptions.unshift(customOption);
-    this.saveCustomFoodOptions(nextOptions);
-    let saveResult = await syncOperationNowOrQueue(this.buildSyncState(), createFoodOptionUpsertOperation(customOption));
+    let upsertResult = upsertCustomFoodOptionByIdentity(this.customFoodOptions, customOption);
+    this.saveCustomFoodOptions(upsertResult.options);
+    let saveResult = await syncOperationNowOrQueue(this.buildSyncState(), createFoodOptionUpsertOperation(upsertResult.option));
     this.applySyncState(saveResult.state);
     this.customFoodOptions = deserializeCustomFoodOptions(this.customFoodOptionText);
     this.foodPlans = deserializeFoodPlans(this.foodPlanText);
     this.initializeDraftSelections();
-    let savedOption: FoodOption = customOption;
+    let savedOption: FoodOption = upsertResult.option;
     for (let index = 0; index < this.customFoodOptions.length; index++) {
       let currentOption = this.customFoodOptions[index];
-      if (currentOption.id === customOption.id ||
-        (currentOption.name === customOption.name && currentOption.serving === customOption.serving &&
-          currentOption.calories === customOption.calories)) {
+      if (currentOption.id === upsertResult.option.id) {
         savedOption = currentOption;
         break;
       }
@@ -686,12 +682,12 @@ struct FoodSelectionPage {
     if (addToMeal) {
       this.increaseDraftSelection(savedOption);
       this.pageNotice = saveResult.syncedImmediately
-        ? `已创建 ${savedOption.name}，已同步并加入待保存清单。`
-        : `已创建 ${savedOption.name}，并加入待保存清单。`;
+        ? `${upsertResult.hasUpdated ? '已更新' : '已创建'} ${savedOption.name}，已同步并加入待保存清单。`
+        : `${upsertResult.hasUpdated ? '已更新' : '已创建'} ${savedOption.name}，并加入待保存清单。`;
     } else {
       this.pageNotice = saveResult.syncedImmediately
-        ? `已保存并同步自定义食物卡：${savedOption.name}。`
-        : `已保存自定义食物卡：${savedOption.name}。`;
+        ? `已${upsertResult.hasUpdated ? '更新' : '保存并同步'}自定义食物卡：${savedOption.name}。`
+        : `已${upsertResult.hasUpdated ? '更新' : '保存'}自定义食物卡：${savedOption.name}。`;
     }
 
     this.closeCustomFoodSheet();
@@ -1250,7 +1246,7 @@ struct FoodSelectionPage {
                 .fontWeight(FontWeight.Medium)
                 .fontColor(PRIMARY_TEXT_COLOR)
 
-              Text('点击下面按钮，从相册里选一张食物图片')
+              Text('可以从相册选择，也可以直接保存后自动生成内置卡面')
                 .fontSize(12)
                 .fontColor(SECONDARY_TEXT_COLOR)
             }

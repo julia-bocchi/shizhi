@@ -34,19 +34,23 @@ import {
   upsertWeightRecordRemote
 } from './ApiService';
 import {
+  buildSavedWorkoutIdentityKey,
   deserializeExerciseDraft,
   deserializeSavedCustomWorkouts,
   deserializeUserProfile,
   deserializeWorkoutRecords,
   serializeSavedCustomWorkouts,
+  upsertSavedCustomWorkoutByIdentity,
   serializeUserProfile,
   serializeWorkoutRecords
 } from './ExerciseHelper';
 import {
+  buildCustomFoodIdentityKey,
   deserializeCustomFoodOptions,
   deserializeFoodPlans,
   serializeCustomFoodOptions,
-  serializeFoodPlans
+  serializeFoodPlans,
+  upsertCustomFoodOptionByIdentity
 } from './FoodHelper';
 import {
   deserializePendingSyncOperations,
@@ -226,39 +230,19 @@ function upsertLocalWeightRecord(savedText: string, nextRecord: WeightRecord): s
 }
 
 function upsertLocalFoodOption(savedText: string, nextOption: FoodOption): string {
-  let currentOptions = deserializeCustomFoodOptions(savedText);
-  let result: FoodOption[] = [];
-  let hasUpdated = false;
-  for (let index = 0; index < currentOptions.length; index++) {
-    if (currentOptions[index].id === nextOption.id) {
-      result.push(nextOption);
-      hasUpdated = true;
-    } else {
-      result.push(currentOptions[index]);
-    }
-  }
-  if (!hasUpdated) {
-    result.unshift(nextOption);
-  }
-  return serializeCustomFoodOptions(result);
+  return serializeCustomFoodOptions(upsertCustomFoodOptionByIdentity(
+    deserializeCustomFoodOptions(savedText),
+    nextOption,
+    nextOption.id
+  ).options);
 }
 
 function upsertLocalWorkoutTemplate(savedText: string, nextTemplate: SavedCustomWorkout): string {
-  let currentItems = deserializeSavedCustomWorkouts(savedText);
-  let result: SavedCustomWorkout[] = [];
-  let hasUpdated = false;
-  for (let index = 0; index < currentItems.length; index++) {
-    if (currentItems[index].id === nextTemplate.id) {
-      result.push(nextTemplate);
-      hasUpdated = true;
-    } else {
-      result.push(currentItems[index]);
-    }
-  }
-  if (!hasUpdated) {
-    result.unshift(nextTemplate);
-  }
-  return serializeSavedCustomWorkouts(result);
+  return serializeSavedCustomWorkouts(upsertSavedCustomWorkoutByIdentity(
+    deserializeSavedCustomWorkouts(savedText),
+    nextTemplate,
+    nextTemplate.id
+  ).savedWorkouts);
 }
 
 function upsertLocalWorkoutPlan(savedText: string, nextPlan: WorkoutPlanItem): string {
@@ -386,6 +370,7 @@ async function syncFoodOptionOperation(state: SyncRuntimeState, authSession: Aut
   let remoteOption: FoodOption;
   if (isLocalOnlyId(option.id)) {
     remoteOption = await createCustomFoodOptionRemote(state.apiBaseUrlText, authSession, {
+      identityKey: buildCustomFoodIdentityKey(option.name),
       name: option.name,
       description: option.description,
       calories: option.calories,
@@ -487,6 +472,7 @@ async function syncWorkoutTemplateOperation(state: SyncRuntimeState, authSession
   let remoteTemplate = await saveWorkoutTemplateRemote(state.apiBaseUrlText, authSession,
     isLocalOnlyId(currentTemplate.id) ? '' : currentTemplate.id,
     {
+      identityKey: buildSavedWorkoutIdentityKey(currentTemplate.name),
       name: currentTemplate.name,
       mode: currentTemplate.mode,
       intensity: currentTemplate.intensity,

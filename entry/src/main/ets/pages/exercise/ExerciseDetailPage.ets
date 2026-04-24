@@ -44,7 +44,8 @@ import {
   getWorkoutValidationMessage,
   serializeExerciseDraft,
   serializeSavedCustomWorkouts,
-  serializeWorkoutRecords
+  serializeWorkoutRecords,
+  upsertSavedCustomWorkoutByIdentity
 } from '../../utils/ExerciseHelper';
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
@@ -687,54 +688,18 @@ struct ExerciseDetailPage {
     }
     let savedWorkout: SavedCustomWorkout = createSavedCustomWorkoutFromDraft(this.getDraft());
     let currentSavedWorkouts: SavedCustomWorkout[] = deserializeSavedCustomWorkouts(this.savedCustomWorkoutText);
-    let nextSavedWorkouts: SavedCustomWorkout[] = [];
-    let targetId: string = this.selectedSavedWorkoutId;
-    let hasUpdated: boolean = false;
-    for (let index = 0; index < currentSavedWorkouts.length; index++) {
-      let currentWorkout: SavedCustomWorkout = currentSavedWorkouts[index];
-      if (currentWorkout.id === this.selectedSavedWorkoutId || currentWorkout.name === savedWorkout.name) {
-        nextSavedWorkouts.push({
-          id: currentWorkout.id,
-          name: savedWorkout.name,
-          mode: savedWorkout.mode,
-          intensity: savedWorkout.intensity,
-          durationMinutes: savedWorkout.durationMinutes,
-          distanceKm: savedWorkout.distanceKm,
-          paceMinutes: savedWorkout.paceMinutes,
-          speedKmH: savedWorkout.speedKmH,
-          count: savedWorkout.count,
-          cadencePerMinute: savedWorkout.cadencePerMinute,
-          sets: savedWorkout.sets,
-          workSeconds: savedWorkout.workSeconds,
-          restSeconds: savedWorkout.restSeconds
-        });
-        targetId = currentWorkout.id;
-        hasUpdated = true;
-      } else {
-        nextSavedWorkouts.push(currentWorkout);
-      }
-    }
-    if (!hasUpdated) {
-      nextSavedWorkouts.unshift(savedWorkout);
-      targetId = savedWorkout.id;
-    }
-    let queuedTemplate: SavedCustomWorkout = savedWorkout;
-    for (let index = 0; index < nextSavedWorkouts.length; index++) {
-      if (nextSavedWorkouts[index].id === targetId) {
-        queuedTemplate = nextSavedWorkouts[index];
-      }
-    }
-    this.selectedSavedWorkoutId = targetId;
-    this.currentEditingSavedWorkoutIdText = targetId;
-    this.savedCustomWorkoutText = serializeSavedCustomWorkouts(nextSavedWorkouts);
+    let upsertResult = upsertSavedCustomWorkoutByIdentity(currentSavedWorkouts, savedWorkout, this.selectedSavedWorkoutId);
+    this.selectedSavedWorkoutId = upsertResult.workout.id;
+    this.currentEditingSavedWorkoutIdText = upsertResult.workout.id;
+    this.savedCustomWorkoutText = serializeSavedCustomWorkouts(upsertResult.savedWorkouts);
     this.syncSavedCustomWorkoutsFromStorage();
-    let result = await syncOperationNowOrQueue(this.buildSyncState(), createWorkoutTemplateUpsertOperation(queuedTemplate));
+    let result = await syncOperationNowOrQueue(this.buildSyncState(), createWorkoutTemplateUpsertOperation(upsertResult.workout));
     this.applySyncState(result.state);
     this.syncSavedCustomWorkoutsFromStorage();
     this.selectedSavedWorkoutId = this.currentEditingSavedWorkoutIdText;
     this.sessionNotice = result.syncedImmediately
-      ? (hasUpdated ? `已更新并同步模板：${savedWorkout.name}。` : `已保存并同步模板：${savedWorkout.name}。`)
-      : (hasUpdated ? `已更新模板：${savedWorkout.name}。` : `已保存模板：${savedWorkout.name}。`);
+      ? (upsertResult.hasUpdated ? `已更新并同步模板：${savedWorkout.name}。` : `已保存并同步模板：${savedWorkout.name}。`)
+      : (upsertResult.hasUpdated ? `已更新模板：${savedWorkout.name}。` : `已保存模板：${savedWorkout.name}。`);
   }
 
   private async deleteCurrentCustomWorkout(): Promise<void> {

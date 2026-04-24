@@ -1,9 +1,11 @@
 import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
 import homeDashboardHelperTest from './HomeDashboardHelper.test';
+import identityHelperTest from './IdentityHelper.test';
 import monthCalendarHelperTest from './MonthCalendarHelper.test';
 
 export default function localUnitTest() {
   homeDashboardHelperTest();
+  identityHelperTest();
   monthCalendarHelperTest();
 
   describe('localUnitTest', () => {

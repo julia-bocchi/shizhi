@@ -160,6 +160,33 @@ export struct HomeTabPage {
     return `${Math.round(this.getCalorieSummary().netCalories)}`;
   }
 
+  private getAdaptiveCalorieFontSize(valueText: string, largeSize: number, mediumSize: number, smallSize: number): number {
+    let length = valueText.trim().length;
+    if (length >= 7) {
+      return smallSize;
+    }
+    if (length >= 5) {
+      return mediumSize;
+    }
+    return largeSize;
+  }
+
+  private getNetCalorieFontSize(): number {
+    return this.getAdaptiveCalorieFontSize(this.getNetCalorieValueText(), 34, 28, 22);
+  }
+
+  private getSideCalorieNumberText(type: string): string {
+    let summary = this.getCalorieSummary();
+    if (type === 'intake') {
+      return `${Math.round(summary.intakeCalories)}`;
+    }
+    return `${Math.round(summary.burnedCalories)}`;
+  }
+
+  private getSideCalorieFontSize(type: string): number {
+    return this.getAdaptiveCalorieFontSize(this.getSideCalorieNumberText(type), 24, 20, 17);
+  }
+
   private getNetCalorieDescriptionText(): string {
     let summary = this.getCalorieSummary();
     if (summary.intakeCalories <= 0 && summary.burnedCalories <= 0) {
@@ -330,17 +357,26 @@ export struct HomeTabPage {
   }
 
   @Builder
-  private buildEnergySideStat(title: string, valueText: string, statusText: string, accentColor: string) {
+  private buildEnergySideStat(title: string, calorieType: string, statusText: string, accentColor: string) {
     Column({ space: 8 }) {
       Text(title)
         .fontSize(13)
         .fontWeight(FontWeight.Medium)
         .fontColor('#6680A8')
 
-      Text(valueText)
-        .fontSize(24)
-        .fontWeight(FontWeight.Bolder)
-        .fontColor(PRIMARY_TEXT_COLOR)
+      Column({ space: 2 }) {
+        Text(this.getSideCalorieNumberText(calorieType))
+          .fontSize(this.getSideCalorieFontSize(calorieType))
+          .fontWeight(FontWeight.Bolder)
+          .fontColor(PRIMARY_TEXT_COLOR)
+          .maxLines(1)
+
+        Text('kcal')
+          .fontSize(11)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#6F84A3')
+      }
+      .alignItems(HorizontalAlign.Center)
 
       Text(statusText)
         .fontSize(11)
@@ -385,7 +421,7 @@ export struct HomeTabPage {
       Row({ space: 10 }) {
         this.buildEnergySideStat(
           '摄入',
-          `${Math.round(this.getCalorieSummary().intakeCalories)} kcal`,
+          'intake',
           this.getIntakeStatusText(),
           '#F59E0B'
         )
@@ -422,19 +458,16 @@ export struct HomeTabPage {
             .borderRadius(65)
 
           Column({ space: 4 }) {
-            Row({ space: 4 }) {
-              Text(this.getNetCalorieValueText())
-                .fontSize(34)
-                .fontWeight(FontWeight.Bolder)
-                .fontColor(PRIMARY_TEXT_COLOR)
+            Text(this.getNetCalorieValueText())
+              .fontSize(this.getNetCalorieFontSize())
+              .fontWeight(FontWeight.Bolder)
+              .fontColor(PRIMARY_TEXT_COLOR)
+              .maxLines(1)
 
-              Text('kcal')
-                .fontSize(12)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#6F84A3')
-                .margin({ top: 17 })
-            }
-            .alignItems(VerticalAlign.Bottom)
+            Text('kcal')
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#6F84A3')
 
             Text('净热量')
               .fontSize(12)
@@ -453,7 +486,7 @@ export struct HomeTabPage {
 
         this.buildEnergySideStat(
           '消耗',
-          `${Math.round(this.getCalorieSummary().burnedCalories)} kcal`,
+          'burned',
           this.getBurnedStatusText(),
           '#FF8B61'
         )
