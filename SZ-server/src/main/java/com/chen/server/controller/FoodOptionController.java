@@ -59,6 +59,6 @@ public class FoodOptionController {
     }
 
     private Long getCurrentUserId() {
-        return 1L;
+        return 1001L;
     }
 }

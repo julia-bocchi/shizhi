@@ -35,7 +35,7 @@ public class WeightRecordServiceImpl implements WeightRecordService {
             }else {
                 isUpdated = false;
             }
-           record = existingRecord;
+            record = existingRecord;
         } else {
             record = new WeightRecord();
             record.setUserId(userId);
@@ -79,6 +79,6 @@ public class WeightRecordServiceImpl implements WeightRecordService {
         response.setRecords(voList);
 
         return response;
-        
+
     }
 }

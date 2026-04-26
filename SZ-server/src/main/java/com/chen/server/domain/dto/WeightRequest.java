@@ -4,7 +4,7 @@ package com.chen.server.domain.dto;
 
 
 import lombok.Data;
-import org.jetbrains.annotations.NotNull;
+
 
 import java.math.BigDecimal;
 @Data

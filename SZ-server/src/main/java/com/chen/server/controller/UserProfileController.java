@@ -53,6 +53,6 @@ public class UserProfileController {
     }
 
     private Long getCurrentUserId() {
-        return 1L;
+        return  1001L;
     }
 }

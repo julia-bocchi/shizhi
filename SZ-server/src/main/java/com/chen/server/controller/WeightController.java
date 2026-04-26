@@ -32,7 +32,7 @@ public class WeightController {
     }
 
     private Long getCurrentUserId() {
-        return 1L;
+        return 1001L;
     }
 
 
@@ -41,7 +41,8 @@ public class WeightController {
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
 
-        Long userId = getCurrentUserId();
+        Long  userId = getCurrentUserId();
+
 
         WeightListResponse response = weightRecordService.getWeightList(userId, startDate, endDate);
 

@@ -50,26 +50,26 @@ public class UserProfileServiceImpl implements UserProfileService {
         if (StringUtils.hasText(request.getNickname())) {
             profile.setNickname(request.getNickname());
         }
-        
+
         if (StringUtils.hasText(request.getHeightCm())) {
             // 可选：验证身高范围（如50-250cm）
             validateNumericField(request.getHeightCm(), "身高", 50, 250);
             profile.setHeightCm(request.getHeightCm());
         }
-        
+
         if (StringUtils.hasText(request.getWeightKg())) {
             // 可选：验证体重范围（如20-300kg）
             // 体重是热量估算的关键字段，建议必填
             validateNumericField(request.getWeightKg(), "体重", 20, 300);
             profile.setWeightKg(request.getWeightKg());
         }
-        
+
         if (StringUtils.hasText(request.getAge())) {
             // 可选：验证年龄范围（如10-120岁）
             validateNumericField(request.getAge(), "年龄", 10, 120);
             profile.setAge(request.getAge());
         }
-        
+
         if (StringUtils.hasText(request.getGender())) {
             // 验证性别值：只能是"男"或"女"
             if (!"男".equals(request.getGender()) && !"女".equals(request.getGender())) {
@@ -103,7 +103,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
     /**
      * 验证数值字段是否在合理范围内
-     * 
+     *
      * @param value 字符串数值
      * @param fieldName 字段名称（用于错误提示）
      * @param min 最小值
@@ -114,7 +114,7 @@ public class UserProfileServiceImpl implements UserProfileService {
             double numValue = Double.parseDouble(value);
             if (numValue < min || numValue > max) {
                 throw new IllegalArgumentException(
-                    String.format("%s超出合理范围（%.0f-%.0f）", fieldName, min, max)
+                        String.format("%s超出合理范围（%.0f-%.0f）", fieldName, min, max)
                 );
             }
         } catch (NumberFormatException e) {
