@@ -284,14 +284,18 @@ export function removeWorkoutPlanMeta(metaItems: WorkoutPlanLocalMeta[], planId:
   return nextMetaItems;
 }
 
-function buildLoginResult(data: LoginResponseData, fallbackUsername: string): LoginResult {
+export function createLoginResultFromResponse(data: LoginResponseData, fallbackUsername: string): LoginResult {
+  let resolvedUserId = normalizeUserId(data.userId);
+  if (resolvedUserId <= 0) {
+    resolvedUserId = normalizeUserId(data.user_id);
+  }
   let authSession: AuthSession = {
-    userId: normalizeUserId(data.userId),
+    userId: resolvedUserId,
     username: sanitizeString(data.username, fallbackUsername.trim()),
     token: sanitizeString(data.token),
     loginAt: `${Date.now()}`
   };
-  if (normalizeUserId(authSession.userId) <= 0 || authSession.token.trim().length === 0) {
+  if (authSession.userId <= 0 || authSession.token.trim().length === 0) {
     throw new Error('登录响应缺少有效用户信息。');
   }
   return {
@@ -311,7 +315,7 @@ export async function loginWithPassword(baseUrl: string, username: string, passw
     method: http.RequestMethod.POST,
     body: payload
   });
-  return buildLoginResult(data, username);
+  return createLoginResultFromResponse(data, username);
 }
 
 export async function registerWithPassword(baseUrl: string, username: string, password: string): Promise<LoginResult> {
@@ -325,7 +329,7 @@ export async function registerWithPassword(baseUrl: string, username: string, pa
     method: http.RequestMethod.POST,
     body: payload
   });
-  return buildLoginResult(data, username);
+  return createLoginResultFromResponse(data, username);
 }
 
 export function logoutSession(): LoginResult {

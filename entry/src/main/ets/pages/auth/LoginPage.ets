@@ -32,12 +32,25 @@ struct LoginPage {
     }
   }
 
+  private goHome(): void {
+    try {
+      let routeTask: Promise<void> = this.getUIContext().getRouter().replaceUrl({
+        url: 'pages/Index'
+      });
+      routeTask.catch(() => {
+        this.goBack();
+      });
+    } catch (error) {
+      this.goBack();
+    }
+  }
+
   private completeAuthSuccess(result: LoginResult, noticeText: string): void {
     this.authSessionText = result.authSessionText;
     this.currentTabIndex = HOME_TAB_INDEX;
     this.password = '';
     this.loginNotice = noticeText;
-    this.goBack();
+    this.goHome();
   }
 
   private async handleLogin(): Promise<void> {

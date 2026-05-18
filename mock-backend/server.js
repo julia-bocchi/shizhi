@@ -420,7 +420,7 @@ function sendJson(res, code, message, data, statusCode = 200) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Id, token',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
   });
   if (requestContext) {
@@ -489,7 +489,8 @@ function createDefaultUser(username, password = '123456', userId = 0) {
 
 function getUserFromRequest(store, req, urlObj) {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const headerToken = req.headers.token || '';
+  const token = headerToken || (authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '');
   const headerUserId = req.headers['x-user-id'] || '';
   const queryUserId = urlObj.searchParams.get('userId') || '';
   const candidateUserId = normalizeUserId(headerUserId || queryUserId);

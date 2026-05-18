@@ -8,7 +8,8 @@ export interface ApiEnvelope<T> {
 }
 
 export interface LoginResponseData {
-  userId: number;
+  userId?: number | string;
+  user_id?: number | string;
   username: string;
   token: string;
 }

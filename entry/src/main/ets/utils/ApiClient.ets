@@ -24,6 +24,7 @@ interface ApiRequestHeaders {
   contentType: string;
   authorization: string;
   xUserId: string;
+  token: string;
 }
 
 interface HttpRequestHeaders {
@@ -32,12 +33,14 @@ interface HttpRequestHeaders {
   'ngrok-skip-browser-warning': string;
   'Authorization'?: string;
   'X-User-Id'?: string;
+  'token'?: string;
 }
 
 interface ApiLogHeaders {
   contentType: string;
   authorization: string;
   xUserId: string;
+  token: string;
 }
 
 interface ApiRequestLog {
@@ -123,16 +126,19 @@ function maskSensitiveText(value: string): string {
 
 function buildHeaders(authSession?: AuthSession): ApiRequestHeaders {
   if (authSession && isAuthSessionValid(authSession)) {
+    let trimmedToken = authSession.token.trim();
     return {
       contentType: 'application/json',
-      authorization: `Bearer ${authSession.token.trim()}`,
-      xUserId: `${authSession.userId}`
+      authorization: `Bearer ${trimmedToken}`,
+      xUserId: `${authSession.userId}`,
+      token: trimmedToken
     };
   }
   return {
     contentType: 'application/json',
     authorization: '',
-    xUserId: ''
+    xUserId: '',
+    token: ''
   };
 }
 
@@ -177,7 +183,8 @@ function buildLogHeaders(headers: ApiRequestHeaders): ApiLogHeaders {
   return {
     contentType: headers.contentType,
     authorization: headers.authorization.length > 0 ? maskSensitiveText(headers.authorization) : '',
-    xUserId: headers.xUserId
+    xUserId: headers.xUserId,
+    token: headers.token.length > 0 ? maskSensitiveText(headers.token) : ''
   };
 }
 
@@ -187,7 +194,8 @@ function buildHttpHeaders(headers: ApiRequestHeaders): HttpRequestHeaders {
     'Accept': 'application/json, text/plain, */*',
     'ngrok-skip-browser-warning': 'true',
     'Authorization': headers.authorization.length > 0 ? headers.authorization : undefined,
-    'X-User-Id': headers.xUserId.length > 0 ? headers.xUserId : undefined
+    'X-User-Id': headers.xUserId.length > 0 ? headers.xUserId : undefined,
+    'token': headers.token.length > 0 ? headers.token : undefined
   };
 }
 
