@@ -36,6 +36,9 @@ export struct ProfileTabPage {
   @State profileNotice: string = '资料实时生效，会自动同步到运动页。';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('authTokenText') authTokenText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('authUsernameText') authUsernameText: string = '';
   @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
   @StorageLink('weightRecordText') weightRecordText: string = '';
   @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
@@ -202,6 +205,9 @@ export struct ProfileTabPage {
   private handleLogout(): void {
     let result = logoutSession();
     this.authSessionText = result.authSessionText;
+    this.authTokenText = '';
+    this.authUserIdText = '';
+    this.authUsernameText = '';
     this.currentTabIndex = HOME_TAB_INDEX;
     this.profileNotice = '已退出登录，本地资料仍会保留。';
   }

@@ -13,6 +13,9 @@ import { LoginResult, loginWithPassword, registerWithPassword } from '../../util
 struct LoginPage {
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('authTokenText') authTokenText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('authUsernameText') authUsernameText: string = '';
   @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
 
   @State username: string = '';
@@ -47,6 +50,9 @@ struct LoginPage {
 
   private completeAuthSuccess(result: LoginResult, noticeText: string): void {
     this.authSessionText = result.authSessionText;
+    this.authTokenText = result.authSession.token;
+    this.authUserIdText = `${result.authSession.userId}`;
+    this.authUsernameText = result.authSession.username;
     this.currentTabIndex = HOME_TAB_INDEX;
     this.password = '';
     this.loginNotice = noticeText;
