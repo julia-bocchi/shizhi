@@ -4,6 +4,10 @@ import {
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
 import {
+  AI_MESSAGE_STATUS_CANCELLED,
+  AI_MESSAGE_STATUS_DONE,
+  AI_MESSAGE_STATUS_ERROR,
+  AI_MESSAGE_STATUS_THINKING,
   AI_ROLE_ASSISTANT,
   AI_ROLE_USER,
   AI_TASK_ANALYZE_WEIGHT,
@@ -12,13 +16,19 @@ import {
   AI_TASK_GENERATE_PLAN,
   AI_TASK_GENERATE_RECIPE,
   AiAssistantConfig,
+  AiAssistantResponse,
   AiChatMessage,
+  AiConversationRecord,
   AiGeneratedFoodPlanItem,
   AiGeneratedPlanItem,
+  cloneAiChatMessage,
+  createAiConversationRecord,
   createAiChatMessage,
+  deserializeAiConversationHistory,
   getDefaultAiApiEndpoint,
   getDefaultAiApiKey,
-  getDefaultAiModel
+  getDefaultAiModel,
+  serializeAiConversationHistory
 } from '../../models/AiAssistant';
 import { EXERCISE_TAB_INDEX, FOOD_TAB_INDEX, HOME_TAB_INDEX } from '../../models/TabItem';
 import { UserProfile } from '../../models/UserProfile';
@@ -32,7 +42,7 @@ import {
   deserializeSavedCustomWorkouts,
   deserializeWorkoutRecords
 } from '../../utils/ExerciseHelper';
-import { requestAiAssistant } from '../../utils/AiAssistantHelper';
+import { inferAiAssistantTaskFromPrompt, requestAiAssistant } from '../../utils/AiAssistantHelper';
 import {
   deserializeFoodPlans,
   serializeFoodPlans
@@ -56,19 +66,12 @@ const ASSISTANT_WELCOME_MESSAGE: string =
   '我是你的 AI 健身饮食助手。我可以分析近期体重变化，也能生成训练计划、定制食谱，以及整套运动和饮食计划。';
 const ASSISTANT_DEFAULT_NOTICE: string = '可以直接发消息，也可以先点下面的快捷功能。';
 const ASSISTANT_QUICK_ACTIONS: AssistantQuickActionItem[] = [
-  { id: 'analyze', label: '趋势分析' },
+  { id: 'analyze', label: '体重分析' },
   { id: 'plan', label: '训练计划' },
-  { id: 'recipe', label: '定制食谱' },
-  { id: 'full', label: '全套计划' }
+  { id: 'recipe', label: '饮食计划' },
+  { id: 'full', label: '制定计划' }
 ];
-const ASSISTANT_PRIMARY_ACTIONS: AssistantQuickActionItem[] = [
-  ASSISTANT_QUICK_ACTIONS[0],
-  ASSISTANT_QUICK_ACTIONS[1]
-];
-const ASSISTANT_SECONDARY_ACTIONS: AssistantQuickActionItem[] = [
-  ASSISTANT_QUICK_ACTIONS[2],
-  ASSISTANT_QUICK_ACTIONS[3]
-];
+const HISTORY_RESULT_LIMIT: number = 20;
 
 @Component
 export struct AiAssistantTabPage {
@@ -83,18 +86,29 @@ export struct AiAssistantTabPage {
   @StorageLink('aiApiEndpointText') aiApiEndpointText: string = '';
   @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
   @StorageLink('aiModelText') aiModelText: string = '';
+  @StorageLink('aiConversationHistoryText') aiConversationHistoryText: string = '';
 
   @State questionInput: string = '';
+  @State historyQuery: string = '';
   @State assistantBusy: boolean = false;
   @State assistantNotice: string = ASSISTANT_DEFAULT_NOTICE;
   @State chatMessages: AiChatMessage[] = [];
-  @State generatedPlans: AiGeneratedPlanItem[] = [];
-  @State generatedFoodPlans: AiGeneratedFoodPlanItem[] = [];
+  @State chatMessagesRenderVersion: number = 0;
+  @State conversationHistory: AiConversationRecord[] = [];
+  @State activeConversationId: string = '';
   @State showConfigPanel: boolean = false;
+  @State showHistoryPanel: boolean = false;
+
+  private activeRequestToken: number = 0;
+  private pendingAssistantMessageId: string = '';
+  private cancelCurrentRequest?: () => void;
 
   aboutToAppear(): void {
     this.ensureDefaultAiConfig();
-    if (this.chatMessages.length === 0) {
+    this.loadConversationHistory();
+    if (this.conversationHistory.length > 0) {
+      this.openConversation(this.conversationHistory[0].id);
+    } else if (this.chatMessages.length === 0) {
       this.resetConversation();
     }
   }
@@ -119,14 +133,20 @@ export struct AiAssistantTabPage {
   }
 
   private resetConversation(): void {
+    if (this.assistantBusy) {
+      this.interruptAssistantRequest('已中断当前请求，并开始一段新对话。');
+    }
     this.questionInput = '';
-    this.generatedPlans = [];
-    this.generatedFoodPlans = [];
+    this.historyQuery = '';
     this.assistantBusy = false;
+    this.activeConversationId = createAiConversationRecord().id;
+    this.pendingAssistantMessageId = '';
+    this.cancelCurrentRequest = undefined;
     this.chatMessages = [
       createAiChatMessage(AI_ROLE_ASSISTANT, ASSISTANT_WELCOME_MESSAGE)
     ];
     this.assistantNotice = ASSISTANT_DEFAULT_NOTICE;
+    this.saveConversationSnapshot();
   }
 
   private getAiConfig(): AiAssistantConfig {
@@ -177,7 +197,7 @@ export struct AiAssistantTabPage {
 
   private getAssistantStatusText(): string {
     if (this.assistantBusy) {
-      return 'AI 正在整理建议，请稍等。';
+      return 'AI 正在整理建议。发送按钮已切换为中断按钮。';
     }
     if (!this.hasAiConfig()) {
       return '还没填好接口配置，先补上 API 地址、模型和 Key。';
@@ -197,12 +217,206 @@ export struct AiAssistantTabPage {
 
   private toggleConfigPanel(): void {
     this.showConfigPanel = !this.showConfigPanel;
+    if (this.showConfigPanel) {
+      this.showHistoryPanel = false;
+    }
   }
 
-  private addChatMessage(role: string, content: string): void {
-    let nextMessages: AiChatMessage[] = this.chatMessages.slice();
-    nextMessages.push(createAiChatMessage(role, content));
+  private toggleHistoryPanel(): void {
+    this.showHistoryPanel = !this.showHistoryPanel;
+    if (this.showHistoryPanel) {
+      this.showConfigPanel = false;
+    }
+  }
+
+  private updateChatMessages(nextMessages: AiChatMessage[], refreshVisibleMessages: boolean = false): void {
     this.chatMessages = nextMessages;
+    if (refreshVisibleMessages) {
+      this.chatMessagesRenderVersion += 1;
+    }
+    this.saveConversationSnapshot();
+  }
+
+  private loadConversationHistory(): void {
+    this.conversationHistory = deserializeAiConversationHistory(this.aiConversationHistoryText);
+  }
+
+  private cloneMessages(messages: AiChatMessage[]): AiChatMessage[] {
+    let result: AiChatMessage[] = [];
+    for (let index = 0; index < messages.length; index++) {
+      result.push(cloneAiChatMessage(messages[index]));
+    }
+    return result;
+  }
+
+  private buildConversationTitle(messages: AiChatMessage[]): string {
+    for (let index = 0; index < messages.length; index++) {
+      let currentMessage = messages[index];
+      if (currentMessage.role !== AI_ROLE_USER) {
+        continue;
+      }
+      let trimmedContent = currentMessage.content.trim();
+      if (trimmedContent.length === 0) {
+        continue;
+      }
+      if (trimmedContent.length <= 18) {
+        return trimmedContent;
+      }
+      return `${trimmedContent.substring(0, 18)}...`;
+    }
+    return '新对话';
+  }
+
+  private saveConversationSnapshot(): void {
+    if (this.activeConversationId.trim().length === 0) {
+      this.activeConversationId = createAiConversationRecord().id;
+    }
+
+    let createdAt: number = Date.now();
+    let nextHistory: AiConversationRecord[] = [];
+    for (let index = 0; index < this.conversationHistory.length; index++) {
+      let currentRecord = this.conversationHistory[index];
+      if (currentRecord.id !== this.activeConversationId) {
+        nextHistory.push(currentRecord);
+        continue;
+      }
+      createdAt = currentRecord.createdAt;
+    }
+
+    nextHistory.push({
+      id: this.activeConversationId,
+      title: this.buildConversationTitle(this.chatMessages),
+      createdAt: createdAt,
+      updatedAt: Date.now(),
+      messages: this.cloneMessages(this.chatMessages)
+    });
+    nextHistory.sort((left: AiConversationRecord, right: AiConversationRecord) => right.updatedAt - left.updatedAt);
+    this.conversationHistory = nextHistory;
+    this.aiConversationHistoryText = serializeAiConversationHistory(nextHistory);
+  }
+
+  private getConversationPreview(record: AiConversationRecord): string {
+    for (let index = record.messages.length - 1; index >= 0; index--) {
+      let currentMessage = record.messages[index];
+      let trimmedContent = currentMessage.content.trim();
+      if (trimmedContent.length > 0) {
+        return trimmedContent;
+      }
+      let trimmedThinking = currentMessage.thinkingContent.trim();
+      if (trimmedThinking.length > 0) {
+        return trimmedThinking;
+      }
+    }
+    return '暂无消息内容';
+  }
+
+  private formatHistoryTime(timestamp: number): string {
+    let date = new Date(timestamp);
+    let month = `${date.getMonth() + 1}`.padStart(2, '0');
+    let day = `${date.getDate()}`.padStart(2, '0');
+    let hour = `${date.getHours()}`.padStart(2, '0');
+    let minute = `${date.getMinutes()}`.padStart(2, '0');
+    return `${month}-${day} ${hour}:${minute}`;
+  }
+
+  private getFilteredConversationHistory(): AiConversationRecord[] {
+    let normalizedQuery = this.historyQuery.trim().toLowerCase();
+    let result: AiConversationRecord[] = [];
+    for (let index = 0; index < this.conversationHistory.length; index++) {
+      let currentRecord = this.conversationHistory[index];
+      if (normalizedQuery.length === 0) {
+        result.push(currentRecord);
+      } else {
+        let titleText = currentRecord.title.toLowerCase();
+        let previewText = this.getConversationPreview(currentRecord).toLowerCase();
+        let contentMatched: boolean = false;
+        for (let messageIndex = 0; messageIndex < currentRecord.messages.length; messageIndex++) {
+          let currentMessage = currentRecord.messages[messageIndex];
+          let searchableText = `${currentMessage.content} ${currentMessage.thinkingContent}`.toLowerCase();
+          if (searchableText.indexOf(normalizedQuery) >= 0) {
+            contentMatched = true;
+            break;
+          }
+        }
+        if (titleText.indexOf(normalizedQuery) >= 0 || previewText.indexOf(normalizedQuery) >= 0 || contentMatched) {
+          result.push(currentRecord);
+        }
+      }
+      if (result.length >= HISTORY_RESULT_LIMIT) {
+        break;
+      }
+    }
+    return result;
+  }
+
+  private openConversation(recordId: string): void {
+    for (let index = 0; index < this.conversationHistory.length; index++) {
+      let currentRecord = this.conversationHistory[index];
+      if (currentRecord.id !== recordId) {
+        continue;
+      }
+
+      if (this.assistantBusy) {
+        this.interruptAssistantRequest('已中断当前请求，并切换到历史对话。');
+      }
+      this.activeConversationId = currentRecord.id;
+      this.chatMessages = this.cloneMessages(currentRecord.messages);
+      this.pendingAssistantMessageId = '';
+      this.assistantBusy = false;
+      this.showHistoryPanel = false;
+      this.assistantNotice = `已载入 ${this.formatHistoryTime(currentRecord.updatedAt)} 的对话记录。`;
+      return;
+    }
+  }
+
+  private updateAssistantMessage(messageId: string, content: string, thinkingContent: string, status: string): void {
+    let nextMessages: AiChatMessage[] = [];
+    let matched: boolean = false;
+    for (let index = 0; index < this.chatMessages.length; index++) {
+      let currentMessage = this.chatMessages[index];
+      if (currentMessage.id !== messageId) {
+        nextMessages.push(cloneAiChatMessage(currentMessage));
+        continue;
+      }
+      matched = true;
+      let nextMessage = cloneAiChatMessage(currentMessage);
+      nextMessage.role = AI_ROLE_ASSISTANT;
+      nextMessage.content = content;
+      nextMessage.thinkingContent = thinkingContent;
+      nextMessage.status = status;
+      nextMessages.push(nextMessage);
+    }
+    if (!matched) {
+      nextMessages.push(createAiChatMessage(AI_ROLE_ASSISTANT, content, thinkingContent, status));
+    }
+    this.updateChatMessages(nextMessages, true);
+  }
+
+  private interruptAssistantRequest(noticeText: string = '已中断当前请求。'): void {
+    if (this.cancelCurrentRequest) {
+      this.cancelCurrentRequest();
+    }
+    if (this.pendingAssistantMessageId.trim().length > 0) {
+      this.updateAssistantMessage(
+        this.pendingAssistantMessageId,
+        '这次请求已中断。',
+        '已停止继续生成。你可以修改问题后重新发送。',
+        AI_MESSAGE_STATUS_CANCELLED
+      );
+    }
+    this.cancelCurrentRequest = undefined;
+    this.pendingAssistantMessageId = '';
+    this.assistantBusy = false;
+    this.assistantNotice = noticeText;
+  }
+
+  private finishAssistantRequestIfActive(requestToken: number): void {
+    if (this.activeRequestToken !== requestToken) {
+      return;
+    }
+    this.assistantBusy = false;
+    this.pendingAssistantMessageId = '';
+    this.cancelCurrentRequest = undefined;
   }
 
   private getTaskLoadingNotice(task: string): string {
@@ -216,6 +430,19 @@ export struct AiAssistantTabPage {
       return '正在生成运动和饮食全套计划...';
     }
     return '正在分析你的数据...';
+  }
+
+  private getTaskThinkingHint(task: string): string {
+    if (task === AI_TASK_GENERATE_PLAN) {
+      return 'AI 正在整理训练安排与强度节奏。';
+    }
+    if (task === AI_TASK_GENERATE_RECIPE) {
+      return 'AI 正在匹配餐次、热量与食材建议。';
+    }
+    if (task === AI_TASK_GENERATE_FULL_PLAN) {
+      return 'AI 正在同时协调训练与饮食计划。';
+    }
+    return 'AI 正在理解问题并整理答复。';
   }
 
   private buildGeneratedResultNotice(task: string, workoutCount: number, foodCount: number): string {
@@ -240,23 +467,52 @@ export struct AiAssistantTabPage {
     return 'AI 建议已更新。';
   }
 
-  private applyAssistantResponse(task: string, workoutPlans: AiGeneratedPlanItem[],
-    foodPlans: AiGeneratedFoodPlanItem[]): void {
-    if (task === AI_TASK_GENERATE_PLAN) {
-      this.generatedPlans = workoutPlans;
-    } else if (task === AI_TASK_GENERATE_RECIPE) {
-      this.generatedFoodPlans = foodPlans;
-    } else if (task === AI_TASK_GENERATE_FULL_PLAN) {
-      this.generatedPlans = workoutPlans;
-      this.generatedFoodPlans = foodPlans;
-    } else {
-      if (workoutPlans.length > 0) {
-        this.generatedPlans = workoutPlans;
-      }
-      if (foodPlans.length > 0) {
-        this.generatedFoodPlans = foodPlans;
-      }
+  private buildAssistantVisibleReply(task: string, response: AiAssistantResponse): string {
+    let trimmedResponse = response.reply.trim();
+    if (trimmedResponse.length > 0) {
+      return trimmedResponse;
     }
+    if (!response.parseSucceeded && task === AI_TASK_CHAT) {
+      return 'AI 返回了计划草案数据，但格式不完整。请直接说“帮我制定训练计划”或“帮我制定饮食计划”后重试。';
+    }
+    return this.buildGeneratedResultNotice(task, response.plans.length, response.foodPlans.length);
+  }
+
+  private buildAssistantErrorReply(errorText: string): string {
+    let trimmedError = errorText.trim();
+    if (trimmedError.length === 0) {
+      return 'AI 请求失败，请检查网络、模型名和 API Key。';
+    }
+    return trimmedError;
+  }
+
+  private applyAssistantResponse(messageId: string, task: string, workoutPlans: AiGeneratedPlanItem[],
+    foodPlans: AiGeneratedFoodPlanItem[]): void {
+    let nextMessages: AiChatMessage[] = [];
+    for (let index = 0; index < this.chatMessages.length; index++) {
+      let currentMessage = this.chatMessages[index];
+      if (currentMessage.id !== messageId) {
+        nextMessages.push(cloneAiChatMessage(currentMessage));
+        continue;
+      }
+
+      let nextMessage = cloneAiChatMessage(currentMessage);
+      if (task === AI_TASK_GENERATE_PLAN) {
+        nextMessage.generatedPlans = workoutPlans;
+        nextMessage.generatedFoodPlans = [];
+      } else if (task === AI_TASK_GENERATE_RECIPE) {
+        nextMessage.generatedPlans = [];
+        nextMessage.generatedFoodPlans = foodPlans;
+      } else if (task === AI_TASK_GENERATE_FULL_PLAN) {
+        nextMessage.generatedPlans = workoutPlans;
+        nextMessage.generatedFoodPlans = foodPlans;
+      } else {
+        nextMessage.generatedPlans = workoutPlans;
+        nextMessage.generatedFoodPlans = foodPlans;
+      }
+      nextMessages.push(nextMessage);
+    }
+    this.updateChatMessages(nextMessages, true);
   }
 
   private async submitToAssistant(task: string, promptText: string): Promise<void> {
@@ -270,10 +526,24 @@ export struct AiAssistantTabPage {
       return;
     }
 
-    this.addChatMessage(AI_ROLE_USER, trimmedPrompt);
+    let nextMessages: AiChatMessage[] = this.chatMessages.slice();
+    let userMessage: AiChatMessage = createAiChatMessage(AI_ROLE_USER, trimmedPrompt);
+    let pendingMessage: AiChatMessage = createAiChatMessage(
+      AI_ROLE_ASSISTANT,
+      '',
+      this.getTaskThinkingHint(task),
+      AI_MESSAGE_STATUS_THINKING
+    );
+    nextMessages.push(userMessage);
+    nextMessages.push(pendingMessage);
+    this.updateChatMessages(nextMessages, true);
     this.questionInput = '';
     this.assistantBusy = true;
     this.assistantNotice = this.getTaskLoadingNotice(task);
+    this.pendingAssistantMessageId = pendingMessage.id;
+    this.activeRequestToken += 1;
+    let requestToken: number = this.activeRequestToken;
+    let requestHistoryMessages: AiChatMessage[] = nextMessages.slice(0, nextMessages.length - 1);
 
     try {
       let savedWorkoutNames: string[] = [];
@@ -292,21 +562,50 @@ export struct AiAssistantTabPage {
         existingFoodPlanCount: this.getFoodPlans().length,
         dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
         savedWorkoutNames: savedWorkoutNames,
-        historyMessages: this.chatMessages
+        historyMessages: requestHistoryMessages
+      }, {
+        onRequestCreated: (cancelHandler: () => void) => {
+          if (this.activeRequestToken !== requestToken) {
+            cancelHandler();
+            return;
+          }
+          this.cancelCurrentRequest = cancelHandler;
+        }
       });
 
-      this.addChatMessage(AI_ROLE_ASSISTANT, response.reply);
-      this.applyAssistantResponse(task, response.plans, response.foodPlans);
+      if (this.activeRequestToken !== requestToken) {
+        return;
+      }
+      let visibleReply = this.buildAssistantVisibleReply(task, response);
+      this.finishAssistantRequestIfActive(requestToken);
+      this.updateAssistantMessage(
+        pendingMessage.id,
+        visibleReply,
+        response.reasoningContent.trim(),
+        AI_MESSAGE_STATUS_DONE
+      );
+      this.applyAssistantResponse(pendingMessage.id, task, response.plans, response.foodPlans);
       this.assistantNotice = this.buildGeneratedResultNotice(task, response.plans.length, response.foodPlans.length);
     } catch (error) {
+      if (this.activeRequestToken !== requestToken) {
+        return;
+      }
       let errorText = `${error}`;
       if (errorText.trim().length === 0 || errorText === '[object Object]') {
         errorText = 'AI 请求失败，请检查网络、模型名和 API Key。';
       }
-      this.addChatMessage(AI_ROLE_ASSISTANT, `这次没有成功：${errorText}`);
+      let messageStatus: string = AI_MESSAGE_STATUS_ERROR;
+      let messageThinking: string = '';
+      let messageContent: string = this.buildAssistantErrorReply(errorText);
+      if (errorText.indexOf('请求已中断') >= 0) {
+        messageStatus = AI_MESSAGE_STATUS_CANCELLED;
+        messageContent = '这次请求已中断。';
+      }
+      this.finishAssistantRequestIfActive(requestToken);
+      this.updateAssistantMessage(pendingMessage.id, messageContent, messageThinking, messageStatus);
       this.assistantNotice = errorText;
     } finally {
-      this.assistantBusy = false;
+      this.finishAssistantRequestIfActive(requestToken);
     }
   }
 
@@ -339,7 +638,7 @@ export struct AiAssistantTabPage {
   }
 
   private sendFreeQuestion(): void {
-    this.submitToAssistant(AI_TASK_CHAT, this.questionInput);
+    this.submitToAssistant(inferAiAssistantTaskFromPrompt(this.questionInput), this.questionInput);
   }
 
   private handleQuickAction(actionId: string): void {
@@ -359,13 +658,13 @@ export struct AiAssistantTabPage {
   }
 
   private getQuickActionBackgroundColor(actionId: string): string {
-    if (actionId === 'plan' && this.generatedPlans.length > 0) {
+    if (actionId === 'plan' && this.getGeneratedPlanCount() > 0) {
       return '#F2F0FF';
     }
-    if (actionId === 'recipe' && this.generatedFoodPlans.length > 0) {
+    if (actionId === 'recipe' && this.getGeneratedFoodPlanCount() > 0) {
       return '#FFF6E8';
     }
-    if (actionId === 'full' && (this.generatedPlans.length > 0 || this.generatedFoodPlans.length > 0)) {
+    if (actionId === 'full' && (this.getGeneratedPlanCount() > 0 || this.getGeneratedFoodPlanCount() > 0)) {
       return '#ECFFF4';
     }
     if (actionId === 'analyze') {
@@ -375,13 +674,13 @@ export struct AiAssistantTabPage {
   }
 
   private getQuickActionBorderColor(actionId: string): string {
-    if (actionId === 'plan' && this.generatedPlans.length > 0) {
+    if (actionId === 'plan' && this.getGeneratedPlanCount() > 0) {
       return '#D7CCFF';
     }
-    if (actionId === 'recipe' && this.generatedFoodPlans.length > 0) {
+    if (actionId === 'recipe' && this.getGeneratedFoodPlanCount() > 0) {
       return '#F5D8A8';
     }
-    if (actionId === 'full' && (this.generatedPlans.length > 0 || this.generatedFoodPlans.length > 0)) {
+    if (actionId === 'full' && (this.getGeneratedPlanCount() > 0 || this.getGeneratedFoodPlanCount() > 0)) {
       return '#BEE5CC';
     }
     if (actionId === 'analyze') {
@@ -423,10 +722,70 @@ export struct AiAssistantTabPage {
     return parsedValue;
   }
 
-  private updateGeneratedPlanField(planId: string, field: string, value: string): void {
+  private getGeneratedPlanCount(): number {
+    let count: number = 0;
+    for (let index = 0; index < this.chatMessages.length; index++) {
+      count += this.chatMessages[index].generatedPlans.length;
+    }
+    return count;
+  }
+
+  private getGeneratedFoodPlanCount(): number {
+    let count: number = 0;
+    for (let index = 0; index < this.chatMessages.length; index++) {
+      count += this.chatMessages[index].generatedFoodPlans.length;
+    }
+    return count;
+  }
+
+  private getMessageGeneratedPlans(message: AiChatMessage): AiGeneratedPlanItem[] {
+    return message.generatedPlans;
+  }
+
+  private getMessageGeneratedFoodPlans(message: AiChatMessage): AiGeneratedFoodPlanItem[] {
+    return message.generatedFoodPlans;
+  }
+
+  private findChatMessage(messageId: string): AiChatMessage | undefined {
+    for (let index = 0; index < this.chatMessages.length; index++) {
+      if (this.chatMessages[index].id === messageId) {
+        return this.chatMessages[index];
+      }
+    }
+    return undefined;
+  }
+
+  private updateMessageGeneratedDrafts(messageId: string, generatedPlans?: AiGeneratedPlanItem[],
+    generatedFoodPlans?: AiGeneratedFoodPlanItem[], refreshVisibleMessages: boolean = false): void {
+    let nextMessages: AiChatMessage[] = [];
+    for (let index = 0; index < this.chatMessages.length; index++) {
+      let currentMessage = this.chatMessages[index];
+      if (currentMessage.id !== messageId) {
+        nextMessages.push(cloneAiChatMessage(currentMessage));
+        continue;
+      }
+
+      let nextMessage = cloneAiChatMessage(currentMessage);
+      if (generatedPlans !== undefined) {
+        nextMessage.generatedPlans = generatedPlans;
+      }
+      if (generatedFoodPlans !== undefined) {
+        nextMessage.generatedFoodPlans = generatedFoodPlans;
+      }
+      nextMessages.push(nextMessage);
+    }
+    this.updateChatMessages(nextMessages, refreshVisibleMessages);
+  }
+
+  private updateGeneratedPlanField(messageId: string, planId: string, field: string, value: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      return;
+    }
+
     let nextPlans: AiGeneratedPlanItem[] = [];
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
+    for (let index = 0; index < targetMessage.generatedPlans.length; index++) {
+      let currentPlan = targetMessage.generatedPlans[index];
       if (currentPlan.id !== planId) {
         nextPlans.push(currentPlan);
         continue;
@@ -443,13 +802,18 @@ export struct AiAssistantTabPage {
         imported: currentPlan.imported
       });
     }
-    this.generatedPlans = nextPlans;
+    this.updateMessageGeneratedDrafts(messageId, nextPlans, undefined);
   }
 
-  private updateGeneratedFoodPlanField(planId: string, field: string, value: string): void {
+  private updateGeneratedFoodPlanField(messageId: string, planId: string, field: string, value: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      return;
+    }
+
     let nextPlans: AiGeneratedFoodPlanItem[] = [];
-    for (let index = 0; index < this.generatedFoodPlans.length; index++) {
-      let currentPlan = this.generatedFoodPlans[index];
+    for (let index = 0; index < targetMessage.generatedFoodPlans.length; index++) {
+      let currentPlan = targetMessage.generatedFoodPlans[index];
       if (currentPlan.id !== planId) {
         nextPlans.push(currentPlan);
         continue;
@@ -469,13 +833,18 @@ export struct AiAssistantTabPage {
         imported: currentPlan.imported
       });
     }
-    this.generatedFoodPlans = nextPlans;
+    this.updateMessageGeneratedDrafts(messageId, undefined, nextPlans);
   }
 
-  private markPlanImported(planId: string): void {
+  private markPlanImported(messageId: string, planId: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      return;
+    }
+
     let nextPlans: AiGeneratedPlanItem[] = [];
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
+    for (let index = 0; index < targetMessage.generatedPlans.length; index++) {
+      let currentPlan = targetMessage.generatedPlans[index];
       nextPlans.push({
         id: currentPlan.id,
         date: currentPlan.date,
@@ -487,13 +856,18 @@ export struct AiAssistantTabPage {
         imported: currentPlan.id === planId ? true : currentPlan.imported
       });
     }
-    this.generatedPlans = nextPlans;
+    this.updateMessageGeneratedDrafts(messageId, nextPlans, undefined, true);
   }
 
-  private markFoodPlanImported(planId: string): void {
+  private markFoodPlanImported(messageId: string, planId: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      return;
+    }
+
     let nextPlans: AiGeneratedFoodPlanItem[] = [];
-    for (let index = 0; index < this.generatedFoodPlans.length; index++) {
-      let currentPlan = this.generatedFoodPlans[index];
+    for (let index = 0; index < targetMessage.generatedFoodPlans.length; index++) {
+      let currentPlan = targetMessage.generatedFoodPlans[index];
       nextPlans.push({
         id: currentPlan.id,
         date: currentPlan.date,
@@ -508,14 +882,20 @@ export struct AiAssistantTabPage {
         imported: currentPlan.id === planId ? true : currentPlan.imported
       });
     }
-    this.generatedFoodPlans = nextPlans;
+    this.updateMessageGeneratedDrafts(messageId, undefined, nextPlans, true);
   }
 
-  private importGeneratedPlan(planId: string): void {
+  private importGeneratedPlan(messageId: string, planId: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      this.assistantNotice = '没有找到这条训练计划草案，请重新生成一次。';
+      return;
+    }
+
     let targetPlan: AiGeneratedPlanItem | undefined = undefined;
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      if (this.generatedPlans[index].id === planId) {
-        targetPlan = this.generatedPlans[index];
+    for (let index = 0; index < targetMessage.generatedPlans.length; index++) {
+      if (targetMessage.generatedPlans[index].id === planId) {
+        targetPlan = targetMessage.generatedPlans[index];
         break;
       }
     }
@@ -541,7 +921,7 @@ export struct AiAssistantTabPage {
     createdPlan.accentColor = targetPlan.accentColor;
     nextPlans.unshift(createdPlan);
     this.workoutPlanText = serializeWorkoutPlans(nextPlans);
-    this.markPlanImported(planId);
+    this.markPlanImported(messageId, planId);
     this.assistantNotice = `已导入训练计划「${targetPlan.title}」，现在可以去训练页查看。`;
   }
 
@@ -561,11 +941,17 @@ export struct AiAssistantTabPage {
     };
   }
 
-  private importGeneratedFoodPlan(planId: string): void {
+  private importGeneratedFoodPlan(messageId: string, planId: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      this.assistantNotice = '没有找到这条饮食计划草案，请重新生成一次。';
+      return;
+    }
+
     let targetPlan: AiGeneratedFoodPlanItem | undefined = undefined;
-    for (let index = 0; index < this.generatedFoodPlans.length; index++) {
-      if (this.generatedFoodPlans[index].id === planId) {
-        targetPlan = this.generatedFoodPlans[index];
+    for (let index = 0; index < targetMessage.generatedFoodPlans.length; index++) {
+      if (targetMessage.generatedFoodPlans[index].id === planId) {
+        targetPlan = targetMessage.generatedFoodPlans[index];
         break;
       }
     }
@@ -582,16 +968,22 @@ export struct AiAssistantTabPage {
     let nextPlans: FoodPlanItem[] = this.getFoodPlans().slice();
     nextPlans.unshift(this.createFoodPlanFromGenerated(targetPlan));
     this.foodPlanText = serializeFoodPlans(nextPlans);
-    this.markFoodPlanImported(planId);
+    this.markFoodPlanImported(messageId, planId);
     this.assistantNotice = `已导入食谱「${targetPlan.name}」，现在可以去饮食页查看。`;
   }
 
-  private importAllGeneratedPlans(): void {
+  private importAllGeneratedPlans(messageId: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      this.assistantNotice = '没有找到这组训练计划草案，请重新生成一次。';
+      return;
+    }
+
     let nextPlans: WorkoutPlanItem[] = this.getWorkoutPlans().slice();
     let importedCount: number = 0;
 
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
+    for (let index = 0; index < targetMessage.generatedPlans.length; index++) {
+      let currentPlan = targetMessage.generatedPlans[index];
       if (currentPlan.imported) {
         continue;
       }
@@ -616,8 +1008,8 @@ export struct AiAssistantTabPage {
 
     this.workoutPlanText = serializeWorkoutPlans(nextPlans);
     let markedPlans: AiGeneratedPlanItem[] = [];
-    for (let index = 0; index < this.generatedPlans.length; index++) {
-      let currentPlan = this.generatedPlans[index];
+    for (let index = 0; index < targetMessage.generatedPlans.length; index++) {
+      let currentPlan = targetMessage.generatedPlans[index];
       markedPlans.push({
         id: currentPlan.id,
         date: currentPlan.date,
@@ -629,16 +1021,22 @@ export struct AiAssistantTabPage {
         imported: true
       });
     }
-    this.generatedPlans = markedPlans;
+    this.updateMessageGeneratedDrafts(messageId, markedPlans, undefined, true);
     this.assistantNotice = `已导入 ${importedCount} 条训练计划草案。`;
   }
 
-  private importAllGeneratedFoodPlans(): void {
+  private importAllGeneratedFoodPlans(messageId: string): void {
+    let targetMessage = this.findChatMessage(messageId);
+    if (!targetMessage) {
+      this.assistantNotice = '没有找到这组饮食计划草案，请重新生成一次。';
+      return;
+    }
+
     let nextPlans: FoodPlanItem[] = this.getFoodPlans().slice();
     let importedCount: number = 0;
 
-    for (let index = 0; index < this.generatedFoodPlans.length; index++) {
-      let currentPlan = this.generatedFoodPlans[index];
+    for (let index = 0; index < targetMessage.generatedFoodPlans.length; index++) {
+      let currentPlan = targetMessage.generatedFoodPlans[index];
       if (currentPlan.imported) {
         continue;
       }
@@ -653,8 +1051,8 @@ export struct AiAssistantTabPage {
 
     this.foodPlanText = serializeFoodPlans(nextPlans);
     let markedPlans: AiGeneratedFoodPlanItem[] = [];
-    for (let index = 0; index < this.generatedFoodPlans.length; index++) {
-      let currentPlan = this.generatedFoodPlans[index];
+    for (let index = 0; index < targetMessage.generatedFoodPlans.length; index++) {
+      let currentPlan = targetMessage.generatedFoodPlans[index];
       markedPlans.push({
         id: currentPlan.id,
         date: currentPlan.date,
@@ -669,17 +1067,17 @@ export struct AiAssistantTabPage {
         imported: true
       });
     }
-    this.generatedFoodPlans = markedPlans;
+    this.updateMessageGeneratedDrafts(messageId, undefined, markedPlans, true);
     this.assistantNotice = `已导入 ${importedCount} 条饮食计划草案。`;
   }
 
-  private clearGeneratedPlans(): void {
-    this.generatedPlans = [];
+  private clearGeneratedPlans(messageId: string): void {
+    this.updateMessageGeneratedDrafts(messageId, [], undefined, true);
     this.assistantNotice = '已清空当前训练计划草案。';
   }
 
-  private clearGeneratedFoodPlans(): void {
-    this.generatedFoodPlans = [];
+  private clearGeneratedFoodPlans(messageId: string): void {
+    this.updateMessageGeneratedDrafts(messageId, undefined, [], true);
     this.assistantNotice = '已清空当前饮食计划草案。';
   }
 
@@ -698,6 +1096,53 @@ export struct AiAssistantTabPage {
 
   private openFoodTab(): void {
     this.currentTabIndex = FOOD_TAB_INDEX;
+  }
+
+  private hasMessageThinkingContent(message: AiChatMessage): boolean {
+    return message.thinkingContent.trim().length > 0;
+  }
+
+  private getChatMessageRenderKey(message: AiChatMessage): string {
+    return `${message.id}-${this.chatMessagesRenderVersion}`;
+  }
+
+  private getAssistantMessageStatusLabel(message: AiChatMessage): string {
+    if (message.status === AI_MESSAGE_STATUS_THINKING) {
+      return '思考中';
+    }
+    if (message.status === AI_MESSAGE_STATUS_CANCELLED) {
+      return '已中断';
+    }
+    if (message.status === AI_MESSAGE_STATUS_ERROR) {
+      return '失败';
+    }
+    return '已完成';
+  }
+
+  private getAssistantMessageStatusColor(message: AiChatMessage): string {
+    if (message.status === AI_MESSAGE_STATUS_THINKING) {
+      return '#0F6BFF';
+    }
+    if (message.status === AI_MESSAGE_STATUS_CANCELLED) {
+      return '#C76B12';
+    }
+    if (message.status === AI_MESSAGE_STATUS_ERROR) {
+      return '#D14343';
+    }
+    return '#5373A6';
+  }
+
+  private getAssistantDetailLabel(message: AiChatMessage): string {
+    if (message.status === AI_MESSAGE_STATUS_THINKING) {
+      return 'AI 思考中';
+    }
+    if (message.status === AI_MESSAGE_STATUS_ERROR) {
+      return '错误信息';
+    }
+    if (message.status === AI_MESSAGE_STATUS_CANCELLED) {
+      return '中断信息';
+    }
+    return '本次推理';
   }
 
   @Builder
@@ -787,7 +1232,7 @@ export struct AiAssistantTabPage {
             .fontSize(12)
             .fontColor('#5373A6')
 
-          TextInput({ placeholder: getDefaultAiApiKey(), text: this.aiApiKeyText })
+          TextInput({ placeholder: '请输入 SiliconFlow API Key', text: this.aiApiKeyText })
             .fontSize(15)
             .fontColor(PRIMARY_TEXT_COLOR)
             .height(46)
@@ -816,6 +1261,118 @@ export struct AiAssistantTabPage {
   }
 
   @Builder
+  buildHistoryPanel() {
+    Column({ space: 14 }) {
+      Row() {
+        Column({ space: 4 }) {
+          Text('聊天记录')
+            .fontSize(18)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(PRIMARY_TEXT_COLOR)
+
+          Text(`最近 ${Math.min(this.conversationHistory.length, HISTORY_RESULT_LIMIT)} 条会话，可按标题或内容筛选`)
+            .fontSize(12)
+            .fontColor(SECONDARY_TEXT_COLOR)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Button('收起')
+          .height(32)
+          .fontSize(12)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#5373A6')
+          .backgroundColor('#F5F8FF')
+          .borderRadius(16)
+          .padding({ left: 14, right: 14 })
+          .onClick(() => {
+            this.showHistoryPanel = false;
+          })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      TextInput({ placeholder: '搜索聊天标题或最后一条消息...', text: this.historyQuery })
+        .fontSize(14)
+        .fontColor(PRIMARY_TEXT_COLOR)
+        .height(42)
+        .width('100%')
+        .padding({ left: 12, right: 12 })
+        .backgroundColor('#F5F8FF')
+        .borderRadius(14)
+        .onChange((value: string) => {
+          this.historyQuery = value;
+        })
+
+      if (this.getFilteredConversationHistory().length === 0) {
+        Text('还没有匹配到聊天记录。')
+          .fontSize(13)
+          .fontColor(SECONDARY_TEXT_COLOR)
+          .width('100%')
+      } else {
+        Column({ space: 10 }) {
+          ForEach(this.getFilteredConversationHistory(), (record: AiConversationRecord) => {
+            Button() {
+              Column({ space: 6 }) {
+                Row() {
+                  Text(record.title)
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(PRIMARY_TEXT_COLOR)
+                    .layoutWeight(1)
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                  Text(this.formatHistoryTime(record.updatedAt))
+                    .fontSize(11)
+                    .fontColor('#5373A6')
+                }
+                .width('100%')
+
+                Text(this.getConversationPreview(record))
+                  .fontSize(12)
+                  .lineHeight(18)
+                  .fontColor(SECONDARY_TEXT_COLOR)
+                  .width('100%')
+                  .maxLines(2)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+                Text(`${record.messages.length} 条消息`)
+                  .fontSize(11)
+                  .fontColor('#98A2B3')
+                  .width('100%')
+              }
+              .alignItems(HorizontalAlign.Start)
+              .width('100%')
+              .padding(14)
+            }
+            .width('100%')
+            .backgroundColor(record.id === this.activeConversationId ? '#EAF2FF' : '#FFFFFF')
+            .borderRadius(18)
+            .border({
+              color: record.id === this.activeConversationId ? '#BFD6FF' : '#D8E4F2',
+              width: 1
+            })
+            .onClick(() => {
+              this.openConversation(record.id);
+            })
+          }, (record: AiConversationRecord) => record.id)
+        }
+        .width('100%')
+      }
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
+    .padding(18)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(24)
+    .border({
+      color: '#D8E4F2',
+      width: 1
+    })
+  }
+
+  @Builder
   buildEmptyConversationState() {
     Column({ space: 12 }) {
       Text('开始新对话')
@@ -823,7 +1380,7 @@ export struct AiAssistantTabPage {
         .fontWeight(FontWeight.Bolder)
         .fontColor(PRIMARY_TEXT_COLOR)
 
-      Text('直接输入你的问题，或者先用下方的趋势分析、训练计划、定制食谱和全套计划。')
+      Text('直接输入你的问题，或者先用下方的体重分析、训练计划、饮食计划和制定计划。')
         .fontSize(14)
         .lineHeight(22)
         .fontColor(SECONDARY_TEXT_COLOR)
@@ -840,16 +1397,61 @@ export struct AiAssistantTabPage {
       ForEach(this.chatMessages, (message: AiChatMessage) => {
         Row() {
           Column({ space: 6 }) {
-            Text(this.isAssistantMessage(message) ? 'AI 助手' : this.getUserName())
-              .fontSize(11)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(this.isAssistantMessage(message) ? '#5373A6' : '#98A2B3')
+            Row() {
+              Text(this.isAssistantMessage(message) ? 'AI 助手' : this.getUserName())
+                .fontSize(11)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.isAssistantMessage(message) ? '#5373A6' : '#98A2B3')
 
-            Text(message.content)
-              .fontSize(14)
-              .lineHeight(22)
-              .fontColor(this.isAssistantMessage(message) ? PRIMARY_TEXT_COLOR : '#FFFFFF')
+              if (this.isAssistantMessage(message)) {
+                Text(this.getAssistantMessageStatusLabel(message))
+                  .fontSize(10)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(this.getAssistantMessageStatusColor(message))
+                  .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                  .backgroundColor('#FFFFFF')
+                  .borderRadius(999)
+              }
+            }
+            .width('100%')
+            .justifyContent(FlexAlign.SpaceBetween)
+            .alignItems(VerticalAlign.Center)
+
+            if (this.isAssistantMessage(message) && this.hasMessageThinkingContent(message)) {
+              Column({ space: 6 }) {
+                Text(this.getAssistantDetailLabel(message))
+                  .fontSize(11)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(this.getAssistantMessageStatusColor(message))
+
+                Text(message.thinkingContent)
+                  .fontSize(12)
+                  .lineHeight(19)
+                  .fontColor('#5373A6')
+                  .width('100%')
+              }
+              .alignItems(HorizontalAlign.Start)
               .width('100%')
+              .padding(12)
+              .backgroundColor('#FFFFFF')
+              .borderRadius(18)
+            }
+
+            if (!this.isAssistantMessage(message) || message.content.trim().length > 0) {
+              Text(message.content)
+                .fontSize(14)
+                .lineHeight(22)
+                .fontColor(this.isAssistantMessage(message) ? PRIMARY_TEXT_COLOR : '#FFFFFF')
+                .width('100%')
+            }
+
+            if (this.isAssistantMessage(message) && this.getMessageGeneratedPlans(message).length > 0) {
+              this.buildGeneratedPlansSection(message)
+            }
+
+            if (this.isAssistantMessage(message) && this.getMessageGeneratedFoodPlans(message).length > 0) {
+              this.buildGeneratedFoodPlansSection(message)
+            }
           }
           .alignItems(HorizontalAlign.Start)
           .width('78%')
@@ -863,14 +1465,14 @@ export struct AiAssistantTabPage {
         }
         .width('100%')
         .justifyContent(this.isAssistantMessage(message) ? FlexAlign.Start : FlexAlign.End)
-      }, (message: AiChatMessage) => message.id)
+      }, (message: AiChatMessage) => this.getChatMessageRenderKey(message))
     }
     .width('100%')
     .padding({ top: 8, bottom: 8 })
   }
 
   @Builder
-  buildGeneratedPlanCard(plan: AiGeneratedPlanItem) {
+  buildGeneratedPlanCard(messageId: string, plan: AiGeneratedPlanItem) {
     Column({ space: 12 }) {
       Row() {
         Column({ space: 4 }) {
@@ -907,7 +1509,7 @@ export struct AiAssistantTabPage {
         .backgroundColor('#F5F8FF')
         .borderRadius(14)
         .onChange((value: string) => {
-          this.updateGeneratedPlanField(plan.id, 'date', value);
+          this.updateGeneratedPlanField(messageId, plan.id, 'date', value);
         })
 
       TextInput({ placeholder: '计划标题', text: plan.title })
@@ -919,7 +1521,7 @@ export struct AiAssistantTabPage {
         .backgroundColor('#F5F8FF')
         .borderRadius(14)
         .onChange((value: string) => {
-          this.updateGeneratedPlanField(plan.id, 'title', value);
+          this.updateGeneratedPlanField(messageId, plan.id, 'title', value);
         })
 
       TextInput({ placeholder: '备注，可继续补充训练安排', text: plan.notes })
@@ -931,7 +1533,7 @@ export struct AiAssistantTabPage {
         .backgroundColor('#F5F8FF')
         .borderRadius(14)
         .onChange((value: string) => {
-          this.updateGeneratedPlanField(plan.id, 'notes', value);
+          this.updateGeneratedPlanField(messageId, plan.id, 'notes', value);
         })
 
       Row({ space: 10 }) {
@@ -944,7 +1546,7 @@ export struct AiAssistantTabPage {
           .backgroundColor(plan.imported ? '#98A2B3' : plan.accentColor)
           .borderRadius(16)
           .onClick(() => {
-            this.importGeneratedPlan(plan.id);
+            this.importGeneratedPlan(messageId, plan.id);
           })
 
         Button('打开训练页')
@@ -973,7 +1575,7 @@ export struct AiAssistantTabPage {
   }
 
   @Builder
-  buildGeneratedFoodPlanCard(plan: AiGeneratedFoodPlanItem) {
+  buildGeneratedFoodPlanCard(messageId: string, plan: AiGeneratedFoodPlanItem) {
     Column({ space: 12 }) {
       Row() {
         Column({ space: 4 }) {
@@ -1022,7 +1624,7 @@ export struct AiAssistantTabPage {
           .backgroundColor('#F5F8FF')
           .borderRadius(14)
           .onChange((value: string) => {
-            this.updateGeneratedFoodPlanField(plan.id, 'date', value);
+            this.updateGeneratedFoodPlanField(messageId, plan.id, 'date', value);
           })
 
         TextInput({ placeholder: '餐次 breakfast/lunch/dinner/snack', text: plan.mealType })
@@ -1034,7 +1636,7 @@ export struct AiAssistantTabPage {
           .backgroundColor('#F5F8FF')
           .borderRadius(14)
           .onChange((value: string) => {
-            this.updateGeneratedFoodPlanField(plan.id, 'mealType', value);
+            this.updateGeneratedFoodPlanField(messageId, plan.id, 'mealType', value);
           })
       }
       .width('100%')
@@ -1048,7 +1650,7 @@ export struct AiAssistantTabPage {
         .backgroundColor('#F5F8FF')
         .borderRadius(14)
         .onChange((value: string) => {
-          this.updateGeneratedFoodPlanField(plan.id, 'name', value);
+          this.updateGeneratedFoodPlanField(messageId, plan.id, 'name', value);
         })
 
       Row({ space: 10 }) {
@@ -1061,7 +1663,7 @@ export struct AiAssistantTabPage {
           .backgroundColor('#F5F8FF')
           .borderRadius(14)
           .onChange((value: string) => {
-            this.updateGeneratedFoodPlanField(plan.id, 'serving', value);
+            this.updateGeneratedFoodPlanField(messageId, plan.id, 'serving', value);
           })
 
         TextInput({ placeholder: '热量 kcal', text: `${Math.round(plan.calories)}` })
@@ -1073,7 +1675,7 @@ export struct AiAssistantTabPage {
           .backgroundColor('#F5F8FF')
           .borderRadius(14)
           .onChange((value: string) => {
-            this.updateGeneratedFoodPlanField(plan.id, 'calories', value);
+            this.updateGeneratedFoodPlanField(messageId, plan.id, 'calories', value);
           })
       }
       .width('100%')
@@ -1087,7 +1689,7 @@ export struct AiAssistantTabPage {
         .backgroundColor('#F5F8FF')
         .borderRadius(14)
         .onChange((value: string) => {
-          this.updateGeneratedFoodPlanField(plan.id, 'notes', value);
+          this.updateGeneratedFoodPlanField(messageId, plan.id, 'notes', value);
         })
 
       Row({ space: 10 }) {
@@ -1100,7 +1702,7 @@ export struct AiAssistantTabPage {
           .backgroundColor(plan.imported ? '#98A2B3' : plan.accentColor)
           .borderRadius(16)
           .onClick(() => {
-            this.importGeneratedFoodPlan(plan.id);
+            this.importGeneratedFoodPlan(messageId, plan.id);
           })
 
         Button('打开饮食页')
@@ -1129,16 +1731,16 @@ export struct AiAssistantTabPage {
   }
 
   @Builder
-  buildGeneratedPlansSection() {
+  buildGeneratedPlansSection(message: AiChatMessage) {
     Column({ space: 14 }) {
       Row() {
         Column({ space: 4 }) {
           Text('训练计划草案')
-            .fontSize(18)
+            .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(PRIMARY_TEXT_COLOR)
 
-          Text(`${this.generatedPlans.length} 条待处理草案`)
+          Text(`${this.getMessageGeneratedPlans(message).length} 条待处理草案`)
             .fontSize(12)
             .fontColor(SECONDARY_TEXT_COLOR)
         }
@@ -1154,7 +1756,7 @@ export struct AiAssistantTabPage {
             .backgroundColor('#0F6BFF')
             .borderRadius(17)
             .onClick(() => {
-              this.importAllGeneratedPlans();
+              this.importAllGeneratedPlans(message.id);
             })
 
           Button('清空')
@@ -1165,35 +1767,33 @@ export struct AiAssistantTabPage {
             .backgroundColor('#F2F0FF')
             .borderRadius(17)
             .onClick(() => {
-              this.clearGeneratedPlans();
+              this.clearGeneratedPlans(message.id);
             })
         }
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
 
-      ForEach(this.generatedPlans, (plan: AiGeneratedPlanItem) => {
-        this.buildGeneratedPlanCard(plan)
+      ForEach(this.getMessageGeneratedPlans(message), (plan: AiGeneratedPlanItem) => {
+        this.buildGeneratedPlanCard(message.id, plan)
       }, (plan: AiGeneratedPlanItem) => plan.id)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
-    .padding(18)
-    .backgroundColor(SURFACE_BACKGROUND_COLOR)
-    .borderRadius(24)
+    .padding({ top: 6, bottom: 2 })
   }
 
   @Builder
-  buildGeneratedFoodPlansSection() {
+  buildGeneratedFoodPlansSection(message: AiChatMessage) {
     Column({ space: 14 }) {
       Row() {
         Column({ space: 4 }) {
           Text('饮食计划草案')
-            .fontSize(18)
+            .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(PRIMARY_TEXT_COLOR)
 
-          Text(`${this.generatedFoodPlans.length} 条待处理草案`)
+          Text(`${this.getMessageGeneratedFoodPlans(message).length} 条待处理草案`)
             .fontSize(12)
             .fontColor(SECONDARY_TEXT_COLOR)
         }
@@ -1209,7 +1809,7 @@ export struct AiAssistantTabPage {
             .backgroundColor('#D97706')
             .borderRadius(17)
             .onClick(() => {
-              this.importAllGeneratedFoodPlans();
+              this.importAllGeneratedFoodPlans(message.id);
             })
 
           Button('清空')
@@ -1220,50 +1820,51 @@ export struct AiAssistantTabPage {
             .backgroundColor('#FFF1D9')
             .borderRadius(17)
             .onClick(() => {
-              this.clearGeneratedFoodPlans();
+              this.clearGeneratedFoodPlans(message.id);
             })
         }
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
 
-      ForEach(this.generatedFoodPlans, (plan: AiGeneratedFoodPlanItem) => {
-        this.buildGeneratedFoodPlanCard(plan)
+      ForEach(this.getMessageGeneratedFoodPlans(message), (plan: AiGeneratedFoodPlanItem) => {
+        this.buildGeneratedFoodPlanCard(message.id, plan)
       }, (plan: AiGeneratedFoodPlanItem) => plan.id)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
-    .padding(18)
-    .backgroundColor('#FFFDFC')
-    .borderRadius(24)
-    .border({
-      color: '#F5E6CF',
-      width: 1
-    })
+    .padding({ top: 6, bottom: 2 })
   }
 
   @Builder
-  buildQuickActionRow(actions: AssistantQuickActionItem[]) {
-    Row({ space: 10 }) {
-      ForEach(actions, (item: AssistantQuickActionItem) => {
-        Button(item.label)
-          .layoutWeight(1)
-          .height(40)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(PRIMARY_TEXT_COLOR)
-          .backgroundColor(this.getQuickActionBackgroundColor(item.id))
-          .borderRadius(18)
-          .border({
-            color: this.getQuickActionBorderColor(item.id),
-            width: 1
-          })
-          .onClick(() => {
-            this.handleQuickAction(item.id);
-          })
-      }, (item: AssistantQuickActionItem) => item.id)
+  buildQuickActionStrip(actions: AssistantQuickActionItem[]) {
+    Scroll() {
+      Row({ space: 10 }) {
+        ForEach(actions, (item: AssistantQuickActionItem) => {
+          Button(item.label)
+            .height(40)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(PRIMARY_TEXT_COLOR)
+            .padding({ left: 18, right: 18 })
+            .backgroundColor(this.getQuickActionBackgroundColor(item.id))
+            .borderRadius(18)
+            .border({
+              color: this.getQuickActionBorderColor(item.id),
+              width: 1
+            })
+            .onClick(() => {
+              this.handleQuickAction(item.id);
+            })
+        }, (item: AssistantQuickActionItem) => item.id)
+      }
+      .padding({ right: 20 })
     }
     .width('100%')
+    .scrollable(ScrollDirection.Horizontal)
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.Spring)
+    .opacity(this.assistantBusy ? 0.65 : 1)
   }
 
   build() {
@@ -1291,6 +1892,18 @@ export struct AiAssistantTabPage {
         .layoutWeight(1)
 
         Row({ space: 8 }) {
+          Button('记录')
+            .height(34)
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#0F6BFF')
+            .backgroundColor(this.showHistoryPanel ? '#DCEBFF' : '#EAF2FF')
+            .borderRadius(17)
+            .padding({ left: 14, right: 14 })
+            .onClick(() => {
+              this.toggleHistoryPanel();
+            })
+
           Button('配置')
             .height(34)
             .fontSize(13)
@@ -1322,22 +1935,18 @@ export struct AiAssistantTabPage {
 
       Scroll() {
         Column({ space: 18 }) {
+          if (this.showHistoryPanel) {
+            this.buildHistoryPanel()
+          }
+
           if (this.showConfigPanel) {
             this.buildConfigPanel()
           }
 
-          if (this.hasOnlyWelcomeMessage() && !this.showConfigPanel) {
+          if (this.hasOnlyWelcomeMessage() && !this.showConfigPanel && !this.showHistoryPanel) {
             this.buildEmptyConversationState()
           } else {
             this.buildConversationFeed()
-          }
-
-          if (this.generatedPlans.length > 0) {
-            this.buildGeneratedPlansSection()
-          }
-
-          if (this.generatedFoodPlans.length > 0) {
-            this.buildGeneratedFoodPlansSection()
           }
         }
         .width('100%')
@@ -1358,45 +1967,45 @@ export struct AiAssistantTabPage {
           .fontColor(SECONDARY_TEXT_COLOR)
           .width('100%')
 
-        Column({ space: 10 }) {
-          this.buildQuickActionRow(ASSISTANT_PRIMARY_ACTIONS)
-          this.buildQuickActionRow(ASSISTANT_SECONDARY_ACTIONS)
-        }
-        .width('100%')
+        this.buildQuickActionStrip(ASSISTANT_QUICK_ACTIONS)
 
         Row({ space: 8 }) {
           TextInput({ placeholder: '给 AI 发送消息...', text: this.questionInput })
             .layoutWeight(1)
             .height(44)
             .fontSize(15)
-            .fontColor(PRIMARY_TEXT_COLOR)
+            .fontColor(this.assistantBusy ? '#98A2B3' : PRIMARY_TEXT_COLOR)
             .padding({ left: 8, right: 8 })
             .backgroundColor('#00000000')
             .onChange((value: string) => {
               this.questionInput = value;
             })
 
-          Button('+')
-            .width(36)
-            .height(36)
-            .fontSize(14)
+          Button(this.showConfigPanel ? '×' : '+')
+            .width(44)
+            .height(44)
+            .fontSize(22)
             .fontWeight(FontWeight.Bold)
             .fontColor('#0F6BFF')
             .backgroundColor('#EAF2FF')
-            .borderRadius(18)
+            .borderRadius(22)
             .onClick(() => {
               this.toggleConfigPanel();
             })
 
-          Button('发')
-            .width(36)
-            .height(36)
-            .fontSize(14)
+          Button(this.assistantBusy ? '■' : '↑')
+            .width(46)
+            .height(46)
+            .fontSize(20)
             .fontWeight(FontWeight.Bold)
-            .fontColor(this.questionInput.trim().length > 0 ? '#FFFFFF' : '#98A2B3')
-            .backgroundColor(this.questionInput.trim().length > 0 ? '#0F6BFF' : '#F3F6FB')
-            .borderRadius(18)
+            .fontColor(this.assistantBusy || this.questionInput.trim().length > 0 ? '#FFFFFF' : '#98A2B3')
+            .backgroundColor(this.assistantBusy || this.questionInput.trim().length > 0 ? '#0F6BFF' : '#F3F6FB')
+            .borderRadius(23)
             .onClick(() => {
+              if (this.assistantBusy) {
+                this.interruptAssistantRequest();
+                return;
+              }
               if (this.questionInput.trim().length === 0) {
                 return;
               }

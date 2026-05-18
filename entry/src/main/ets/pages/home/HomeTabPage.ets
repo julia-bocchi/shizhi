@@ -626,7 +626,7 @@ export struct HomeTabPage {
             }
             .layoutWeight(1)
             .alignItems(HorizontalAlign.Center)
-          }, (record: WeightRecord) => `${record.id}`)
+          }, (record: WeightRecord) => `${record.id}-${record.date}-${record.weight.toFixed(1)}`)
         }
         .width('100%')
         .alignItems(VerticalAlign.Bottom)

@@ -1,0 +1,73 @@
+<mxfile host="65bd71144e">
+    <diagram id="2" name="第 1 页">
+        <mxGraphModel dx="957" dy="580" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1600" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="3" value="客户端" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="220" width="360" height="240" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="AiAssistantTabPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+                    <mxGeometry x="26" y="62" width="308" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="AI 配置与历史缓存" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#e9f7e7;strokeColor=#82b366;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="40" width="380" height="358" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="aiApiEndpointText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+                    <mxGeometry x="26" y="62" width="328" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="aiApiKeyText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+                    <mxGeometry x="26" y="120" width="328" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" value="aiModelText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+                    <mxGeometry x="26" y="178" width="328" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="aiConversationHistoryText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+                    <mxGeometry x="26" y="236" width="328" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="健康上下文缓存" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#e9f7e7;strokeColor=#82b366;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="514" y="448" width="400" height="482" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="weightRecordText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+                    <mxGeometry x="26" y="62" width="348" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="workoutRecordText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+                    <mxGeometry x="26" y="120" width="348" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="savedCustomWorkoutText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+                    <mxGeometry x="26" y="178" width="348" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="workoutPlanText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+                    <mxGeometry x="26" y="236" width="348" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="foodPlanText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+                    <mxGeometry x="26" y="294" width="348" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="16" value="dailyFoodCalorieTargetText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+                    <mxGeometry x="26" y="352" width="348" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="17" value="大模型 API" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#efe3ff;strokeColor=#9673a6;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="220" width="350" height="296" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="BigModel / Chat Completions" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="62" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" value="体重分析 / 训练计划 / 饮食计划" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="120" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="整套运动与饮食草案生成" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="178" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="21" value="PersistentStorage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.24;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" parent="1" source="3" target="5" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="本地上下文读取/写回" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.76;exitDx=0;exitDy=0;entryX=0;entryY=0.28;entryDx=0;entryDy=0;" parent="1" source="3" target="10" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="23" value="HTTPS/JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="3" target="17" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

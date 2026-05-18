@@ -1,0 +1,145 @@
+<mxfile host="65bd71144e">
+    <diagram id="2" name="第 1 页">
+        <mxGraphModel dx="670" dy="406" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="4" value="用户" style="shape=umlActor;whiteSpace=wrap;html=1;strokeWidth=2;fontSize=18;verticalLabelPosition=bottom;verticalAlign=top;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="70" width="140" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="100" y="180" as="sourcePoint"/>
+                        <mxPoint x="100" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="6" value="RecordTabPage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="220" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="290" y="126" as="sourcePoint"/>
+                        <mxPoint x="290" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="8" value="PersistentStorage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf7e8;strokeColor=#82b366;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="540" y="126" as="sourcePoint"/>
+                        <mxPoint x="540" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="10" value="SyncService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="730" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="800" y="126" as="sourcePoint"/>
+                        <mxPoint x="800" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="12" value="mock-backend/server.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f0ff;strokeColor=#000000;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="980" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1050" y="126" as="sourcePoint"/>
+                        <mxPoint x="1050" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="14" value="data.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf7e8;strokeColor=#82b366;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1280" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1350" y="126" as="sourcePoint"/>
+                        <mxPoint x="1350" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="16" value="输入体重并点击保存" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="100" y="220" as="sourcePoint"/>
+                        <mxPoint x="290" y="220" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="17" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="206" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="addOrUpdateRecord() 覆盖 weightRecordText" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="290" y="300" as="sourcePoint"/>
+                        <mxPoint x="540" y="300" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="19" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="286" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="syncOperationNowOrQueue(weight upsert)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="290" y="380" as="sourcePoint"/>
+                        <mxPoint x="800" y="380" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="21" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="366" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="PUT /weight-records/{date}" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="800" y="460" as="sourcePoint"/>
+                        <mxPoint x="1050" y="460" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="23" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1040" y="446" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" value="loadStore() / 定位 user.weightRecords" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1050" y="540" as="sourcePoint"/>
+                        <mxPoint x="1350" y="540" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="25" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1340" y="526" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="26" value="saveStore() 写回新增/覆盖结果" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1050" y="620" as="sourcePoint"/>
+                        <mxPoint x="1350" y="620" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="27" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1340" y="606" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="28" value="返回 record + isUpdated" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1050" y="700" as="sourcePoint"/>
+                        <mxPoint x="800" y="700" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="29" value="更新 pendingSyncQueue / lastSyncSuccess / 远端 ID" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="800" y="780" as="sourcePoint"/>
+                        <mxPoint x="540" y="780" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="30" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="530" y="766" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="31" value="返回 syncedImmediately + state" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="800" y="860" as="sourcePoint"/>
+                        <mxPoint x="290" y="860" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="32" value="显示同步成功或离线提示" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="290" y="940" as="sourcePoint"/>
+                        <mxPoint x="100" y="940" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

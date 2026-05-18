@@ -1,0 +1,70 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="2" name="第 1 页">
+    <mxGraphModel dx="1600" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="3" value="客户端" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="40" y="260" width="360" height="234" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="RecordTabPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+          <mxGeometry x="26" y="62" width="308" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="本地缓存" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#e9f7e7;strokeColor=#82b366;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="500" y="300" width="380" height="358" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" value="PersistentStorage" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+          <mxGeometry x="26" y="62" width="328" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" value="weightRecordText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+          <mxGeometry x="26" y="120" width="328" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" value="pendingSyncQueueText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+          <mxGeometry x="26" y="178" width="328" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="9" value="lastSyncAttemptText / lastSyncSuccessText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="5" vertex="1">
+          <mxGeometry x="26" y="236" width="328" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="业务服务器" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="500" y="40" width="400" height="358" as="geometry"/>
+        </mxCell>
+        <mxCell id="11" value="mock-backend/server.js" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+          <mxGeometry x="26" y="62" width="348" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" value="GET /weight-records" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+          <mxGeometry x="26" y="120" width="348" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" value="GET /weight-records/summary" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+          <mxGeometry x="26" y="178" width="348" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" value="PUT /weight-records/{date}" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="10" vertex="1">
+          <mxGeometry x="26" y="236" width="348" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" value="业务数据存储" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+          <mxGeometry x="1040" y="110" width="340" height="296" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" value="mock-backend/data.json" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="15" vertex="1">
+          <mxGeometry x="26" y="62" width="288" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" value="weightRecords" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="15" vertex="1">
+          <mxGeometry x="26" y="120" width="288" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" value="user-scoped sync state" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="15" vertex="1">
+          <mxGeometry x="26" y="178" width="288" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="19" value="StorageLink / 本地队列" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.72;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="3" target="5" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="20" value="HTTP/JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" parent="1" source="3" target="10" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="21" value="JSON File I/O" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" parent="1" source="10" target="15" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

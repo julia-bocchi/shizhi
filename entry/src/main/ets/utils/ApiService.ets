@@ -6,7 +6,7 @@ import { WeightRecord } from '../models/WeightRecord';
 import { WorkoutPlanItem } from '../models/WorkoutPlan';
 import { SavedCustomWorkout } from '../models/ExerciseOption';
 import { WorkoutRecord } from '../models/WorkoutRecord';
-import { AuthSession, createEmptyAuthSession } from '../models/AuthSession';
+import { AuthSession, createEmptyAuthSession, normalizeUserId } from '../models/AuthSession';
 import {
   BackendFoodOption,
   BackendFoodPlan,
@@ -284,6 +284,22 @@ export function removeWorkoutPlanMeta(metaItems: WorkoutPlanLocalMeta[], planId:
   return nextMetaItems;
 }
 
+function buildLoginResult(data: LoginResponseData, fallbackUsername: string): LoginResult {
+  let authSession: AuthSession = {
+    userId: normalizeUserId(data.userId),
+    username: sanitizeString(data.username, fallbackUsername.trim()),
+    token: sanitizeString(data.token),
+    loginAt: `${Date.now()}`
+  };
+  if (normalizeUserId(authSession.userId) <= 0 || authSession.token.trim().length === 0) {
+    throw new Error('登录响应缺少有效用户信息。');
+  }
+  return {
+    authSession: authSession,
+    authSessionText: serializeAuthSession(authSession)
+  };
+}
+
 export async function loginWithPassword(baseUrl: string, username: string, password: string): Promise<LoginResult> {
   let payload: LoginRequestPayload = {
     username: username.trim(),
@@ -295,16 +311,7 @@ export async function loginWithPassword(baseUrl: string, username: string, passw
     method: http.RequestMethod.POST,
     body: payload
   });
-  let authSession: AuthSession = {
-    userId: sanitizeString(data.userId),
-    username: sanitizeString(data.username, username.trim()),
-    token: sanitizeString(data.token),
-    loginAt: `${Date.now()}`
-  };
-  return {
-    authSession: authSession,
-    authSessionText: serializeAuthSession(authSession)
-  };
+  return buildLoginResult(data, username);
 }
 
 export async function registerWithPassword(baseUrl: string, username: string, password: string): Promise<LoginResult> {
@@ -318,16 +325,7 @@ export async function registerWithPassword(baseUrl: string, username: string, pa
     method: http.RequestMethod.POST,
     body: payload
   });
-  let authSession: AuthSession = {
-    userId: sanitizeString(data.userId),
-    username: sanitizeString(data.username, username.trim()),
-    token: sanitizeString(data.token),
-    loginAt: `${Date.now()}`
-  };
-  return {
-    authSession: authSession,
-    authSessionText: serializeAuthSession(authSession)
-  };
+  return buildLoginResult(data, username);
 }
 
 export function logoutSession(): LoginResult {

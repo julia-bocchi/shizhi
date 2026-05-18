@@ -1,7 +1,9 @@
 import http from '@ohos.net.http';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   AI_ROLE_ASSISTANT,
   AI_ROLE_USER,
+  AI_TASK_CHAT,
   AI_TASK_ANALYZE_WEIGHT,
   AI_TASK_GENERATE_FULL_PLAN,
   AI_TASK_GENERATE_PLAN,
@@ -31,6 +33,7 @@ import { buildWorkoutPlanSummary, getWorkoutPlanAccentColor } from './WorkoutPla
 interface ChatCompletionMessage {
   role: string;
   content: string;
+  reasoning_content?: string;
 }
 
 interface ChatCompletionChoice {
@@ -39,6 +42,11 @@ interface ChatCompletionChoice {
 
 interface ChatCompletionError {
   message?: string;
+}
+
+interface ParsedErrorResponse {
+  message?: string | number;
+  error?: ChatCompletionError | string | number;
 }
 
 interface ChatCompletionResponse {
@@ -50,7 +58,9 @@ interface ChatCompletionRequestBody {
   model: string;
   temperature: number;
   max_tokens: number;
+  thinking_budget?: number;
   messages: ChatCompletionMessage[];
+  enable_thinking: boolean;
 }
 
 interface ParsedPlanPayload {
@@ -91,6 +101,9 @@ interface ParsedAssistantPayload {
   foodPlans?: ParsedFoodPlanPayload[];
 }
 
+const AI_LOG_DOMAIN: number = 0xFF14;
+const AI_LOG_TAG: string = 'AiAssistant';
+
 export interface AiAssistantRequestContext {
   task: string;
   userPrompt: string;
@@ -102,6 +115,10 @@ export interface AiAssistantRequestContext {
   dailyFoodCalorieTarget: number;
   savedWorkoutNames: string[];
   historyMessages: AiChatMessage[];
+}
+
+export interface AiAssistantRequestOptions {
+  onRequestCreated?: (cancelHandler: () => void) => void;
 }
 
 function sanitizeString(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
@@ -127,6 +144,174 @@ function getHttpResponseText(result: string | Object | ArrayBuffer): string {
     return result;
   }
   return JSON.stringify(result);
+}
+
+function buildLogPreview(text: string, maxLength: number = 180): string {
+  let trimmed = text.trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+  return `${trimmed.substring(0, maxLength)}...`;
+}
+
+function looksLikeJsonText(text: string): boolean {
+  let trimmed = text.trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
+}
+
+function containsAnyKeyword(text: string, keywords: string[]): boolean {
+  for (let index = 0; index < keywords.length; index++) {
+    if (text.indexOf(keywords[index]) >= 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function inferAiAssistantTaskFromPrompt(promptText: string): string {
+  let normalizedPrompt = promptText.trim().toLowerCase();
+  if (normalizedPrompt.length === 0) {
+    return AI_TASK_CHAT;
+  }
+
+  let hasWorkoutIntent = containsAnyKeyword(normalizedPrompt, [
+    '训练计划',
+    '运动计划',
+    '健身计划',
+    '训练安排',
+    '运动安排',
+    '训练方案',
+    '健身方案',
+    '安排训练',
+    '安排运动'
+  ]);
+  let hasFoodIntent = containsAnyKeyword(normalizedPrompt, [
+    '饮食计划',
+    '食谱',
+    '餐单',
+    '菜单',
+    '配餐',
+    '减脂餐',
+    '增肌餐',
+    '饮食安排',
+    '三餐安排',
+    '吃什么'
+  ]);
+  let hasFullPlanIntent = containsAnyKeyword(normalizedPrompt, [
+    '制定计划',
+    '完整计划',
+    '全套计划',
+    '综合计划',
+    '整体计划',
+    '一周计划',
+    '周计划',
+    '减脂计划',
+    '增肌计划',
+    '重新制定计划',
+    '重新安排计划'
+  ]);
+  let hasWeightIntent = containsAnyKeyword(normalizedPrompt, [
+    '体重分析',
+    '分析体重',
+    '体重变化',
+    '减重建议',
+    '增重建议'
+  ]);
+
+  if (hasWorkoutIntent && hasFoodIntent) {
+    return AI_TASK_GENERATE_FULL_PLAN;
+  }
+  if (hasFullPlanIntent) {
+    return AI_TASK_GENERATE_FULL_PLAN;
+  }
+  if (hasWorkoutIntent) {
+    return AI_TASK_GENERATE_PLAN;
+  }
+  if (hasFoodIntent) {
+    return AI_TASK_GENERATE_RECIPE;
+  }
+  if (hasWeightIntent) {
+    return AI_TASK_ANALYZE_WEIGHT;
+  }
+  return AI_TASK_CHAT;
+}
+
+function getAiMaxTokens(task: string): number {
+  if (task === AI_TASK_GENERATE_FULL_PLAN) {
+    return 1200;
+  }
+  if (task === AI_TASK_GENERATE_PLAN || task === AI_TASK_GENERATE_RECIPE) {
+    return 800;
+  }
+  return 600;
+}
+
+function getAiThinkingBudget(task: string): number {
+  if (task === AI_TASK_GENERATE_FULL_PLAN) {
+    return 192;
+  }
+  if (task === AI_TASK_GENERATE_PLAN || task === AI_TASK_GENERATE_RECIPE) {
+    return 128;
+  }
+  return 64;
+}
+
+function sanitizeAssistantContent(content: string): string {
+  let sanitized = content.trim();
+  sanitized = sanitized.replace(/<\/?think>/g, '').trim();
+  return sanitized;
+}
+
+function resolveErrorText(error: Object | string | undefined | null, fallbackMessage: string): string {
+  if (typeof error === 'string') {
+    let trimmedError = error.trim();
+    return trimmedError.length > 0 ? trimmedError : fallbackMessage;
+  }
+
+  let rawText = `${error}`;
+  if (rawText.trim().length > 0 && rawText !== '[object Object]') {
+    return rawText;
+  }
+
+  let serializedError = getHttpResponseText(error as Object);
+  if (serializedError.trim().length > 0 && serializedError !== '{}') {
+    return serializedError;
+  }
+  return fallbackMessage;
+}
+
+function resolveAiResponseErrorMessage(statusCode: number, responseText: string): string {
+  let trimmedResponse = responseText.trim();
+  if (trimmedResponse.length === 0) {
+    return `AI 接口调用失败（${statusCode}）。`;
+  }
+  if (looksLikeJsonText(trimmedResponse)) {
+    try {
+      let parsedResponse = JSON.parse(trimmedResponse) as ParsedErrorResponse;
+      let parsedMessage = '';
+      if (parsedResponse.error && typeof parsedResponse.error === 'object') {
+        parsedMessage = sanitizeString((parsedResponse.error as ChatCompletionError).message).trim();
+      } else if (typeof parsedResponse.error === 'string' || typeof parsedResponse.error === 'number') {
+        parsedMessage = sanitizeString(parsedResponse.error).trim();
+      }
+      if (parsedMessage.length === 0) {
+        parsedMessage = sanitizeString(parsedResponse.message).trim();
+      }
+      if (parsedMessage.length > 0) {
+        return `AI 接口调用失败（${statusCode}）：${parsedMessage}`;
+      }
+    } catch (error) {
+    }
+  }
+  return `AI 接口调用失败（${statusCode}）：${buildLogPreview(trimmedResponse, 200)}`;
+}
+
+function maskSensitiveText(value: string): string {
+  let trimmed = value.trim();
+  if (trimmed.length <= 12) {
+    return '***';
+  }
+  return `${trimmed.substring(0, 6)}...${trimmed.substring(trimmed.length - 4)}`;
 }
 
 function isSupportedExerciseId(exerciseId: string): boolean {
@@ -344,16 +529,106 @@ function buildUserPrompt(context: AiAssistantRequestContext): string {
   ].join('\n');
 }
 
-function extractJsonObjectText(rawText: string): string {
-  let trimmedText = rawText.trim();
+function stripMarkdownCodeFence(text: string): string {
+  let trimmedText = text.trim();
   if (trimmedText.startsWith('```')) {
-    trimmedText = trimmedText.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '');
+    return trimmedText.replace(/^```[a-zA-Z]*\s*/, '').replace(/\s*```$/, '').trim();
   }
+  return trimmedText;
+}
 
-  let startIndex = trimmedText.indexOf('{');
-  let endIndex = trimmedText.lastIndexOf('}');
-  if (startIndex >= 0 && endIndex > startIndex) {
-    return trimmedText.substring(startIndex, endIndex + 1);
+function pushUniqueCandidate(candidates: string[], candidate: string): void {
+  let trimmedCandidate = candidate.trim();
+  if (trimmedCandidate.length === 0) {
+    return;
+  }
+  for (let index = 0; index < candidates.length; index++) {
+    if (candidates[index] === trimmedCandidate) {
+      return;
+    }
+  }
+  candidates.push(trimmedCandidate);
+}
+
+function extractBalancedJsonObject(text: string, startIndex: number): string {
+  let depth: number = 0;
+  let inString: boolean = false;
+  let escaped: boolean = false;
+
+  for (let index = startIndex; index < text.length; index++) {
+    let currentChar = text.charAt(index);
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (currentChar === '\\') {
+        escaped = true;
+        continue;
+      }
+      if (currentChar === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (currentChar === '"') {
+      inString = true;
+      continue;
+    }
+    if (currentChar === '{') {
+      depth += 1;
+      continue;
+    }
+    if (currentChar !== '}') {
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) {
+      return text.substring(startIndex, index + 1);
+    }
+    if (depth < 0) {
+      return '';
+    }
+  }
+  return '';
+}
+
+function collectJsonObjectCandidates(rawText: string): string[] {
+  let normalizedText = stripMarkdownCodeFence(rawText);
+  let candidates: string[] = [];
+  pushUniqueCandidate(candidates, normalizedText);
+
+  for (let index = 0; index < normalizedText.length; index++) {
+    if (normalizedText.charAt(index) !== '{') {
+      continue;
+    }
+    let candidate = extractBalancedJsonObject(normalizedText, index);
+    if (candidate.length > 0) {
+      pushUniqueCandidate(candidates, candidate);
+    }
+  }
+  return candidates;
+}
+
+function isStructuredAssistantPayload(payload: ParsedAssistantPayload | Object | undefined | null): boolean {
+  if (!payload || Array.isArray(payload)) {
+    return false;
+  }
+  let structuredPayload = payload as ParsedAssistantPayload;
+  return structuredPayload.reply !== undefined ||
+    Array.isArray(structuredPayload.plans) ||
+    Array.isArray(structuredPayload.foodPlans);
+}
+
+function buildStructuredPayloadFallbackReply(rawAssistantText: string): string {
+  let trimmedText = rawAssistantText.trim();
+  if (trimmedText.length === 0) {
+    return 'AI 没有返回可解析内容，请稍后重试。';
+  }
+  if (looksLikeJsonText(trimmedText) || trimmedText.indexOf('"reply"') >= 0 ||
+    trimmedText.indexOf('"plans"') >= 0 || trimmedText.indexOf('"foodPlans"') >= 0) {
+    return '';
   }
   return trimmedText;
 }
@@ -420,48 +695,59 @@ function createGeneratedFoodPlanItem(plan: ParsedFoodPlanPayload, fallbackDate: 
   };
 }
 
-function parseAssistantPayload(rawAssistantText: string, profile: UserProfile): AiAssistantResponse {
-  let jsonText: string = extractJsonObjectText(rawAssistantText);
-
-  try {
-    let parsedPayload = JSON.parse(jsonText) as ParsedAssistantPayload;
-    let replyText: string = sanitizeString(parsedPayload.reply, rawAssistantText).trim();
-    let plans: AiGeneratedPlanItem[] = [];
-    let foodPlans: AiGeneratedFoodPlanItem[] = [];
-    let parsedPlans = parsedPayload.plans;
-    let parsedFoodPlans = parsedPayload.foodPlans;
-
-    if (Array.isArray(parsedPlans)) {
-      for (let index = 0; index < parsedPlans.length; index++) {
-        let fallbackDate = formatDate(new Date(Date.now() + index * 24 * 60 * 60 * 1000));
-        plans.push(createGeneratedPlanItem(parsedPlans[index], profile, fallbackDate));
+export function parseAssistantPayload(rawAssistantText: string, profile: UserProfile,
+  reasoningContent: string = ''): AiAssistantResponse {
+  let candidates = collectJsonObjectCandidates(rawAssistantText);
+  for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex++) {
+    try {
+      let parsedPayload = JSON.parse(candidates[candidateIndex]) as ParsedAssistantPayload;
+      if (!isStructuredAssistantPayload(parsedPayload)) {
+        continue;
       }
-    }
+      let replyText: string = sanitizeString(parsedPayload.reply, rawAssistantText).trim();
+      let plans: AiGeneratedPlanItem[] = [];
+      let foodPlans: AiGeneratedFoodPlanItem[] = [];
+      let parsedPlans = parsedPayload.plans;
+      let parsedFoodPlans = parsedPayload.foodPlans;
 
-    if (Array.isArray(parsedFoodPlans)) {
-      for (let index = 0; index < parsedFoodPlans.length; index++) {
-        let fallbackDate = formatDate(new Date(Date.now() + index * 24 * 60 * 60 * 1000));
-        foodPlans.push(createGeneratedFoodPlanItem(parsedFoodPlans[index], fallbackDate));
+      if (Array.isArray(parsedPlans)) {
+        for (let index = 0; index < parsedPlans.length; index++) {
+          let fallbackDate = formatDate(new Date(Date.now() + index * 24 * 60 * 60 * 1000));
+          plans.push(createGeneratedPlanItem(parsedPlans[index], profile, fallbackDate));
+        }
       }
-    }
 
-    return {
-      reply: replyText.length > 0 ? replyText : 'AI 已返回结果，但没有生成可展示的文本。',
-      plans: plans,
-      foodPlans: foodPlans,
-      rawText: rawAssistantText
-    };
-  } catch (error) {
-    return {
-      reply: rawAssistantText.trim().length > 0 ? rawAssistantText.trim() : 'AI 没有返回可解析内容，请稍后重试。',
-      plans: [],
-      foodPlans: [],
-      rawText: rawAssistantText
-    };
+      if (Array.isArray(parsedFoodPlans)) {
+        for (let index = 0; index < parsedFoodPlans.length; index++) {
+          let fallbackDate = formatDate(new Date(Date.now() + index * 24 * 60 * 60 * 1000));
+          foodPlans.push(createGeneratedFoodPlanItem(parsedFoodPlans[index], fallbackDate));
+        }
+      }
+
+      return {
+        reply: replyText.length > 0 ? replyText : 'AI 已返回结果，但没有生成可展示的文本。',
+        reasoningContent: reasoningContent.trim(),
+        plans: plans,
+        foodPlans: foodPlans,
+        rawText: rawAssistantText,
+        parseSucceeded: true
+      };
+    } catch (error) {
+    }
   }
+
+  return {
+    reply: buildStructuredPayloadFallbackReply(rawAssistantText),
+    reasoningContent: reasoningContent.trim(),
+    plans: [],
+    foodPlans: [],
+    rawText: rawAssistantText,
+    parseSucceeded: false
+  };
 }
 
-export async function requestAiAssistant(config: AiAssistantConfig, context: AiAssistantRequestContext): Promise<AiAssistantResponse> {
+export async function requestAiAssistant(config: AiAssistantConfig, context: AiAssistantRequestContext,
+  options?: AiAssistantRequestOptions): Promise<AiAssistantResponse> {
   if (config.apiEndpoint.trim().length === 0) {
     throw new Error('请先填写 AI 接口地址。');
   }
@@ -473,6 +759,19 @@ export async function requestAiAssistant(config: AiAssistantConfig, context: AiA
   }
 
   let httpRequest = http.createHttp();
+  let startedAt: number = Date.now();
+  let responseStatusCode: number = -1;
+  let requestCancelled: boolean = false;
+
+  if (options && options.onRequestCreated) {
+    options.onRequestCreated(() => {
+      requestCancelled = true;
+      try {
+        httpRequest.destroy();
+      } catch (error) {
+      }
+    });
+  }
 
   try {
     let requestMessages: ChatCompletionMessage[] = [];
@@ -492,9 +791,23 @@ export async function requestAiAssistant(config: AiAssistantConfig, context: AiA
     let requestBody: ChatCompletionRequestBody = {
       model: config.model.trim(),
       temperature: isWorkoutGenerationTask(context.task) || isFoodGenerationTask(context.task) ? 0.7 : 0.5,
-      max_tokens: context.task === AI_TASK_GENERATE_FULL_PLAN ? 1800 : 1200,
-      messages: requestMessages
+      max_tokens: getAiMaxTokens(context.task),
+      thinking_budget: getAiThinkingBudget(context.task),
+      messages: requestMessages,
+      enable_thinking: true
     };
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG,
+      '发起 AI 助手请求，请求链接=%{public}s，模型=%{public}s，任务=%{public}s，鉴权=%{public}s',
+      config.apiEndpoint.trim(),
+      config.model.trim(),
+      context.task,
+      maskSensitiveText(config.apiKey));
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG,
+      'AI 请求参数：historyCount=%{public}d，messageCount=%{public}d，maxTokens=%{public}d，thinkingBudget=%{public}d',
+      historyMessages.length,
+      requestMessages.length,
+      requestBody.max_tokens,
+      requestBody.thinking_budget ? requestBody.thinking_budget : 0);
 
     let response = await httpRequest.request(config.apiEndpoint.trim(), {
       method: http.RequestMethod.POST,
@@ -504,13 +817,18 @@ export async function requestAiAssistant(config: AiAssistantConfig, context: AiA
       },
       extraData: JSON.stringify(requestBody),
       connectTimeout: 15000,
-      readTimeout: 30000,
+      readTimeout: 90000,
       expectDataType: http.HttpDataType.STRING
     });
 
+    responseStatusCode = response.responseCode;
     let responseText: string = getHttpResponseText(response.result);
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, '收到 AI 助手响应，状态码=%{public}d，响应长度=%{public}d，响应预览=%{public}s',
+      response.responseCode, responseText.length, buildLogPreview(responseText));
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG,'响应文本：%{public}s',responseText)
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 原始响应体=%{public}s', responseText);
     if (response.responseCode >= 400) {
-      throw new Error(`AI 接口调用失败（${response.responseCode}）：${responseText}`);
+      throw new Error(resolveAiResponseErrorMessage(response.responseCode, responseText));
     }
 
     let parsedResponse = JSON.parse(responseText) as ChatCompletionResponse;
@@ -518,20 +836,35 @@ export async function requestAiAssistant(config: AiAssistantConfig, context: AiA
       throw new Error(parsedResponse.error.message);
     }
 
-    if (!parsedResponse.choices || parsedResponse.choices.length === 0 ||
-      !parsedResponse.choices[0].message || parsedResponse.choices[0].message.content.length === 0) {
+    if (!parsedResponse.choices || parsedResponse.choices.length === 0 || !parsedResponse.choices[0].message) {
       throw new Error('AI 接口没有返回有效内容。');
     }
 
-    let assistantContent: string = parsedResponse.choices[0].message.content;
-    return parseAssistantPayload(assistantContent, context.profile);
-  } catch (error) {
-    let errorMessage = `${error}`;
-    if (errorMessage.trim().length === 0 || errorMessage === '[object Object]') {
-      errorMessage = 'AI 请求失败，请检查网络与配置。';
+    let assistantContent: string = sanitizeAssistantContent(sanitizeString(parsedResponse.choices[0].message.content));
+    let reasoningContent: string = sanitizeString(parsedResponse.choices[0].message.reasoning_content).trim();
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG,
+      'AI 响应解析完成：assistantLength=%{public}d，reasoningLength=%{public}d',
+      assistantContent.length,
+      reasoningContent.length);
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 解析正文=%{public}s', assistantContent);
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 解析推理=%{public}s', reasoningContent);
+    if (assistantContent.length === 0 && reasoningContent.length === 0) {
+      throw new Error('AI 接口没有返回有效内容。');
     }
+    if (assistantContent.length === 0) {
+      assistantContent = '模型已完成推理，但没有返回最终回答。请重试。';
+    }
+    return parseAssistantPayload(assistantContent, context.profile, reasoningContent);
+  } catch (error) {
+    if (requestCancelled) {
+      throw new Error('请求已中断。');
+    }
+    let errorMessage = resolveErrorText(error as Object, 'AI 请求失败，请检查网络与配置。');
+    hilog.error(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 助手请求异常，错误信息=%{public}s', errorMessage);
     throw new Error(errorMessage);
   } finally {
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 助手请求结束，状态码=%{public}d，耗时=%{public}dms',
+      responseStatusCode, Date.now() - startedAt);
     httpRequest.destroy();
   }
 }

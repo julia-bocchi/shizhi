@@ -1,9 +1,9 @@
 {
   "users": {
     "demo": {
-      "userId": "user-demo",
+      "userId": 1001,
       "username": "demo",
-      "token": "mock-token-user-demo",
+      "token": "mock-token-1001",
       "profile": {
         "nickname": "Julia",
         "heightCm": "168",
@@ -363,6 +363,127 @@
           "count": 500
         }
       ]
+    },
+    "bocchi": {
+      "userId": 1002,
+      "username": "bocchi",
+      "password": "123456",
+      "token": "mock-token-1002",
+      "profile": {
+        "nickname": "bocchi",
+        "heightCm": "170",
+        "weightKg": "68.5",
+        "age": "26",
+        "gender": "男"
+      },
+      "weightRecords": [
+        {
+          "id": "weight-1777015231719-432",
+          "date": "2026-04-24",
+          "weight": 68.5
+        }
+      ],
+      "customFoodOptions": [
+        {
+          "id": "preset-egg-toast",
+          "source": "custom",
+          "name": "自动补建食物(preset-egg-toast)",
+          "description": "根据计划保存请求自动补建，方便联调测试。",
+          "calories": 0,
+          "serving": "1 份",
+          "mealSuggestion": "早餐",
+          "image": "",
+          "accentColor": "#F59E0B"
+        }
+      ],
+      "foodPlans": [
+        {
+          "id": "food-plan-1777015593681-18",
+          "date": "2026-04-24",
+          "foodId": "preset-egg-toast",
+          "name": "自动补建食物(preset-egg-toast)",
+          "description": "根据计划保存请求自动补建，方便联调测试。",
+          "calories": 0,
+          "serving": "1 份",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#F59E0B"
+        },
+        {
+          "id": "food-plan-1777015593713-554",
+          "date": "2026-04-24",
+          "foodId": "preset-oatmeal",
+          "name": "燕麦牛奶杯",
+          "description": "适合早餐或训练前补充碳水，饱腹感稳定。",
+          "calories": 280,
+          "serving": "1 杯",
+          "mealType": "breakfast",
+          "image": "",
+          "notes": "",
+          "accentColor": "#D86C3D"
+        }
+      ],
+      "workoutTemplates": [
+        {
+          "id": "local-workout-template-1777015680046-698",
+          "name": "爬楼梯",
+          "mode": "count_rate",
+          "intensity": "moderate",
+          "durationMinutes": "30",
+          "distanceKm": "5",
+          "paceMinutes": "6",
+          "speedKmH": "18",
+          "count": "300",
+          "cadencePerMinute": "120",
+          "sets": "4",
+          "workSeconds": "40",
+          "restSeconds": "20"
+        }
+      ],
+      "workoutPlans": [
+        {
+          "id": "plan-1777015762207-546",
+          "date": "2026-04-24",
+          "title": "爬楼梯",
+          "summary": "爬楼梯 共 300 次，节奏 120 次/分，预计用时 3 分钟。",
+          "notes": "",
+          "draftText": "custom|%E7%88%AC%E6%A5%BC%E6%A2%AF|count_rate|moderate|30|5|6|18|300|120|4|40|20",
+          "savedWorkoutId": "local-workout-template-1777015680046-698",
+          "accentColor": "#FF7A59"
+        },
+        {
+          "id": "plan-1777015755108-811",
+          "date": "2026-04-24",
+          "title": "HIIT 间歇",
+          "summary": "4 组训练，每组 40 秒，组间休息 20 秒，总时长约 4 分钟。",
+          "notes": "",
+          "draftText": "hiit||duration|moderate|30|5|6|18|300|120|4|40|20",
+          "savedWorkoutId": "",
+          "accentColor": "#FF7A59"
+        },
+        {
+          "id": "plan-1777015405643-43",
+          "date": "2026-04-24",
+          "title": "跑步",
+          "summary": "跑步 5 km，配速 6 分/km，预计用时 30 分钟。",
+          "notes": "",
+          "draftText": "running||duration|moderate|30|5|6|18|300|120|4|40|20",
+          "savedWorkoutId": "",
+          "accentColor": "#0F6BFF"
+        },
+        {
+          "id": "plan-1777015384766-598",
+          "date": "2026-04-24",
+          "title": "HIIT 间歇",
+          "summary": "4 组训练，每组 40 秒，组间休息 20 秒，总时长约 4 分钟。",
+          "notes": "",
+          "draftText": "hiit||duration|moderate|30|5|6|18|300|120|4|40|20",
+          "savedWorkoutId": "",
+          "accentColor": "#FF7A59"
+        }
+      ],
+      "workoutRecords": []
     }
   }
 }

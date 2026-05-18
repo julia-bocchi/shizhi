@@ -1,5 +1,5 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AuthSession, isAuthSessionValid } from '../models/AuthSession';
+import { AuthSession, createEmptyAuthSession, isAuthSessionValid } from '../models/AuthSession';
 import { FoodOption } from '../models/FoodOption';
 import { FoodPlanItem } from '../models/FoodPlan';
 import { PendingSyncOperation } from '../models/SyncQueue';
@@ -80,6 +80,24 @@ function serializeSyncLogValue(value: Object | string | undefined | null): strin
     return value;
   }
   return JSON.stringify(value);
+}
+
+function resolveSyncErrorText(error: Object | string | undefined | null): string {
+  if (typeof error === 'string') {
+    let trimmedError = error.trim();
+    return trimmedError.length > 0 ? trimmedError : '同步失败。';
+  }
+
+  let rawText = `${error}`;
+  if (rawText.trim().length > 0 && rawText !== '[object Object]') {
+    return rawText;
+  }
+
+  let serializedError = serializeSyncLogValue(error);
+  if (serializedError.trim().length > 0 && serializedError !== '{}') {
+    return serializedError;
+  }
+  return '同步失败。';
 }
 
 interface SyncFoodMealStartLog {
@@ -606,16 +624,8 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
   operation: PendingSyncOperation): Promise<ImmediateSyncResult> {
   let nextState: SyncRuntimeState = copySyncState(state);
   nextState.lastSyncAttemptText = `${Date.now()}`;
-  let authSession = deserializeAuthSession(nextState.authSessionText);
-  if (!isAuthSessionValid(authSession)) {
-    nextState.pendingSyncQueueText = queuePendingOperation(nextState.pendingSyncQueueText, operation);
-    return {
-      state: nextState,
-      syncedImmediately: false,
-      queuedForLater: true,
-      errorMessage: ''
-    };
-  }
+  let savedAuthSession = deserializeAuthSession(nextState.authSessionText);
+  let authSession = isAuthSessionValid(savedAuthSession) ? savedAuthSession : createEmptyAuthSession();
 
   try {
     let syncedState = await syncSingleOperation(nextState, authSession, operation);
@@ -632,7 +642,7 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
       errorMessage: ''
     };
   } catch (error) {
-    let errorText = `${error}`;
+    let errorText = resolveSyncErrorText(error);
     let failedState = copySyncState(nextState);
     failedState.pendingSyncQueueText = queuePendingOperation(failedState.pendingSyncQueueText, operation);
     let operationErrorLog: SyncOperationErrorLog = {
@@ -653,16 +663,10 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
 }
 
 export async function syncPendingOperations(state: SyncRuntimeState): Promise<SyncExecutionResult> {
-  let authSession = deserializeAuthSession(state.authSessionText);
+  let savedAuthSession = deserializeAuthSession(state.authSessionText);
+  let authSession = isAuthSessionValid(savedAuthSession) ? savedAuthSession : createEmptyAuthSession();
   let nextState: SyncRuntimeState = copySyncState(state);
   nextState.lastSyncAttemptText = `${Date.now()}`;
-  if (!isAuthSessionValid(authSession)) {
-    return {
-      state: nextState,
-      syncedCount: 0,
-      lastErrorMessage: ''
-    };
-  }
 
   let syncedCount = 0;
   let lastErrorMessage = '';
@@ -687,7 +691,7 @@ export async function syncPendingOperations(state: SyncRuntimeState): Promise<Sy
       nextState.lastSyncSuccessText = `${Date.now()}`;
       syncedCount += 1;
     } catch (error) {
-      lastErrorMessage = `${error}`;
+      lastErrorMessage = resolveSyncErrorText(error);
       let operationErrorLog: SyncOperationErrorLog = {
         id: currentOperation.id,
         entityType: currentOperation.entityType,

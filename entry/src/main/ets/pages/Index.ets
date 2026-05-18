@@ -18,14 +18,16 @@ import { ProfileTabPage } from './profile/ProfileTabPage';
 import { UserProfile, createEmptyUserProfile } from '../models/UserProfile';
 import { deserializeUserProfile } from '../utils/ExerciseHelper';
 import { EXERCISE_STORAGE_READY } from '../utils/ExerciseStorage';
-import { isAuthSessionValid, resolveApiBaseUrl } from '../models/AuthSession';
-import { deserializeAuthSession } from '../utils/AuthStorageHelper';
+import { resolveApiBaseUrl } from '../models/AuthSession';
 import { SyncRuntimeState, syncPendingOperations } from '../utils/SyncService';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
-
+const API_LOG_DOMAIN: number = 0xFF12;
+const API_LOG_TAG: string = 'ApiClient';
 @Entry
 @Component
 struct Index {
+
   @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
   @StorageLink('userProfileText') userProfileText: string = '';
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
@@ -124,10 +126,6 @@ struct Index {
     EXERCISE_STORAGE_READY;
     this.apiBaseUrlText = resolveApiBaseUrl(this.apiBaseUrlText);
     this.userProfile = deserializeUserProfile(this.userProfileText);
-    if (this.currentTabIndex === PROFILE_TAB_INDEX &&
-      !isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
-      this.currentTabIndex = HOME_TAB_INDEX;
-    }
     this.flushPendingSync();
     this.startSyncTimer();
   }
@@ -170,7 +168,11 @@ struct Index {
     }
   }
 
+  test(){
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG,"你好");
+  }
   build() {
+
     Column() {
       Column() {
         this.buildCurrentPage()
@@ -187,5 +189,7 @@ struct Index {
     .width('100%')
     .height('100%')
     .backgroundColor(PAGE_BACKGROUND_COLOR)
+
+
   }
 }

@@ -1,0 +1,163 @@
+<mxfile host="65bd71144e">
+    <diagram id="2" name="第 1 页">
+        <mxGraphModel dx="670" dy="406" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="4" value="用户" style="shape=umlActor;whiteSpace=wrap;html=1;strokeWidth=2;fontSize=18;verticalLabelPosition=bottom;verticalAlign=top;" parent="1" vertex="1">
+                    <mxGeometry x="53" y="85" width="73" height="91" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="90" y="180" as="sourcePoint"/>
+                        <mxPoint x="90" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="6" value="FoodSelectionPage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="200" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="126" as="sourcePoint"/>
+                        <mxPoint x="270" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="8" value="PersistentStorage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf7e8;strokeColor=#82b366;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="450" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="520" y="126" as="sourcePoint"/>
+                        <mxPoint x="520" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="10" value="SyncService" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#000000;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="780" y="126" as="sourcePoint"/>
+                        <mxPoint x="780" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="12" value="mock-backend/server.js" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e7f0ff;strokeColor=#000000;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1040" y="126" as="sourcePoint"/>
+                        <mxPoint x="1040" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="14" value="data.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf7e8;strokeColor=#82b366;strokeWidth=2;fontSize=16;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="1260" y="70" width="140" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="" style="endArrow=none;html=1;dashed=1;strokeWidth=1.4;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1330" y="126" as="sourcePoint"/>
+                        <mxPoint x="1330" y="920" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="16" value="选择食物并点击保存" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="90" y="220" as="sourcePoint"/>
+                        <mxPoint x="270" y="220" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="17" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="260" y="206" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="saveFoodPlans() 替换当天餐次的本地 foodPlanText" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="300" as="sourcePoint"/>
+                        <mxPoint x="520" y="300" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="19" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="286" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="syncOperationNowOrQueue(food_meal replace)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="380" as="sourcePoint"/>
+                        <mxPoint x="780" y="380" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="21" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="770" y="366" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="GET /food-plans?startDate=date&amp;endDate=date" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="780" y="460" as="sourcePoint"/>
+                        <mxPoint x="1040" y="460" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="23" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1030" y="446" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" value="loadStore() / 查询现有 meal plans" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1040" y="540" as="sourcePoint"/>
+                        <mxPoint x="1330" y="540" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="25" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1320" y="526" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="26" value="返回当前餐次列表" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1040" y="620" as="sourcePoint"/>
+                        <mxPoint x="780" y="620" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="27" value="DELETE 旧餐次 + POST 新 food-plans" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="780" y="700" as="sourcePoint"/>
+                        <mxPoint x="1040" y="700" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="28" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1030" y="686" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="29" value="ensureFoodOptionForPlan() + saveStore()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1040" y="780" as="sourcePoint"/>
+                        <mxPoint x="1330" y="780" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="30" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1320" y="766" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="31" value="返回新计划" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="1040" y="860" as="sourcePoint"/>
+                        <mxPoint x="780" y="860" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="32" value="replaceLocalFoodMeal() 回填远端计划" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;endArrow=blockThin;endFill=1;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="780" y="940" as="sourcePoint"/>
+                        <mxPoint x="520" y="940" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="33" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="926" width="20" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="34" value="返回 state / syncedImmediately" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="780" y="1020" as="sourcePoint"/>
+                        <mxPoint x="270" y="1020" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="35" value="提示保存成功并返回" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.6;dashed=1;endArrow=open;endFill=0;" parent="1" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="270" y="1100" as="sourcePoint"/>
+                        <mxPoint x="90" y="1100" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="36" value="&lt;span style=&quot;color: rgb(0, 0, 0); font-family: Helvetica; font-size: 28px; font-style: normal; font-variant-ligatures: normal; font-variant-caps: normal; font-weight: 700; letter-spacing: normal; orphans: 2; text-align: left; text-indent: 0px; text-transform: none; widows: 2; word-spacing: 0px; -webkit-text-stroke-width: 0px; white-space: nowrap; background-color: rgb(251, 251, 251); text-decoration-thickness: initial; text-decoration-style: initial; text-decoration-color: initial; display: inline !important; float: none;&quot;&gt;Food 模块顺序图：saveTodaySelections()&lt;/span&gt;" style="text;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+                    <mxGeometry x="40.00331298828125" y="9.003343505859362" width="550" height="56" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

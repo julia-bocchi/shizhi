@@ -1,0 +1,92 @@
+<mxfile host="65bd71144e">
+    <diagram id="2" name="第 1 页">
+        <mxGraphModel dx="957" dy="580" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1600" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="3" value="客户端" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="180" width="360" height="360" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="FoodTabPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+                    <mxGeometry x="26" y="62" width="308" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="FoodPlanPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+                    <mxGeometry x="26" y="120" width="308" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="FoodSelectionPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+                    <mxGeometry x="26" y="178" width="308" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="本地缓存" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#e9f7e7;strokeColor=#82b366;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="495" y="540" width="420" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" value="foodPlanText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="7" vertex="1">
+                    <mxGeometry x="26" y="62" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="customFoodOptionText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="7" vertex="1">
+                    <mxGeometry x="26" y="120" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="currentFoodPlanDateText / currentFoodPlanMealTypeText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="7" vertex="1">
+                    <mxGeometry x="26" y="178" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="dailyFoodCalorieTargetText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="7" vertex="1">
+                    <mxGeometry x="26" y="236" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="foodRecommendationCacheText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="7" vertex="1">
+                    <mxGeometry x="26" y="294" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="业务服务器" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="40" width="420" height="358" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="mock-backend/server.js" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="13" vertex="1">
+                    <mxGeometry x="26" y="62" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="GET /food-options" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="13" vertex="1">
+                    <mxGeometry x="26" y="120" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="16" value="POST/PUT/DELETE /food-options/custom/*" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="13" vertex="1">
+                    <mxGeometry x="26" y="178" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="17" value="GET/POST/PUT/DELETE /food-plans" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="13" vertex="1">
+                    <mxGeometry x="26" y="236" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="业务数据存储" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="80" width="350" height="296" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" value="mock-backend/data.json" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="18" vertex="1">
+                    <mxGeometry x="26" y="62" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="customFoodOptions" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="18" vertex="1">
+                    <mxGeometry x="26" y="120" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="21" value="foodPlans" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="18" vertex="1">
+                    <mxGeometry x="26" y="178" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="大模型 API" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#efe3ff;strokeColor=#9673a6;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1090" y="430" width="350" height="250" as="geometry"/>
+                </mxCell>
+                <mxCell id="23" value="BigModel / Chat Completions" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="22" vertex="1">
+                    <mxGeometry x="26" y="62" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" value="food + exercise recommendation ranking" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="22" vertex="1">
+                    <mxGeometry x="26" y="120" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="25" value="PersistentStorage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.82;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="3" target="7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="26" value="HTTP/JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.22;exitDx=0;exitDy=0;entryX=0;entryY=0.72;entryDx=0;entryDy=0;" parent="1" source="3" target="13" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="27" value="HTTPS/JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.63;exitDx=0;exitDy=0;entryX=0;entryY=0.52;entryDx=0;entryDy=0;" parent="1" source="3" target="22" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="980" y="350"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="28" value="JSON File I/O" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" parent="1" source="13" target="18" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

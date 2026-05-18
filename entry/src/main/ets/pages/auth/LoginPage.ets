@@ -90,7 +90,7 @@ struct LoginPage {
       this.loginNotice = '注册成功，正在返回首页。';
       this.goBack();
     } catch (error) {
-      this.loginNotice = '注册失败，请检查账号是否已存在后重试。';
+      this.loginNotice = '注册失败，请检查账号是否已存在或服务状态后重试。';
     } finally {
       this.authBusy = false;
     }

@@ -1,0 +1,41 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="2" name="第 1 页">
+    <mxGraphModel dx="1600" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="3" value="&amp;lt;&amp;lt;Harmony ETS Pack&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;tabRouter&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;Index.ets / MainBottomNavigation&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#f5f5f5;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="120" y="120" width="280" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="&amp;lt;&amp;lt;PersistentStorage&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;local-health-cache&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;userProfileText&lt;br/&gt;weightRecordText&lt;br/&gt;foodPlanText / workoutRecordText&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#eaf7e8;strokeColor=#82b366;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="120" y="430" width="300" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="&amp;lt;&amp;lt;Harmony ETS Page&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;HomeTabPage.ets&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;今日概览 / 快捷入口 / 仪表盘&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="520" y="250" width="280" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" value="&amp;lt;&amp;lt;Harmony ETS Pack&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;homeDashboard&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;HomeDashboardHelper&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#f5f5f5;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="980" y="240" width="280" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" value="&amp;lt;&amp;lt;Harmony ETS Pack&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;syncCore&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;其他业务页同步后刷新首页数据&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#f5f5f5;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="980" y="430" width="280" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" value="Tab 路由依赖" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=0;exitY=0.35;exitDx=0;exitDy=0;entryX=1;entryY=0.55;entryDx=0;entryDy=0;" parent="1" source="5" target="3" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="9" value="摘要计算" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="5" target="6" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="10" value="读取缓存" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=0;exitY=0.65;exitDx=0;exitDy=0;entryX=1;entryY=0.4;entryDx=0;entryDy=0;" parent="1" source="6" target="4" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" value="更新缓存" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="7" target="4" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

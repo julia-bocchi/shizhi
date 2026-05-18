@@ -53,11 +53,76 @@ const PRESET_WORKOUT_TYPES = [
 ];
 
 function loadStore() {
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  const store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  if (!store.users || typeof store.users !== 'object') {
+    store.users = {};
+  }
+  if (migrateUserIds(store)) {
+    saveStore(store);
+  }
+  return store;
 }
 
 function saveStore(store) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2) + '\n', 'utf8');
+}
+
+function normalizeUserId(value) {
+  if (value === undefined || value === null) {
+    return 0;
+  }
+  const parsedValue = Number(`${value}`.trim());
+  if (!Number.isFinite(parsedValue)) {
+    return 0;
+  }
+  const normalizedValue = Math.trunc(parsedValue);
+  return normalizedValue > 0 ? normalizedValue : 0;
+}
+
+function getNextUserId(store) {
+  let maxUserId = 1000;
+  for (const username of Object.keys(store.users || {})) {
+    maxUserId = Math.max(maxUserId, normalizeUserId(store.users[username].userId));
+  }
+  return maxUserId + 1;
+}
+
+function migrateUserIds(store) {
+  let hasUpdated = false;
+  const userIdCounts = new Map();
+  const assignedUserIds = new Set();
+  let nextUserId = 1000;
+
+  for (const username of Object.keys(store.users || {})) {
+    const normalizedUserId = normalizeUserId(store.users[username].userId);
+    if (normalizedUserId > 0) {
+      userIdCounts.set(normalizedUserId, Number(userIdCounts.get(normalizedUserId) || 0) + 1);
+      nextUserId = Math.max(nextUserId, normalizedUserId);
+    }
+  }
+
+  for (const username of Object.keys(store.users || {})) {
+    const user = store.users[username];
+    let normalizedUserId = normalizeUserId(user.userId);
+    let shouldReassignUserId = normalizedUserId <= 0 ||
+      Number(userIdCounts.get(normalizedUserId) || 0) > 1 && assignedUserIds.has(normalizedUserId);
+    if (shouldReassignUserId) {
+      nextUserId += 1;
+      normalizedUserId = nextUserId;
+      hasUpdated = true;
+    }
+    if (user.userId !== normalizedUserId) {
+      user.userId = normalizedUserId;
+      hasUpdated = true;
+    }
+    assignedUserIds.add(normalizedUserId);
+    const normalizedToken = `mock-token-${normalizedUserId}`;
+    if (`${user.token || ''}` !== normalizedToken) {
+      user.token = normalizedToken;
+      hasUpdated = true;
+    }
+  }
+  return hasUpdated;
 }
 
 function maskSensitiveValue(value) {
@@ -399,12 +464,13 @@ function parseBody(req) {
   });
 }
 
-function createDefaultUser(username, password = '123456') {
+function createDefaultUser(username, password = '123456', userId = 0) {
+  const normalizedUserId = normalizeUserId(userId);
   return {
-    userId: `user-${username}`,
+    userId: normalizedUserId > 0 ? normalizedUserId : 1001,
     username,
     password,
-    token: `mock-token-user-${username}`,
+    token: `mock-token-${normalizedUserId > 0 ? normalizedUserId : 1001}`,
     profile: {
       nickname: username,
       heightCm: '170',
@@ -426,14 +492,14 @@ function getUserFromRequest(store, req, urlObj) {
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   const headerUserId = req.headers['x-user-id'] || '';
   const queryUserId = urlObj.searchParams.get('userId') || '';
-  const candidateUserId = headerUserId || queryUserId;
+  const candidateUserId = normalizeUserId(headerUserId || queryUserId);
 
   for (const username of Object.keys(store.users)) {
     const user = store.users[username];
     if (token && user.token === token) {
       return user;
     }
-    if (candidateUserId && user.userId === candidateUserId) {
+    if (candidateUserId > 0 && normalizeUserId(user.userId) === candidateUserId) {
       return user;
     }
   }
@@ -757,7 +823,7 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 409, '用户已存在，请直接登录', {}, 409);
         return;
       }
-      store.users[username] = createDefaultUser(username, password);
+      store.users[username] = createDefaultUser(username, password, getNextUserId(store));
       store.users[username].token = `mock-token-${store.users[username].userId}`;
       saveStore(store);
       sendJson(res, 0, 'ok', {

@@ -326,6 +326,7 @@ export struct ExerciseTabPage {
       this.remoteDailySummary = await fetchWorkoutDailySummary(this.apiBaseUrlText, authSession, formatDate(new Date()));
       this.workoutPlanRenderVersion += 1;
     } catch (error) {
+      this.customTemplateNotice = `${error}`;
     } finally {
       this.remoteSyncing = false;
     }

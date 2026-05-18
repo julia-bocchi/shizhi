@@ -1,6 +1,6 @@
 import http from '@ohos.net.http';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AuthSession, isAuthSessionValid } from '../models/AuthSession';
+import { AuthSession, isAuthSessionValid, resolveApiBaseUrl } from '../models/AuthSession';
 import { ApiEnvelope } from '../models/BackendApi';
 
 const API_LOG_DOMAIN: number = 0xFF12;
@@ -28,6 +28,8 @@ interface ApiRequestHeaders {
 
 interface HttpRequestHeaders {
   'Content-Type': string;
+  'Accept': string;
+  'ngrok-skip-browser-warning': string;
   'Authorization'?: string;
   'X-User-Id'?: string;
 }
@@ -55,6 +57,15 @@ interface ApiResponseLog {
 interface ApiErrorLog {
   method: string;
   url: string;
+  error: string;
+}
+
+interface ApiFinishLog {
+  method: string;
+  url: string;
+  success: boolean;
+  statusCode: number;
+  durationMs: number;
   error: string;
 }
 
@@ -115,7 +126,7 @@ function buildHeaders(authSession?: AuthSession): ApiRequestHeaders {
     return {
       contentType: 'application/json',
       authorization: `Bearer ${authSession.token.trim()}`,
-      xUserId: authSession.userId.trim()
+      xUserId: `${authSession.userId}`
     };
   }
   return {
@@ -135,6 +146,33 @@ function serializeLogValue(value: Object | string | undefined | null): string {
   return JSON.stringify(value);
 }
 
+function resolveErrorText(error: Object | string | undefined | null, fallbackMessage: string): string {
+  if (typeof error === 'string') {
+    let trimmedError = error.trim();
+    return trimmedError.length > 0 ? trimmedError : fallbackMessage;
+  }
+
+  let rawText = `${error}`;
+  if (rawText.trim().length > 0 && rawText !== '[object Object]') {
+    return rawText;
+  }
+
+  let serializedError = serializeLogValue(error);
+  if (serializedError.trim().length > 0 && serializedError !== '{}') {
+    return serializedError;
+  }
+  return fallbackMessage;
+}
+
+function isApiSuccess(code: number): boolean {
+  return code === 0 || code === 200;
+}
+
+function resolveApiMessage<T>(response: ApiEnvelope<T>): string {
+  let message = response.message ?? response.msg ?? '';
+  return `${message}`.trim();
+}
+
 function buildLogHeaders(headers: ApiRequestHeaders): ApiLogHeaders {
   return {
     contentType: headers.contentType,
@@ -146,19 +184,56 @@ function buildLogHeaders(headers: ApiRequestHeaders): ApiLogHeaders {
 function buildHttpHeaders(headers: ApiRequestHeaders): HttpRequestHeaders {
   return {
     'Content-Type': headers.contentType,
+    'Accept': 'application/json, text/plain, */*',
+    'ngrok-skip-browser-warning': 'true',
     'Authorization': headers.authorization.length > 0 ? headers.authorization : undefined,
     'X-User-Id': headers.xUserId.length > 0 ? headers.xUserId : undefined
   };
 }
 
+function looksLikeJsonText(text: string): boolean {
+  let trimmed = text.trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
+}
+
+function resolveResponseErrorMessage(statusCode: number, responseText: string, requestUrl: string,
+  headers: ApiRequestHeaders): string {
+  let trimmedBody = responseText.trim();
+  let normalizedBody = trimmedBody.toLowerCase();
+  let normalizedUrl = requestUrl.toLowerCase();
+
+  if ((normalizedUrl.indexOf('.ngrok-free.dev') >= 0 || normalizedUrl.indexOf('.ngrok.io') >= 0) &&
+    (normalizedBody.indexOf('err_ngrok_3200') >= 0 || normalizedBody.indexOf('endpoint') >= 0 && normalizedBody.indexOf('offline') >= 0)) {
+    return '联调地址当前离线：ngrok 隧道未在线，请先启动或更换新的公网地址。';
+  }
+  if (statusCode === 401 || statusCode === 403) {
+    if (headers.authorization.trim().length === 0 || headers.xUserId.trim().length === 0) {
+      return '当前没有有效登录态，请先登录后再同步数据。';
+    }
+    return '登录态已失效或无权限访问，请重新登录后重试。';
+  }
+  if (trimmedBody.length > 0) {
+    return `请求失败（${statusCode}）：${trimmedBody}`;
+  }
+  return `请求失败（${statusCode}）。`;
+}
+
+function isApiEnvelopeLike(value: Object): boolean {
+  let envelope = value as ApiEnvelope<Object>;
+  return typeof envelope.code === 'number';
+}
+
 export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
-  if (config.baseUrl.trim().length === 0) {
+  let httpRequest = http.createHttp();
+  let resolvedBaseUrl = resolveApiBaseUrl(config.baseUrl);
+  if (resolvedBaseUrl.trim().length === 0) {
     throw new Error('请先填写联调后端地址。');
   }
-
-  let httpRequest = http.createHttp();
-  let requestUrl = buildUrl(config.baseUrl, config.path, config.queryParams);
+  let requestUrl = buildUrl(resolvedBaseUrl, config.path, config.queryParams);
   let requestHeaders = buildHeaders(config.authSession);
+  let startedAt = Date.now();
+  let responseStatusCode = -1;
+  let errorText = '';
   try {
     let requestLog: ApiRequestLog = {
       method: `${config.method}`,
@@ -166,7 +241,9 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
       headers: buildLogHeaders(requestHeaders),
       body: config.body ? serializeLogValue(config.body) : ''
     };
-    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, 'request %{public}s', serializeLogValue(requestLog));
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '发起请求，请求方法=%{public}s，请求链接=%{public}s，请求体=%{public}s',
+      requestLog.method, requestLog.url, requestLog.body);
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '请求详情 %{public}s', serializeLogValue(requestLog));
 
     let response = await httpRequest.request(requestUrl, {
       method: config.method,
@@ -177,6 +254,7 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
       expectDataType: http.HttpDataType.STRING
     });
 
+    responseStatusCode = response.responseCode;
     let responseText: string = getHttpResponseText(response.result);
     let responseLog: ApiResponseLog = {
       method: `${config.method}`,
@@ -184,29 +262,58 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
       statusCode: response.responseCode,
       body: responseText
     };
-    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, 'response %{public}s', serializeLogValue(responseLog));
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '收到响应，请求方法=%{public}s，请求链接=%{public}s，状态码=%{public}d，响应体=%{public}s',
+      responseLog.method, responseLog.url, responseLog.statusCode, responseLog.body);
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '响应详情 %{public}s', serializeLogValue(responseLog));
     if (response.responseCode >= 400) {
-      throw new Error(`请求失败（${response.responseCode}）：${responseText}`);
+      throw new Error(resolveResponseErrorMessage(response.responseCode, responseText, requestUrl, requestHeaders));
+    }
+
+    if (response.responseCode === 204 || responseText.trim().length === 0) {
+      return undefined as T;
+    }
+    if (!looksLikeJsonText(responseText)) {
+      return responseText as T;
     }
 
     let parsedResponse = JSON.parse(responseText) as ApiEnvelope<T>;
-    if (parsedResponse.code !== 0) {
-      throw new Error(parsedResponse.message.trim().length > 0 ? parsedResponse.message : `服务返回错误码 ${parsedResponse.code}`);
+    if (isApiEnvelopeLike(parsedResponse as Object)) {
+      if (!isApiSuccess(parsedResponse.code)) {
+        let message = resolveApiMessage(parsedResponse);
+        throw new Error(message.length > 0 ? message : `服务返回错误码 ${parsedResponse.code}`);
+      }
+      return parsedResponse.data;
     }
-    return parsedResponse.data;
+    return parsedResponse as T;
   } catch (error) {
-    let errorText = `${error}`;
-    if (errorText.trim().length === 0 || errorText === '[object Object]') {
-      errorText = '接口请求失败，请检查联调服务与网络。';
-    }
+    errorText = resolveErrorText(error, '接口请求失败，请检查联调服务与网络。');
     let errorLog: ApiErrorLog = {
       method: `${config.method}`,
       url: requestUrl,
       error: errorText
     };
-    hilog.error(API_LOG_DOMAIN, API_LOG_TAG, 'error %{public}s', serializeLogValue(errorLog));
+    hilog.error(API_LOG_DOMAIN, API_LOG_TAG, '请求异常，请求方法=%{public}s，请求链接=%{public}s，错误信息=%{public}s',
+      errorLog.method, errorLog.url, errorLog.error);
+    hilog.error(API_LOG_DOMAIN, API_LOG_TAG, '异常详情 %{public}s', serializeLogValue(errorLog));
     throw new Error(errorText);
   } finally {
+    let finishLog: ApiFinishLog = {
+      method: `${config.method}`,
+      url: requestUrl,
+      success: errorText.length === 0,
+      statusCode: responseStatusCode,
+      durationMs: Date.now() - startedAt,
+      error: errorText
+    };
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG,
+      '请求结束，请求方法=%{public}s，请求链接=%{public}s，是否成功=%{public}s，状态码=%{public}d，耗时=%{public}dms，错误信息=%{public}s',
+      finishLog.method,
+      finishLog.url,
+      finishLog.success ? '是' : '否',
+      finishLog.statusCode,
+      finishLog.durationMs,
+      finishLog.error);
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '结束详情 %{public}s', serializeLogValue(finishLog));
     httpRequest.destroy();
   }
 }

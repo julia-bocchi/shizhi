@@ -10,3 +10,5 @@
 /.clang-tidy
 **/.test
 /.appanalyzer
+mock-backend/*.log
+mock-backend/*.err.log

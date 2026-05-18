@@ -30,10 +30,7 @@ import {
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
 import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
 import {
-  createEmptyRemoteWeightSummary,
   fetchWeightRecords,
-  fetchWeightSummary,
-  RemoteWeightSummary,
 } from '../../utils/ApiService';
 import { createWeightUpsertOperation, hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
 import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
@@ -75,7 +72,6 @@ export struct RecordTabPage {
   @State calendarYear: number = new Date().getFullYear();
   @State calendarMonth: number = new Date().getMonth();
   @State remoteSyncing: boolean = false;
-  @State remoteSummary: RemoteWeightSummary = createEmptyRemoteWeightSummary();
 
   private buildSyncState(): SyncRuntimeState {
     return {
@@ -139,8 +135,15 @@ export struct RecordTabPage {
   }
 
   private syncRecordsFromStorage(): void {
-    this.records = deserializeWeightRecords(this.weightRecordText);
-    this.nextId = getNextWeightRecordId(this.records);
+    this.updateRecordState(deserializeWeightRecords(this.weightRecordText));
+  }
+
+  private updateRecordState(nextRecords: WeightRecord[], shouldBumpVersion: boolean = true): void {
+    this.records = nextRecords;
+    this.nextId = getNextWeightRecordId(nextRecords);
+    if (shouldBumpVersion) {
+      this.recordsVersion += 1;
+    }
   }
 
   getSortedRecords(): WeightRecord[] {
@@ -194,9 +197,6 @@ export struct RecordTabPage {
   }
 
   getWeeklyAverage(): number {
-    if (this.remoteSummary.recentCount > 0) {
-      return this.remoteSummary.averageWeight;
-    }
     let recentRecords = this.getRecentRecords();
     if (recentRecords.length === 0) {
       return 0;
@@ -210,9 +210,6 @@ export struct RecordTabPage {
   }
 
   getWeeklyChange(): number {
-    if (this.remoteSummary.recentCount > 0) {
-      return this.remoteSummary.changeInRange;
-    }
     let recentRecords = this.getRecentRecords();
     if (recentRecords.length < 2) {
       return 0;
@@ -221,9 +218,6 @@ export struct RecordTabPage {
   }
 
   getTodayChange(): number {
-    if (this.remoteSummary.recentCount > 0) {
-      return this.remoteSummary.changeFromPrevious;
-    }
     let latestRecord = this.getLatestRecord();
     let previousRecord = this.getPreviousRecord();
     if (!latestRecord || !previousRecord) {
@@ -410,7 +404,7 @@ export struct RecordTabPage {
   }
 
   getRecordRenderKey(record: WeightRecord): string {
-    return `${record.id}-${this.recordsVersion}`;
+    return `${record.id}-${record.date}-${record.weight.toFixed(1)}-${this.recordsVersion}`;
   }
 
   getTodayDate(): string {
@@ -625,11 +619,8 @@ export struct RecordTabPage {
     try {
       let dateRange = this.getWeightRangeDateRange();
       let remoteRecords = await fetchWeightRecords(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1]);
-      this.records = remoteRecords;
       this.weightRecordText = serializeWeightRecords(remoteRecords);
-      this.nextId = getNextWeightRecordId(remoteRecords);
-      this.remoteSummary = await fetchWeightSummary(this.apiBaseUrlText, authSession, 7);
-      this.recordsVersion += 1;
+      this.updateRecordState(remoteRecords);
     } catch (error) {
       this.noticeText = `${error}`;
     } finally {
@@ -678,9 +669,8 @@ export struct RecordTabPage {
     }
 
     updatedRecords.sort((left: WeightRecord, right: WeightRecord) => compareRecordDate(left, right));
-    this.records = updatedRecords;
     this.weightRecordText = serializeWeightRecords(updatedRecords);
-    this.recordsVersion += 1;
+    this.updateRecordState(updatedRecords);
     this.weightInput = '';
     this.noticeText = hasUpdated
       ? `已覆盖今天 ${dateValue} 的体重记录。`

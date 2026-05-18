@@ -1,0 +1,67 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="2" name="第 1 页">
+    <mxGraphModel dx="1600" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="3" value="&amp;lt;&amp;lt;Harmony ETS Page&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;ExerciseTabPage.ets&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;计划日历 / 模板管理 / AI 推荐&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="100" y="150" width="300" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="4" value="&amp;lt;&amp;lt;Harmony ETS Page&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;ExerciseDetailPage.ets&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;训练计时 / 模板保存 / 记录完成&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="100" y="360" width="300" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="5" value="&amp;lt;&amp;lt;Harmony ETS Pack&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;exerciseModule&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;ExerciseHelper&lt;br/&gt;WorkoutPlanHelper / WorkoutPlanMetaHelper&lt;br/&gt;TrainingFeedbackHelper&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#f5f5f5;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="540" y="220" width="330" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="6" value="&amp;lt;&amp;lt;Harmony ETS Pack&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;syncCore&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;计划 / 模板 / 训练记录同步&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#f5f5f5;strokeColor=#000000;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="540" y="480" width="320" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="7" value="&amp;lt;&amp;lt;PersistentStorage&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;local-health-cache&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;savedCustomWorkoutText&lt;br/&gt;workoutPlanText / workoutPlanMetaText&lt;br/&gt;workoutRecordText&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#eaf7e8;strokeColor=#82b366;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="120" width="330" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="8" value="&amp;lt;&amp;lt;HTTP Backend&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;workout-api&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;GET /workout-types&lt;br/&gt;/workout-templates&lt;br/&gt;/workout-plans&lt;br/&gt;/workout-records /daily-summary&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#e7f0ff;strokeColor=#6c8ebf;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="330" width="340" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="9" value="&amp;lt;&amp;lt;Third-party AI API&amp;gt;&amp;gt;&lt;div&gt;&lt;b&gt;recommendation-api&lt;/b&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px;color:#666666;&quot;&gt;requestAiRecommendations()&lt;/font&gt;&lt;/div&gt;" style="shape=component;whiteSpace=wrap;html=1;align=center;verticalAlign=top;spacingTop=12;fillColor=#f3e8ff;strokeColor=#9673a6;strokeWidth=2;fontSize=17;" parent="1" vertex="1">
+          <mxGeometry x="1030" y="570" width="320" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="10" value="页面逻辑依赖" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.42;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="3" target="5" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="11" value="训练配置依赖" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.42;exitDx=0;exitDy=0;entryX=0;entryY=0.72;entryDx=0;entryDy=0;" parent="1" source="4" target="5" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="12" value="计划 / 模板同步" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.78;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" parent="1" source="3" target="6" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="13" value="记录 / 模板同步" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.72;exitDx=0;exitDy=0;entryX=0;entryY=0.72;entryDx=0;entryDy=0;" parent="1" source="4" target="6" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="14" value="读写本地状态" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.22;exitDx=0;exitDy=0;entryX=0;entryY=0.52;entryDx=0;entryDy=0;" parent="1" source="5" target="7" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="15" value="训练数据查询" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.58;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" parent="1" source="5" target="8" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="16" value="AI 推荐" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.38;entryDx=0;entryDy=0;" parent="1" source="5" target="9" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="17" value="维护本地同步状态" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.86;entryDx=0;entryDy=0;" parent="1" source="6" target="7" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="18" value="写回训练计划与记录" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.8;dashed=1;endArrow=open;endFill=0;exitX=1;exitY=0.6;exitDx=0;exitDy=0;entryX=0;entryY=0.78;entryDx=0;entryDy=0;" parent="1" source="6" target="8" edge="1">
+          <mxGeometry relative="1" as="geometry">
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -2,12 +2,13 @@ import { UserProfile } from './UserProfile';
 
 export interface ApiEnvelope<T> {
   code: number;
-  message: string;
+  message?: string;
+  msg?: string;
   data: T;
 }
 
 export interface LoginResponseData {
-  userId: string;
+  userId: number;
   username: string;
   token: string;
 }

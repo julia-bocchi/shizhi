@@ -1,4 +1,4 @@
-import { AuthSession, createEmptyAuthSession } from '../models/AuthSession';
+import { AuthSession, createEmptyAuthSession, normalizeUserId } from '../models/AuthSession';
 import { WorkoutPlanLocalMeta } from '../models/BackendApi';
 
 function sanitizeString(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
@@ -36,7 +36,7 @@ export function deserializeAuthSession(savedText: string): AuthSession {
   try {
     let parsedValue = JSON.parse(savedText) as AuthSession;
     return {
-      userId: sanitizeString(parsedValue.userId),
+      userId: normalizeUserId(parsedValue.userId),
       username: sanitizeString(parsedValue.username),
       token: sanitizeString(parsedValue.token),
       loginAt: sanitizeString(parsedValue.loginAt)

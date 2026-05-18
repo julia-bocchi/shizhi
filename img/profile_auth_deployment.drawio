@@ -1,0 +1,76 @@
+<mxfile host="65bd71144e">
+    <diagram id="2" name="第 1 页">
+        <mxGraphModel dx="957" dy="580" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1600" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="3" value="客户端" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="240" width="360" height="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="LoginPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+                    <mxGeometry x="26" y="62" width="308" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="ProfileTabPage.ets" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="3" vertex="1">
+                    <mxGeometry x="26" y="120" width="308" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="本地缓存" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#e9f7e7;strokeColor=#82b366;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="517" y="496" width="390" height="358" as="geometry"/>
+                </mxCell>
+                <mxCell id="7" value="authSessionText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="6" vertex="1">
+                    <mxGeometry x="26" y="62" width="338" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="8" value="apiBaseUrlText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="6" vertex="1">
+                    <mxGeometry x="26" y="120" width="338" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="9" value="userProfileText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="6" vertex="1">
+                    <mxGeometry x="26" y="178" width="338" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="10" value="lastSyncAttemptText / lastSyncSuccessText" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="6" vertex="1">
+                    <mxGeometry x="26" y="236" width="338" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="11" value="业务服务器" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="500" y="40" width="420" height="420" as="geometry"/>
+                </mxCell>
+                <mxCell id="12" value="mock-backend/server.js" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="11" vertex="1">
+                    <mxGeometry x="26" y="62" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="13" value="POST /auth/login" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="11" vertex="1">
+                    <mxGeometry x="26" y="120" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="14" value="POST /auth/register" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="11" vertex="1">
+                    <mxGeometry x="26" y="178" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="15" value="GET /user-profile" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="11" vertex="1">
+                    <mxGeometry x="26" y="236" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="16" value="PUT /user-profile" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="11" vertex="1">
+                    <mxGeometry x="26" y="294" width="368" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="17" value="业务数据存储" style="shape=cube;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=2;align=center;verticalAlign=top;spacingTop=16;fontSize=24;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1070" y="110" width="350" height="358" as="geometry"/>
+                </mxCell>
+                <mxCell id="18" value="mock-backend/data.json" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="62" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="19" value="users" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="120" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="20" value="profiles" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="178" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="21" value="token / userId mapping" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=center;verticalAlign=middle;spacing=8;fontSize=16;" parent="17" vertex="1">
+                    <mxGeometry x="26" y="236" width="298" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="22" value="PersistentStorage" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.76;exitDx=0;exitDy=0;entryX=0;entryY=0.28;entryDx=0;entryDy=0;" parent="1" source="3" target="6" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="23" value="HTTP/JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.24;exitDx=0;exitDy=0;entryX=0;entryY=0.72;entryDx=0;entryDy=0;" parent="1" source="3" target="11" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="24" value="JSON File I/O" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=none;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.45;entryDx=0;entryDy=0;" parent="1" source="11" target="17" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

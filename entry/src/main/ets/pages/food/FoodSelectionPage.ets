@@ -330,6 +330,7 @@ struct FoodSelectionPage {
       this.foodPlanText = serializeFoodPlans(this.foodPlans);
       this.initializeDraftSelections();
     } catch (error) {
+      this.pageNotice = `${error}`;
     }
   }
 

@@ -107,9 +107,9 @@ export struct ProfileTabPage {
     if (this.apiBaseUrlText.trim().length === 0) {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
-    let authSession = deserializeAuthSession(this.authSessionText);
     this.flushPendingSync().then(() => {
-      if (isAuthSessionValid(authSession) && !hasPendingSyncOperation(this.pendingSyncQueueText, 'profile')) {
+      if (isAuthSessionValid(deserializeAuthSession(this.authSessionText)) &&
+        !hasPendingSyncOperation(this.pendingSyncQueueText, 'profile')) {
         this.pullProfileFromServer();
       }
     });
@@ -164,7 +164,7 @@ export struct ProfileTabPage {
     if (!isAuthSessionValid(authSession)) {
       return '未登录';
     }
-    return `已登录：${authSession.username.trim().length > 0 ? authSession.username.trim() : authSession.userId}`;
+    return `已登录：${authSession.username.trim().length > 0 ? authSession.username.trim() : `${authSession.userId}`}`;
   }
 
   private getAuthStatusColor(): string {
@@ -174,6 +174,7 @@ export struct ProfileTabPage {
   private async pullProfileFromServer(): Promise<void> {
     let authSession = deserializeAuthSession(this.authSessionText);
     if (!isAuthSessionValid(authSession)) {
+      this.profileNotice = '当前还没有登录，请先去登录页。';
       return;
     }
     try {

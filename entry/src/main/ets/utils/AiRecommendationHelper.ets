@@ -1,4 +1,5 @@
 import http from '@ohos.net.http';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AiAssistantConfig } from '../models/AiAssistant';
 import {
   AiRecommendationItem,
@@ -41,6 +42,9 @@ interface ParsedRecommendationPayload {
   exerciseRankings?: AiRecommendationItem[];
 }
 
+const AI_LOG_DOMAIN: number = 0xFF13;
+const AI_LOG_TAG: string = 'AiRecommendation';
+
 export interface AiRecommendationRequestContext {
   profile: UserProfile;
   weightRecords: WeightRecord[];
@@ -73,6 +77,14 @@ function getHttpResponseText(result: string | Object | ArrayBuffer): string {
     return result;
   }
   return JSON.stringify(result);
+}
+
+function maskSensitiveText(value: string): string {
+  let trimmed = value.trim();
+  if (trimmed.length <= 12) {
+    return '***';
+  }
+  return `${trimmed.substring(0, 6)}...${trimmed.substring(trimmed.length - 4)}`;
 }
 
 function extractJsonObjectText(rawText: string): string {
@@ -215,6 +227,8 @@ export async function requestAiRecommendations(config: AiAssistantConfig,
   }
 
   let httpRequest = http.createHttp();
+  let startedAt: number = Date.now();
+  let responseStatusCode: number = -1;
   try {
     let requestBody: ChatCompletionRequestBody = {
       model: config.model.trim(),
@@ -225,6 +239,11 @@ export async function requestAiRecommendations(config: AiAssistantConfig,
         { role: 'user', content: buildUserPrompt(context) }
       ]
     };
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG,
+      '发起 AI 推荐请求，请求链接=%{public}s，模型=%{public}s，鉴权=%{public}s',
+      config.apiEndpoint.trim(),
+      config.model.trim(),
+      maskSensitiveText(config.apiKey));
     let response = await httpRequest.request(config.apiEndpoint.trim(), {
       method: http.RequestMethod.POST,
       header: {
@@ -236,7 +255,10 @@ export async function requestAiRecommendations(config: AiAssistantConfig,
       readTimeout: 30000,
       expectDataType: http.HttpDataType.STRING
     });
+    responseStatusCode = response.responseCode;
     let responseText = getHttpResponseText(response.result);
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, '收到 AI 推荐响应，状态码=%{public}d，响应体=%{public}s',
+      response.responseCode, responseText);
     if (response.responseCode >= 400) {
       throw new Error(`AI 接口调用失败（${response.responseCode}）：${responseText}`);
     }
@@ -257,8 +279,11 @@ export async function requestAiRecommendations(config: AiAssistantConfig,
     if (errorMessage.trim().length === 0 || errorMessage === '[object Object]') {
       errorMessage = 'AI 推荐请求失败，请检查网络与配置。';
     }
+    hilog.error(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 推荐请求异常，错误信息=%{public}s', errorMessage);
     throw new Error(errorMessage);
   } finally {
+    hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG, 'AI 推荐请求结束，状态码=%{public}d，耗时=%{public}dms',
+      responseStatusCode, Date.now() - startedAt);
     httpRequest.destroy();
   }
 }
