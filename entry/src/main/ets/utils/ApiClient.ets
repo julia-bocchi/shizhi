@@ -241,8 +241,8 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
       headers: buildLogHeaders(requestHeaders),
       body: config.body ? serializeLogValue(config.body) : ''
     };
-    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '发起请求，请求方法=%{public}s，请求链接=%{public}s，请求体=%{public}s',
-      requestLog.method, requestLog.url, requestLog.body);
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '发起请求，请求方法=%{public}s，请求链接=%{public}s，请求头=%{public}s，请求体=%{public}s',
+      requestLog.method, requestLog.url, serializeLogValue(requestLog.headers), requestLog.body);
     hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '请求详情 %{public}s', serializeLogValue(requestLog));
 
     let response = await httpRequest.request(requestUrl, {
@@ -262,8 +262,8 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
       statusCode: response.responseCode,
       body: responseText
     };
-    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '收到响应，请求方法=%{public}s，请求链接=%{public}s，状态码=%{public}d，响应体=%{public}s',
-      responseLog.method, responseLog.url, responseLog.statusCode, responseLog.body);
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '收到响应，请求方法=%{public}s，请求链接=%{public}s，状态码=%{public}d，响应头=%{public}s，响应体=%{public}s',
+      responseLog.method, responseLog.url, responseLog.statusCode, serializeLogValue(response.header as Object), responseLog.body);
     hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '响应详情 %{public}s', serializeLogValue(responseLog));
     if (response.responseCode >= 400) {
       throw new Error(resolveResponseErrorMessage(response.responseCode, responseText, requestUrl, requestHeaders));
