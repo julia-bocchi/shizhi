@@ -4,6 +4,7 @@ import authSessionTest from './AuthSession.test';
 import homeDashboardHelperTest from './HomeDashboardHelper.test';
 import identityHelperTest from './IdentityHelper.test';
 import monthCalendarHelperTest from './MonthCalendarHelper.test';
+import userProfileTest from './UserProfile.test';
 
 export default function localUnitTest() {
   aiAssistantHelperTest();
@@ -11,6 +12,7 @@ export default function localUnitTest() {
   homeDashboardHelperTest();
   identityHelperTest();
   monthCalendarHelperTest();
+  userProfileTest();
 
   describe('localUnitTest', () => {
     // Defines a test suite. Two parameters are supported: test suite name and test suite function.

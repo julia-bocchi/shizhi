@@ -40,8 +40,36 @@ export interface BmiInfo {
   suggestionText: string;
 }
 
-function parseNumber(value: string): number {
-  let parsedValue = Number(value.trim());
+function sanitizeText(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
+  if (value === undefined || value === null) {
+    return fallbackValue;
+  }
+  return `${value}`;
+}
+
+function normalizeProfileGender(value: string | number | boolean | undefined | null): string {
+  let gender = sanitizeText(value, GENDER_UNKNOWN);
+  if (gender === GENDER_MALE || gender === GENDER_FEMALE) {
+    return gender;
+  }
+  return GENDER_UNKNOWN;
+}
+
+export function normalizeUserProfile(profile: UserProfile | undefined | null): UserProfile {
+  if (!profile) {
+    return createEmptyUserProfile();
+  }
+  return {
+    nickname: sanitizeText(profile.nickname),
+    heightCm: sanitizeText(profile.heightCm),
+    weightKg: sanitizeText(profile.weightKg),
+    age: sanitizeText(profile.age),
+    gender: normalizeProfileGender(profile.gender)
+  };
+}
+
+function parseNumber(value: string | number | boolean | undefined | null): number {
+  let parsedValue = Number(sanitizeText(value).trim());
   if (isNaN(parsedValue)) {
     return 0;
   }
@@ -211,15 +239,15 @@ export function calculateCaloriesBurned(weightKg: number, met: number, durationM
 }
 
 export function getWeightValue(profile: UserProfile): number {
-  return parsePositiveNumber(profile.weightKg);
+  return parsePositiveNumber(normalizeUserProfile(profile).weightKg);
 }
 
 export function getHeightValue(profile: UserProfile): number {
-  return parsePositiveNumber(profile.heightCm);
+  return parsePositiveNumber(normalizeUserProfile(profile).heightCm);
 }
 
 export function getAgeValue(profile: UserProfile): number {
-  return parsePositiveNumber(profile.age);
+  return parsePositiveNumber(normalizeUserProfile(profile).age);
 }
 
 export function getMissingProfileFields(profile: UserProfile): string[] {
@@ -233,7 +261,7 @@ export function getMissingProfileFields(profile: UserProfile): string[] {
   if (getAgeValue(profile) <= 0) {
     missingFields.push('年龄');
   }
-  if (profile.gender === GENDER_UNKNOWN) {
+  if (normalizeUserProfile(profile).gender === GENDER_UNKNOWN) {
     missingFields.push('性别');
   }
   return missingFields;
@@ -264,10 +292,11 @@ export function getCalorieRequirementText(profile: UserProfile): string {
 }
 
 export function getGenderSuggestion(profile: UserProfile): string {
-  if (profile.gender === GENDER_MALE) {
+  let gender = normalizeUserProfile(profile).gender;
+  if (gender === GENDER_MALE) {
     return '已按男性资料保存，可继续补充身高和体重。';
   }
-  if (profile.gender === GENDER_FEMALE) {
+  if (gender === GENDER_FEMALE) {
     return '已按女性资料保存，可继续补充身高和体重。';
   }
   return '性别暂未填写，不影响基础热量公式，但会影响资料完整度。';
@@ -623,22 +652,23 @@ export function getSetTimerProgress(draft: ExerciseDraft, elapsedSeconds: number
 }
 
 export function getProfileTagline(profile: UserProfile): string {
-  let nickname = profile.nickname.trim();
+  let nickname = normalizeUserProfile(profile).nickname.trim();
   if (nickname.length > 0) {
     return `${nickname} 的运动资料`;
   }
   return '补充资料后，运动页会自动联动计算。';
 }
 
-function encodePersistedText(value: string): string {
-  return encodeURIComponent(value);
+function encodePersistedText(value: string | number | boolean | undefined | null): string {
+  return encodeURIComponent(sanitizeText(value));
 }
 
-function decodePersistedText(value: string): string {
-  if (value.length === 0) {
+function decodePersistedText(value: string | number | boolean | undefined | null): string {
+  let encodedValue = sanitizeText(value);
+  if (encodedValue.length === 0) {
     return '';
   }
-  return decodeURIComponent(value);
+  return decodeURIComponent(encodedValue);
 }
 
 export function serializeExerciseDraft(draft: ExerciseDraft): string {
@@ -692,12 +722,13 @@ export function deserializeExerciseDraft(draftText: string): ExerciseDraft {
 }
 
 export function serializeUserProfile(profile: UserProfile): string {
+  let normalizedProfile = normalizeUserProfile(profile);
   let fields: string[] = [
-    profile.nickname,
-    profile.heightCm,
-    profile.weightKg,
-    profile.age,
-    profile.gender
+    normalizedProfile.nickname,
+    normalizedProfile.heightCm,
+    normalizedProfile.weightKg,
+    normalizedProfile.age,
+    normalizedProfile.gender
   ];
   let encodedFields: string[] = [];
   for (let index = 0; index < fields.length; index++) {
@@ -707,22 +738,22 @@ export function serializeUserProfile(profile: UserProfile): string {
 }
 
 export function deserializeUserProfile(profileText: string): UserProfile {
-  if (profileText.trim().length === 0) {
+  if (sanitizeText(profileText).trim().length === 0) {
     return createEmptyUserProfile();
   }
 
-  let fields = profileText.split('|');
+  let fields = sanitizeText(profileText).split('|');
   if (fields.length < 5) {
     return createEmptyUserProfile();
   }
 
-  return {
+  return normalizeUserProfile({
     nickname: decodePersistedText(fields[0]),
     heightCm: decodePersistedText(fields[1]),
     weightKg: decodePersistedText(fields[2]),
     age: decodePersistedText(fields[3]),
     gender: decodePersistedText(fields[4])
-  };
+  });
 }
 
 export function createSavedCustomWorkoutFromDraft(draft: ExerciseDraft): SavedCustomWorkout {

@@ -19,6 +19,7 @@ import {
   getProfileCompletionText,
   getProfileReminderText,
   getProfileTagline,
+  normalizeUserProfile,
   serializeUserProfile
 } from '../../utils/ExerciseHelper';
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
@@ -116,8 +117,9 @@ export struct ProfileTabPage {
   }
 
   private commitProfile(nextProfile: UserProfile, noticeText?: string): void {
-    this.userProfile = nextProfile;
-    this.userProfileText = serializeUserProfile(nextProfile);
+    let normalizedProfile = normalizeUserProfile(nextProfile);
+    this.userProfile = normalizedProfile;
+    this.userProfileText = serializeUserProfile(normalizedProfile);
     if (noticeText !== undefined) {
       this.profileNotice = noticeText;
     }

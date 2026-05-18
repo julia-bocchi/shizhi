@@ -34,7 +34,7 @@ import {
   WORKOUT_PLAN_GOAL_DURATION,
   getWorkoutPlanGoalFromDraft
 } from './WorkoutPlanHelper';
-import { deserializeExerciseDraft } from './ExerciseHelper';
+import { deserializeExerciseDraft, normalizeUserProfile } from './ExerciseHelper';
 
 interface FoodOptionsResponseData {
   items: BackendFoodOption[];
@@ -341,22 +341,24 @@ export function logoutSession(): LoginResult {
 }
 
 export async function fetchUserProfile(baseUrl: string, authSession: AuthSession): Promise<UserProfile> {
-  return await requestApiData<UserProfile>({
+  let profile = await requestApiData<UserProfile>({
     baseUrl: baseUrl,
     path: '/user-profile',
     method: http.RequestMethod.GET,
     authSession: authSession
   });
+  return normalizeUserProfile(profile);
 }
 
 export async function updateUserProfileRemote(baseUrl: string, authSession: AuthSession, profile: UserProfile): Promise<UserProfile> {
-  return await requestApiData<UserProfile>({
+  let remoteProfile = await requestApiData<UserProfile>({
     baseUrl: baseUrl,
     path: '/user-profile',
     method: http.RequestMethod.PUT,
     authSession: authSession,
-    body: profile
+    body: normalizeUserProfile(profile)
   });
+  return normalizeUserProfile(remoteProfile);
 }
 
 export async function fetchWeightRecords(baseUrl: string, authSession: AuthSession, startDate: string, endDate: string): Promise<WeightRecord[]> {
