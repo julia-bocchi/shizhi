@@ -70,7 +70,6 @@ import {
   fetchWorkoutPlans,
   fetchWorkoutRecords,
   fetchWorkoutTemplates,
-  fetchWorkoutTypes,
   RemoteWorkoutDailySummary,
   removeWorkoutPlanMeta
 } from '../../utils/ApiService';
@@ -297,7 +296,6 @@ export struct ExerciseTabPage {
     this.remoteSyncing = true;
     try {
       let dateRange = this.getWorkoutSyncRange();
-      this.remoteWorkoutTypes = await fetchWorkoutTypes(this.apiBaseUrlText, authSession);
 
       let remoteTemplates = await fetchWorkoutTemplates(this.apiBaseUrlText, authSession);
       let mergedTemplates: SavedCustomWorkout[] = remoteTemplates.slice();
