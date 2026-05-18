@@ -6,15 +6,13 @@ import {
 } from '../../constants/AppTheme';
 import { resolveApiBaseUrl } from '../../models/AuthSession';
 import { HOME_TAB_INDEX } from '../../models/TabItem';
-import { fetchUserProfile, loginWithPassword, registerWithPassword } from '../../utils/ApiService';
-import { serializeUserProfile } from '../../utils/ExerciseHelper';
+import { LoginResult, loginWithPassword, registerWithPassword } from '../../utils/ApiService';
 
 @Entry
 @Component
 struct LoginPage {
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
-  @StorageLink('userProfileText') userProfileText: string = '';
   @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
 
   @State username: string = '';
@@ -34,6 +32,14 @@ struct LoginPage {
     }
   }
 
+  private completeAuthSuccess(result: LoginResult, noticeText: string): void {
+    this.authSessionText = result.authSessionText;
+    this.currentTabIndex = HOME_TAB_INDEX;
+    this.password = '';
+    this.loginNotice = noticeText;
+    this.goBack();
+  }
+
   private async handleLogin(): Promise<void> {
     if (this.authBusy) {
       return;
@@ -51,13 +57,7 @@ struct LoginPage {
     this.authBusy = true;
     try {
       let loginResult = await loginWithPassword(this.apiBaseUrlText, this.username, this.password);
-      this.authSessionText = loginResult.authSessionText;
-      let remoteProfile = await fetchUserProfile(this.apiBaseUrlText, loginResult.authSession);
-      this.userProfileText = serializeUserProfile(remoteProfile);
-      this.currentTabIndex = HOME_TAB_INDEX;
-      this.password = '';
-      this.loginNotice = '登录成功，正在返回首页。';
-      this.goBack();
+      this.completeAuthSuccess(loginResult, '登录成功，正在返回首页。');
     } catch (error) {
       this.loginNotice = '登录失败，请检查账号、密码或服务状态后重试。';
     } finally {
@@ -82,13 +82,7 @@ struct LoginPage {
     this.authBusy = true;
     try {
       let registerResult = await registerWithPassword(this.apiBaseUrlText, this.username, this.password);
-      this.authSessionText = registerResult.authSessionText;
-      let remoteProfile = await fetchUserProfile(this.apiBaseUrlText, registerResult.authSession);
-      this.userProfileText = serializeUserProfile(remoteProfile);
-      this.currentTabIndex = HOME_TAB_INDEX;
-      this.password = '';
-      this.loginNotice = '注册成功，正在返回首页。';
-      this.goBack();
+      this.completeAuthSuccess(registerResult, '注册成功，正在返回首页。');
     } catch (error) {
       this.loginNotice = '注册失败，请检查账号是否已存在或服务状态后重试。';
     } finally {
