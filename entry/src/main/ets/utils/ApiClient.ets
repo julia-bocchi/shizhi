@@ -243,6 +243,9 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
   let responseStatusCode = -1;
   let errorText = '';
   try {
+    if (config.authSession !== undefined && !isAuthSessionValid(config.authSession)) {
+      throw new Error('当前没有有效登录态，请先登录后再同步数据。');
+    }
     let requestLog: ApiRequestLog = {
       method: `${config.method}`,
       url: requestUrl,

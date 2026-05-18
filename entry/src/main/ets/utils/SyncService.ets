@@ -1,5 +1,5 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AuthSession, createEmptyAuthSession, isAuthSessionValid } from '../models/AuthSession';
+import { AuthSession, isAuthSessionValid } from '../models/AuthSession';
 import { FoodOption } from '../models/FoodOption';
 import { FoodPlanItem } from '../models/FoodPlan';
 import { PendingSyncOperation } from '../models/SyncQueue';
@@ -71,6 +71,7 @@ import {
 
 const SYNC_LOG_DOMAIN: number = 0xFF13;
 const SYNC_LOG_TAG: string = 'SyncService';
+const SYNC_AUTH_REQUIRED_MESSAGE: string = '当前没有有效登录态，请先登录后再同步数据。';
 
 function serializeSyncLogValue(value: Object | string | undefined | null): string {
   if (value === undefined || value === null) {
@@ -625,10 +626,18 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
   let nextState: SyncRuntimeState = copySyncState(state);
   nextState.lastSyncAttemptText = `${Date.now()}`;
   let savedAuthSession = deserializeAuthSession(nextState.authSessionText);
-  let authSession = isAuthSessionValid(savedAuthSession) ? savedAuthSession : createEmptyAuthSession();
+  if (!isAuthSessionValid(savedAuthSession)) {
+    nextState.pendingSyncQueueText = queuePendingOperation(nextState.pendingSyncQueueText, operation);
+    return {
+      state: nextState,
+      syncedImmediately: false,
+      queuedForLater: true,
+      errorMessage: SYNC_AUTH_REQUIRED_MESSAGE
+    };
+  }
 
   try {
-    let syncedState = await syncSingleOperation(nextState, authSession, operation);
+    let syncedState = await syncSingleOperation(nextState, savedAuthSession, operation);
     syncedState.pendingSyncQueueText = removePendingOperationByEntityKey(
       syncedState.pendingSyncQueueText,
       operation.entityType,
@@ -664,9 +673,15 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
 
 export async function syncPendingOperations(state: SyncRuntimeState): Promise<SyncExecutionResult> {
   let savedAuthSession = deserializeAuthSession(state.authSessionText);
-  let authSession = isAuthSessionValid(savedAuthSession) ? savedAuthSession : createEmptyAuthSession();
   let nextState: SyncRuntimeState = copySyncState(state);
   nextState.lastSyncAttemptText = `${Date.now()}`;
+  if (!isAuthSessionValid(savedAuthSession)) {
+    return {
+      state: nextState,
+      syncedCount: 0,
+      lastErrorMessage: ''
+    };
+  }
 
   let syncedCount = 0;
   let lastErrorMessage = '';
@@ -686,7 +701,7 @@ export async function syncPendingOperations(state: SyncRuntimeState): Promise<Sy
     };
     hilog.info(SYNC_LOG_DOMAIN, SYNC_LOG_TAG, 'sync operation %{public}s', serializeSyncLogValue(operationLog));
     try {
-      nextState = await syncSingleOperation(nextState, authSession, currentOperation);
+      nextState = await syncSingleOperation(nextState, savedAuthSession, currentOperation);
       nextState.pendingSyncQueueText = removePendingOperation(nextState.pendingSyncQueueText, currentOperation.id);
       nextState.lastSyncSuccessText = `${Date.now()}`;
       syncedCount += 1;
