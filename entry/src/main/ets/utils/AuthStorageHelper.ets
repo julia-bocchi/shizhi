@@ -1,4 +1,4 @@
-import { AuthSession, createEmptyAuthSession, normalizeUserId } from '../models/AuthSession';
+import { AuthSession, createEmptyAuthSession, isAuthSessionValid, normalizeUserId } from '../models/AuthSession';
 import { WorkoutPlanLocalMeta } from '../models/BackendApi';
 
 function sanitizeString(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
@@ -44,6 +44,36 @@ export function deserializeAuthSession(savedText: string): AuthSession {
   } catch (error) {
     return createEmptyAuthSession();
   }
+}
+
+export function createAuthSessionFromStoredFields(authTokenText: string, authUserIdText: string,
+  authUsernameText: string): AuthSession {
+  return {
+    userId: normalizeUserId(authUserIdText),
+    username: sanitizeString(authUsernameText),
+    token: sanitizeString(authTokenText),
+    loginAt: ''
+  };
+}
+
+export function resolveStoredAuthSession(authSessionText: string, authTokenText: string = '',
+  authUserIdText: string = '', authUsernameText: string = ''): AuthSession {
+  let savedSession = deserializeAuthSession(authSessionText);
+  if (isAuthSessionValid(savedSession)) {
+    return savedSession;
+  }
+
+  let storedFieldSession = createAuthSessionFromStoredFields(authTokenText, authUserIdText, authUsernameText);
+  if (isAuthSessionValid(storedFieldSession)) {
+    return storedFieldSession;
+  }
+  return createEmptyAuthSession();
+}
+
+export function resolveStoredAuthSessionText(authSessionText: string, authTokenText: string = '',
+  authUserIdText: string = '', authUsernameText: string = ''): string {
+  let authSession = resolveStoredAuthSession(authSessionText, authTokenText, authUserIdText, authUsernameText);
+  return isAuthSessionValid(authSession) ? serializeAuthSession(authSession) : '';
 }
 
 export function serializeWorkoutPlanLocalMeta(metaItems: WorkoutPlanLocalMeta[]): string {

@@ -63,7 +63,11 @@ import {
 } from '../../utils/MonthCalendarHelper';
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
 import { BackendWorkoutType, WorkoutPlanLocalMeta } from '../../models/BackendApi';
-import { deserializeAuthSession, deserializeWorkoutPlanLocalMeta, serializeWorkoutPlanLocalMeta } from '../../utils/AuthStorageHelper';
+import {
+  resolveStoredAuthSession,
+  deserializeWorkoutPlanLocalMeta,
+  serializeWorkoutPlanLocalMeta
+} from '../../utils/AuthStorageHelper';
 import {
   createEmptyWorkoutDailySummary,
   fetchWorkoutDailySummary,
@@ -113,6 +117,9 @@ export struct ExerciseTabPage {
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('authTokenText') authTokenText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('authUsernameText') authUsernameText: string = '';
   @StorageLink('userProfileText') userProfileText: string = '';
   @StorageLink('weightRecordText') weightRecordText: string = '';
   @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
@@ -180,6 +187,9 @@ export struct ExerciseTabPage {
     return {
       apiBaseUrlText: this.apiBaseUrlText,
       authSessionText: this.authSessionText,
+      authTokenText: this.authTokenText,
+      authUserIdText: this.authUserIdText,
+      authUsernameText: this.authUsernameText,
       userProfileText: this.userProfileText,
       weightRecordText: this.weightRecordText,
       customFoodOptionText: this.customFoodOptionText,
@@ -199,6 +209,10 @@ export struct ExerciseTabPage {
   }
 
   private applySyncState(nextState: SyncRuntimeState): void {
+    this.authSessionText = nextState.authSessionText;
+    this.authTokenText = nextState.authTokenText ? nextState.authTokenText : this.authTokenText;
+    this.authUserIdText = nextState.authUserIdText ? nextState.authUserIdText : this.authUserIdText;
+    this.authUsernameText = nextState.authUsernameText ? nextState.authUsernameText : this.authUsernameText;
     this.userProfileText = nextState.userProfileText;
     this.weightRecordText = nextState.weightRecordText;
     this.customFoodOptionText = nextState.customFoodOptionText;
@@ -289,7 +303,8 @@ export struct ExerciseTabPage {
       hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_record')) {
       return;
     }
-    let authSession = deserializeAuthSession(this.authSessionText);
+    let authSession = resolveStoredAuthSession(this.authSessionText, this.authTokenText, this.authUserIdText,
+      this.authUsernameText);
     if (!isAuthSessionValid(authSession)) {
       return;
     }

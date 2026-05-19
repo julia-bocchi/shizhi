@@ -41,6 +41,8 @@ interface ApiLogHeaders {
   authorization: string;
   xUserId: string;
   token: string;
+  tokenLength: number;
+  hasToken: boolean;
 }
 
 interface ApiRequestLog {
@@ -61,6 +63,15 @@ interface ApiErrorLog {
   method: string;
   url: string;
   error: string;
+}
+
+interface ApiAuthLog {
+  method: string;
+  url: string;
+  userId: string;
+  hasToken: boolean;
+  tokenPreview: string;
+  tokenLength: number;
 }
 
 interface ApiFinishLog {
@@ -184,7 +195,9 @@ function buildLogHeaders(headers: ApiRequestHeaders): ApiLogHeaders {
     contentType: headers.contentType,
     authorization: headers.authorization.length > 0 ? maskSensitiveText(headers.authorization) : '',
     xUserId: headers.xUserId,
-    token: headers.token.length > 0 ? maskSensitiveText(headers.token) : ''
+    token: headers.token.length > 0 ? maskSensitiveText(headers.token) : '',
+    tokenLength: headers.token.length,
+    hasToken: headers.token.length > 0
   };
 }
 
@@ -255,6 +268,18 @@ export async function requestApiData<T>(config: ApiRequestConfig): Promise<T> {
     hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '发起请求，请求方法=%{public}s，请求链接=%{public}s，请求头=%{public}s，请求体=%{public}s',
       requestLog.method, requestLog.url, serializeLogValue(requestLog.headers), requestLog.body);
     hilog.info(API_LOG_DOMAIN, API_LOG_TAG, '请求详情 %{public}s', serializeLogValue(requestLog));
+    let authLog: ApiAuthLog = {
+      method: `${config.method}`,
+      url: requestUrl,
+      userId: requestHeaders.xUserId,
+      hasToken: requestHeaders.token.length > 0,
+      tokenPreview: requestHeaders.token.length > 0 ? maskSensitiveText(requestHeaders.token) : '',
+      tokenLength: requestHeaders.token.length
+    };
+    hilog.info(API_LOG_DOMAIN, API_LOG_TAG,
+      '请求认证，请求方法=%{public}s，请求链接=%{public}s，用户ID=%{public}s，hasToken=%{public}s，token=%{public}s，token长度=%{public}d',
+      authLog.method, authLog.url, authLog.userId, authLog.hasToken ? 'true' : 'false', authLog.tokenPreview,
+      authLog.tokenLength);
 
     let response = await httpRequest.request(requestUrl, {
       method: config.method,

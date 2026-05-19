@@ -33,6 +33,9 @@ struct Index {
   @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('authTokenText') authTokenText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('authUsernameText') authUsernameText: string = '';
   @StorageLink('weightRecordText') weightRecordText: string = '';
   @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
   @StorageLink('foodPlanText') foodPlanText: string = '';
@@ -55,6 +58,9 @@ struct Index {
     return {
       apiBaseUrlText: this.apiBaseUrlText,
       authSessionText: this.authSessionText,
+      authTokenText: this.authTokenText,
+      authUserIdText: this.authUserIdText,
+      authUsernameText: this.authUsernameText,
       userProfileText: this.userProfileText,
       weightRecordText: this.weightRecordText,
       customFoodOptionText: this.customFoodOptionText,
@@ -74,6 +80,10 @@ struct Index {
   }
 
   private applySyncState(nextState: SyncRuntimeState): void {
+    this.authSessionText = nextState.authSessionText;
+    this.authTokenText = nextState.authTokenText ? nextState.authTokenText : this.authTokenText;
+    this.authUserIdText = nextState.authUserIdText ? nextState.authUserIdText : this.authUserIdText;
+    this.authUsernameText = nextState.authUsernameText ? nextState.authUsernameText : this.authUsernameText;
     this.userProfileText = nextState.userProfileText;
     this.weightRecordText = nextState.weightRecordText;
     this.customFoodOptionText = nextState.customFoodOptionText;

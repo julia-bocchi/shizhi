@@ -11,7 +11,6 @@ import {
   BackendFoodOption,
   BackendFoodPlan,
   BackendWeightRecord,
-  BackendWorkoutType,
   BackendWorkoutPlan,
   BackendWorkoutRecord,
   BackendWorkoutTemplate,
@@ -46,10 +45,6 @@ interface FoodPlansResponseData {
 
 interface WorkoutPlansResponseData {
   plans: BackendWorkoutPlan[];
-}
-
-interface WorkoutTypesResponseData {
-  items: BackendWorkoutType[];
 }
 
 interface WorkoutRecordsResponseData {
@@ -203,16 +198,6 @@ function mapBackendWorkoutTemplate(template: BackendWorkoutTemplate): SavedCusto
     workSeconds: sanitizeString(template.workSeconds, '0'),
     restSeconds: sanitizeString(template.restSeconds, '0')
   };
-}
-
-export async function fetchWorkoutTypes(baseUrl: string, authSession: AuthSession): Promise<BackendWorkoutType[]> {
-  let data = await requestApiData<WorkoutTypesResponseData>({
-    baseUrl: baseUrl,
-    path: '/workout-types',
-    method: http.RequestMethod.GET,
-    authSession: authSession
-  });
-  return data.items;
 }
 
 function buildMetaFromDraftText(planId: string, draftText: string): WorkoutPlanLocalMeta {

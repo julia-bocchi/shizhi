@@ -6,7 +6,7 @@ import {
   NAV_BORDER_COLOR
 } from '../constants/AppTheme';
 import { BottomTabItem } from '../models/TabItem';
-import { deserializeAuthSession } from '../utils/AuthStorageHelper';
+import { resolveStoredAuthSession } from '../utils/AuthStorageHelper';
 import { isAuthSessionValid } from '../models/AuthSession';
 
 @Component
@@ -14,6 +14,9 @@ export struct MainBottomNavigation {
   @Link currentIndex: number;
   @Prop items: BottomTabItem[] = [];
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('authTokenText') authTokenText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('authUsernameText') authUsernameText: string = '';
 
   private isActive(item: BottomTabItem): boolean {
     return item.index === this.currentIndex;
@@ -61,7 +64,8 @@ export struct MainBottomNavigation {
           .padding({ top: 12, bottom: 12 })
           .alignItems(HorizontalAlign.Center)
           .onClick(() => {
-            if (item.id === 'profile' && !isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
+            if (item.id === 'profile' && !isAuthSessionValid(resolveStoredAuthSession(this.authSessionText,
+              this.authTokenText, this.authUserIdText, this.authUsernameText))) {
               this.openLoginPage();
               return;
             }

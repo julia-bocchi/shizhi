@@ -22,9 +22,9 @@ import {
   normalizeUserProfile,
   serializeUserProfile
 } from '../../utils/ExerciseHelper';
-import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
+import { AuthSession, DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
 import { HOME_TAB_INDEX } from '../../models/TabItem';
-import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { resolveStoredAuthSession } from '../../utils/AuthStorageHelper';
 import { fetchUserProfile, logoutSession } from '../../utils/ApiService';
 import { createProfilePutOperation, hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
 import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
@@ -60,6 +60,9 @@ export struct ProfileTabPage {
     return {
       apiBaseUrlText: this.apiBaseUrlText,
       authSessionText: this.authSessionText,
+      authTokenText: this.authTokenText,
+      authUserIdText: this.authUserIdText,
+      authUsernameText: this.authUsernameText,
       userProfileText: this.userProfileText,
       weightRecordText: this.weightRecordText,
       customFoodOptionText: this.customFoodOptionText,
@@ -79,6 +82,10 @@ export struct ProfileTabPage {
   }
 
   private applySyncState(nextState: SyncRuntimeState): void {
+    this.authSessionText = nextState.authSessionText;
+    this.authTokenText = nextState.authTokenText ? nextState.authTokenText : this.authTokenText;
+    this.authUserIdText = nextState.authUserIdText ? nextState.authUserIdText : this.authUserIdText;
+    this.authUsernameText = nextState.authUsernameText ? nextState.authUsernameText : this.authUsernameText;
     this.userProfileText = nextState.userProfileText;
     this.weightRecordText = nextState.weightRecordText;
     this.customFoodOptionText = nextState.customFoodOptionText;
@@ -112,11 +119,15 @@ export struct ProfileTabPage {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
     this.flushPendingSync().then(() => {
-      if (isAuthSessionValid(deserializeAuthSession(this.authSessionText)) &&
+      if (isAuthSessionValid(this.getCurrentAuthSession()) &&
         !hasPendingSyncOperation(this.pendingSyncQueueText, 'profile')) {
         this.pullProfileFromServer();
       }
     });
+  }
+
+  private getCurrentAuthSession(): AuthSession {
+    return resolveStoredAuthSession(this.authSessionText, this.authTokenText, this.authUserIdText, this.authUsernameText);
   }
 
   private commitProfile(nextProfile: UserProfile, noticeText?: string): void {
@@ -165,7 +176,7 @@ export struct ProfileTabPage {
   }
 
   private getAuthSessionStatusText(): string {
-    let authSession = deserializeAuthSession(this.authSessionText);
+    let authSession = this.getCurrentAuthSession();
     if (!isAuthSessionValid(authSession)) {
       return '未登录';
     }
@@ -173,11 +184,11 @@ export struct ProfileTabPage {
   }
 
   private getAuthStatusColor(): string {
-    return isAuthSessionValid(deserializeAuthSession(this.authSessionText)) ? '#10B981' : '#FF7A59';
+    return isAuthSessionValid(this.getCurrentAuthSession()) ? '#10B981' : '#FF7A59';
   }
 
   private async pullProfileFromServer(): Promise<void> {
-    let authSession = deserializeAuthSession(this.authSessionText);
+    let authSession = this.getCurrentAuthSession();
     if (!isAuthSessionValid(authSession)) {
       this.profileNotice = '当前还没有登录，请先去登录页。';
       return;
@@ -316,7 +327,7 @@ export struct ProfileTabPage {
           .justifyContent(FlexAlign.SpaceBetween)
           .alignItems(VerticalAlign.Top)
 
-          Text(isAuthSessionValid(deserializeAuthSession(this.authSessionText))
+          Text(isAuthSessionValid(this.getCurrentAuthSession())
             ? '已登录后可以在这里同步资料、修改资料和退出账号。'
             : '当前还没有登录，继续操作前请先去登录页。')
             .fontSize(13)
@@ -334,14 +345,14 @@ export struct ProfileTabPage {
               .backgroundColor('#0F6BFF')
               .borderRadius(18)
               .onClick(() => {
-                if (isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
+                if (isAuthSessionValid(this.getCurrentAuthSession())) {
                   this.pullProfileFromServer();
                 } else {
                   this.openLoginPage();
                 }
               })
 
-            Button(isAuthSessionValid(deserializeAuthSession(this.authSessionText)) ? '退出登录' : '去登录')
+            Button(isAuthSessionValid(this.getCurrentAuthSession()) ? '退出登录' : '去登录')
               .layoutWeight(1)
               .height(44)
               .fontSize(14)
@@ -350,7 +361,7 @@ export struct ProfileTabPage {
               .backgroundColor('#EAF2FF')
               .borderRadius(18)
               .onClick(() => {
-                if (isAuthSessionValid(deserializeAuthSession(this.authSessionText))) {
+                if (isAuthSessionValid(this.getCurrentAuthSession())) {
                   this.handleLogout();
                 } else {
                   this.openLoginPage();

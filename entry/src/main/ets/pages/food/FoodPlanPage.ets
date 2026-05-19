@@ -10,7 +10,7 @@ import { deserializeFoodPlans, serializeFoodPlans } from '../../utils/FoodHelper
 import { formatDate } from '../../utils/WeightRecordHelper';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
 import { DEFAULT_API_BASE_URL, isAuthSessionValid } from '../../models/AuthSession';
-import { deserializeAuthSession } from '../../utils/AuthStorageHelper';
+import { resolveStoredAuthSession } from '../../utils/AuthStorageHelper';
 import { fetchFoodPlans } from '../../utils/ApiService';
 import { hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
 import { SyncRuntimeState, syncPendingOperations } from '../../utils/SyncService';
@@ -23,6 +23,9 @@ struct FoodPlanPage {
   @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
   @StorageLink('apiBaseUrlText') apiBaseUrlText: string = '';
   @StorageLink('authSessionText') authSessionText: string = '';
+  @StorageLink('authTokenText') authTokenText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('authUsernameText') authUsernameText: string = '';
   @StorageLink('userProfileText') userProfileText: string = '';
   @StorageLink('weightRecordText') weightRecordText: string = '';
   @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
@@ -45,6 +48,9 @@ struct FoodPlanPage {
     return {
       apiBaseUrlText: this.apiBaseUrlText,
       authSessionText: this.authSessionText,
+      authTokenText: this.authTokenText,
+      authUserIdText: this.authUserIdText,
+      authUsernameText: this.authUsernameText,
       userProfileText: this.userProfileText,
       weightRecordText: this.weightRecordText,
       customFoodOptionText: this.customFoodOptionText,
@@ -64,6 +70,10 @@ struct FoodPlanPage {
   }
 
   private applySyncState(nextState: SyncRuntimeState): void {
+    this.authSessionText = nextState.authSessionText;
+    this.authTokenText = nextState.authTokenText ? nextState.authTokenText : this.authTokenText;
+    this.authUserIdText = nextState.authUserIdText ? nextState.authUserIdText : this.authUserIdText;
+    this.authUsernameText = nextState.authUsernameText ? nextState.authUsernameText : this.authUsernameText;
     this.userProfileText = nextState.userProfileText;
     this.weightRecordText = nextState.weightRecordText;
     this.customFoodOptionText = nextState.customFoodOptionText;
@@ -111,7 +121,8 @@ struct FoodPlanPage {
       hasPendingSyncOperation(this.pendingSyncQueueText, 'food_meal')) {
       return;
     }
-    let authSession = deserializeAuthSession(this.authSessionText);
+    let authSession = resolveStoredAuthSession(this.authSessionText, this.authTokenText, this.authUserIdText,
+      this.authUsernameText);
     if (!isAuthSessionValid(authSession)) {
       return;
     }

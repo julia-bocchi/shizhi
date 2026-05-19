@@ -17,7 +17,12 @@ import { UserProfile } from '../models/UserProfile';
 import { WeightRecord } from '../models/WeightRecord';
 import { WorkoutPlanItem } from '../models/WorkoutPlan';
 import { WorkoutRecord } from '../models/WorkoutRecord';
-import { deserializeAuthSession, deserializeWorkoutPlanLocalMeta, serializeWorkoutPlanLocalMeta } from './AuthStorageHelper';
+import {
+  resolveStoredAuthSession,
+  serializeAuthSession,
+  deserializeWorkoutPlanLocalMeta,
+  serializeWorkoutPlanLocalMeta
+} from './AuthStorageHelper';
 import {
   createCustomFoodOptionRemote,
   createFoodPlanRemote,
@@ -141,6 +146,9 @@ interface SyncOperationErrorLog extends SyncOperationLog {
 export interface SyncRuntimeState {
   apiBaseUrlText: string;
   authSessionText: string;
+  authTokenText?: string;
+  authUserIdText?: string;
+  authUsernameText?: string;
   userProfileText: string;
   weightRecordText: string;
   customFoodOptionText: string;
@@ -179,6 +187,9 @@ function copySyncState(state: SyncRuntimeState): SyncRuntimeState {
   return {
     apiBaseUrlText: state.apiBaseUrlText,
     authSessionText: state.authSessionText,
+    authTokenText: state.authTokenText,
+    authUserIdText: state.authUserIdText,
+    authUsernameText: state.authUsernameText,
     userProfileText: state.userProfileText,
     weightRecordText: state.weightRecordText,
     customFoodOptionText: state.customFoodOptionText,
@@ -211,6 +222,9 @@ function replaceEntityIdInState(state: SyncRuntimeState, oldId: string, newId: s
   return {
     apiBaseUrlText: state.apiBaseUrlText,
     authSessionText: state.authSessionText,
+    authTokenText: state.authTokenText,
+    authUserIdText: state.authUserIdText,
+    authUsernameText: state.authUsernameText,
     userProfileText: state.userProfileText,
     weightRecordText: replaceTextValue(state.weightRecordText, oldId, newId),
     customFoodOptionText: replaceTextValue(state.customFoodOptionText, oldId, newId),
@@ -298,6 +312,27 @@ function upsertLocalWorkoutRecord(savedText: string, nextRecord: WorkoutRecord):
     result.unshift(nextRecord);
   }
   return serializeWorkoutRecords(result);
+}
+
+function resolveAuthSessionFromSyncState(state: SyncRuntimeState): AuthSession {
+  return resolveStoredAuthSession(
+    state.authSessionText,
+    state.authTokenText ? state.authTokenText : '',
+    state.authUserIdText ? state.authUserIdText : '',
+    state.authUsernameText ? state.authUsernameText : ''
+  );
+}
+
+function applyAuthSessionToSyncState(state: SyncRuntimeState, authSession: AuthSession): SyncRuntimeState {
+  if (!isAuthSessionValid(authSession)) {
+    return state;
+  }
+  let nextState = copySyncState(state);
+  nextState.authSessionText = serializeAuthSession(authSession);
+  nextState.authTokenText = authSession.token;
+  nextState.authUserIdText = `${authSession.userId}`;
+  nextState.authUsernameText = authSession.username;
+  return nextState;
 }
 
 function replaceLocalFoodMeal(savedText: string, dateText: string, mealType: string, nextPlans: FoodPlanItem[]): string {
@@ -625,7 +660,7 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
   operation: PendingSyncOperation): Promise<ImmediateSyncResult> {
   let nextState: SyncRuntimeState = copySyncState(state);
   nextState.lastSyncAttemptText = `${Date.now()}`;
-  let savedAuthSession = deserializeAuthSession(nextState.authSessionText);
+  let savedAuthSession = resolveAuthSessionFromSyncState(nextState);
   if (!isAuthSessionValid(savedAuthSession)) {
     nextState.pendingSyncQueueText = queuePendingOperation(nextState.pendingSyncQueueText, operation);
     return {
@@ -635,6 +670,7 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
       errorMessage: SYNC_AUTH_REQUIRED_MESSAGE
     };
   }
+  nextState = applyAuthSessionToSyncState(nextState, savedAuthSession);
 
   try {
     let syncedState = await syncSingleOperation(nextState, savedAuthSession, operation);
@@ -672,9 +708,9 @@ export async function syncOperationNowOrQueue(state: SyncRuntimeState,
 }
 
 export async function syncPendingOperations(state: SyncRuntimeState): Promise<SyncExecutionResult> {
-  let savedAuthSession = deserializeAuthSession(state.authSessionText);
   let nextState: SyncRuntimeState = copySyncState(state);
   nextState.lastSyncAttemptText = `${Date.now()}`;
+  let savedAuthSession = resolveAuthSessionFromSyncState(nextState);
   if (!isAuthSessionValid(savedAuthSession)) {
     return {
       state: nextState,
@@ -682,6 +718,7 @@ export async function syncPendingOperations(state: SyncRuntimeState): Promise<Sy
       lastErrorMessage: ''
     };
   }
+  nextState = applyAuthSessionToSyncState(nextState, savedAuthSession);
 
   let syncedCount = 0;
   let lastErrorMessage = '';

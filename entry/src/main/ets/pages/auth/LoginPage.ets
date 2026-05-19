@@ -37,14 +37,20 @@ struct LoginPage {
 
   private goHome(): void {
     try {
+      this.getUIContext().getRouter().back();
+      return;
+    } catch (error) {
+    }
+
+    try {
       let routeTask: Promise<void> = this.getUIContext().getRouter().replaceUrl({
         url: 'pages/Index'
       });
       routeTask.catch(() => {
-        this.goBack();
+        this.loginNotice = '返回首页失败，请重试。';
       });
     } catch (error) {
-      this.goBack();
+      this.loginNotice = '返回首页失败，请重试。';
     }
   }
 
