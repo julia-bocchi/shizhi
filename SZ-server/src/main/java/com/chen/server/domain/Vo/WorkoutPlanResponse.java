@@ -15,14 +15,14 @@ public class WorkoutPlanResponse {
     private String summary;
     private String notes;
     private String draftText;
-    private String savedWorkoutId;
+    private Long savedWorkoutId;
     private String accentColor;
 
     public WorkoutPlanResponse() {
     }
 
     public WorkoutPlanResponse(String id, LocalDate date, String title, String summary, 
-                              String notes, String draftText, String savedWorkoutId, String accentColor) {
+                              String notes, String draftText, Long savedWorkoutId, String accentColor) {
         this.id = id;
         this.date = date;
         this.title = title;

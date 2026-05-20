@@ -7,6 +7,7 @@ import com.chen.server.domain.Vo.WorkoutResponse;
 import com.chen.server.domain.dto.WorkoutQueryRequest;
 import com.chen.server.domain.dto.WorkoutRequest;
 import com.chen.server.service.WorkoutRecordService;
+import com.chen.server.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,13 +31,13 @@ public class WorkoutController {
         return ResponseResult.okResult(response);
     }
 
-    @GetMapping("/api/v1/workout-records/daily-summary")
+    @GetMapping("/daily-summary")
     public ResponseResult getDailySummary(@RequestParam String date) {
         Long userId = getCurrentUserId();
         DailySummaryResponse response = workoutRecordService.getDailySummary(userId, date);
         return ResponseResult.okResult(response);
     }
     private Long getCurrentUserId() {
-        return 1L;
+        return SecurityUtils.getUserId();
     }
 }

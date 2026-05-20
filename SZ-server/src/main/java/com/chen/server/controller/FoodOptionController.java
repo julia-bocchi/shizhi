@@ -6,6 +6,7 @@ import com.chen.server.domain.Vo.FoodOptionResponse;
 import com.chen.server.domain.dto.FoodOptionRequest;
 import com.chen.server.domain.dto.FoodQueryRequest;
 import com.chen.server.service.FoodOptionService;
+import com.chen.server.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -59,6 +60,6 @@ public class FoodOptionController {
     }
 
     private Long getCurrentUserId() {
-        return 1001L;
+        return SecurityUtils.getUserId();
     }
 }

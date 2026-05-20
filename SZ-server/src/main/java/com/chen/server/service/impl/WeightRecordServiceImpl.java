@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.chen.server.domain.Vo.WeightListResponse;
 import com.chen.server.domain.Vo.WeightRecordVO;
 import com.chen.server.domain.Vo.WeightResponse;
+import com.chen.server.domain.Vo.WeightSummaryResponse;
 import com.chen.server.domain.entity.WeightRecord;
 import com.chen.server.mapper.WeightRecordMapper;
 import com.chen.server.service.WeightRecordService;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -80,5 +82,72 @@ public class WeightRecordServiceImpl implements WeightRecordService {
 
         return response;
 
+    }
+
+
+    @Override
+    public WeightSummaryResponse getWeightSummary(Long userId, Integer recentDays) {
+        if (recentDays == null || recentDays <= 0) {
+            recentDays = 7;
+        }
+
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(recentDays - 1);
+
+        QueryWrapper<WeightRecord> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("user_id", userId)
+                .ge("date", startDate)
+                .le("date", endDate)
+                .orderByDesc("date");
+
+        List<WeightRecord> recentRecords = weightRecordMapper.selectList(queryWrapper);
+
+        WeightSummaryResponse summary = new WeightSummaryResponse();
+
+        if (recentRecords.isEmpty()) {
+            summary.setRecentCount(0);
+            summary.setAverageWeight(BigDecimal.ZERO);
+            summary.setChangeInRange(BigDecimal.ZERO);
+            summary.setChangeFromPrevious(BigDecimal.ZERO);
+            return summary;
+        }
+
+        int recordCount = recentRecords.size();
+        summary.setRecentCount(recordCount);
+
+        WeightRecord latestRecord = recentRecords.get(0);
+        summary.setLatestRecord(new WeightSummaryResponse.WeightRecordInfo(
+                latestRecord.getId(),
+                latestRecord.getDate(),
+                latestRecord.getWeight()
+        ));
+
+        if (recordCount > 1) {
+            WeightRecord previousRecord = recentRecords.get(1);
+            summary.setPreviousRecord(new WeightSummaryResponse.WeightRecordInfo(
+                    previousRecord.getId(),
+                    previousRecord.getDate(),
+                    previousRecord.getWeight()
+            ));
+
+            BigDecimal changeFromPrevious = latestRecord.getWeight().subtract(previousRecord.getWeight());
+            summary.setChangeFromPrevious(changeFromPrevious.setScale(1, RoundingMode.HALF_UP));
+        }
+
+        WeightRecord oldestRecord = recentRecords.get(recordCount - 1);
+        BigDecimal changeInRange = latestRecord.getWeight().subtract(oldestRecord.getWeight());
+        summary.setChangeInRange(changeInRange.setScale(1, RoundingMode.HALF_UP));
+
+        BigDecimal totalWeight = recentRecords.stream()
+                .map(WeightRecord::getWeight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal averageWeight = totalWeight.divide(
+                new BigDecimal(recordCount),
+                1,
+                RoundingMode.HALF_UP
+        );
+        summary.setAverageWeight(averageWeight);
+
+        return summary;
     }
 }

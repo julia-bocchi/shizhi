@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 @Data
 public class WorkoutRecordVO {
-    private String id;
+    private Long id;
 
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate date;
@@ -21,7 +21,7 @@ public class WorkoutRecordVO {
     public WorkoutRecordVO() {
     }
 
-    public WorkoutRecordVO(String id, LocalDate date, String exerciseId, String name, 
+    public WorkoutRecordVO(Long id, LocalDate date, String exerciseId, String name,
                           BigDecimal calories, Integer durationSeconds) {
         this.id = id;
         this.date = date;

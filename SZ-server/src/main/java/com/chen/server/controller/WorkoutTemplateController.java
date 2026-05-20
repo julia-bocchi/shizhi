@@ -4,6 +4,7 @@ import com.chen.server.domain.ResponseResult;
 import com.chen.server.domain.Vo.WorkoutTemplateResponse;
 import com.chen.server.domain.dto.WorkoutTemplateRequest;
 import com.chen.server.service.WorkoutTemplateService;
+import com.chen.server.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -81,6 +82,6 @@ public class WorkoutTemplateController {
     }
 
     private Long getCurrentUserId() {
-        return 1L;
+        return SecurityUtils.getUserId();
     }
 }

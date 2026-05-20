@@ -4,6 +4,7 @@ import com.chen.server.domain.ResponseResult;
 import com.chen.server.domain.Vo.UserProfileResponse;
 import com.chen.server.domain.dto.UserProfileRequest;
 import com.chen.server.service.UserProfileService;
+import com.chen.server.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,6 +54,6 @@ public class UserProfileController {
     }
 
     private Long getCurrentUserId() {
-        return  1001L;
+        return SecurityUtils.getUserId();
     }
 }

@@ -90,7 +90,7 @@ public class WorkoutRecordServiceImpl implements WorkoutRecordService {
 
         List<WorkoutRecordVO> records = resultPage.getRecords().stream()
                 .map(record -> new WorkoutRecordVO(
-                        String.valueOf(record.getId()),
+                        record.getId(),
                         record.getDate(),
                         record.getExerciseId(),
                         record.getName(),

@@ -7,11 +7,14 @@ import com.chen.server.domain.dto.FoodPlanQueryRequest;
 import com.chen.server.domain.dto.FoodPlanRequest;
 import com.chen.server.domain.dto.FoodPlanUpdateRequest;
 import com.chen.server.service.FoodPlanService;
+import com.chen.server.utils.SecurityUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/food-plans")
+@Slf4j
 public class FoodPlanController {
 
     @Autowired
@@ -35,7 +38,7 @@ public class FoodPlanController {
     @PostMapping
     public ResponseResult createFoodPlan(@RequestBody FoodPlanRequest request) {
         Long userId = getCurrentUserId();
-        
+        log.info("createFoodPlan: {}", request);
         FoodPlanResponse response = foodPlanService.createFoodPlan(userId, request);
         
         return ResponseResult.okResult(response);
@@ -60,6 +63,6 @@ public class FoodPlanController {
     }
 
     private Long getCurrentUserId() {
-        return 1L;
+        return SecurityUtils.getUserId();
     }
 }

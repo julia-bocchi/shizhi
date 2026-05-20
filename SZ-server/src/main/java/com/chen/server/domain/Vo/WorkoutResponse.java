@@ -20,7 +20,7 @@ public class WorkoutResponse {
     public WorkoutResponse() {
     }
 
-    public WorkoutResponse(String id, LocalDate date, String exerciseId, String name, 
+    public WorkoutResponse(String id, LocalDate date, String exerciseId, String name,
                           BigDecimal calories, Integer durationSeconds) {
         this.id = id;
         this.date = date;
@@ -46,13 +46,7 @@ public class WorkoutResponse {
         this.date = date;
     }
 
-    public String getExerciseId() {
-        return exerciseId;
-    }
 
-    public void setExerciseId(String exerciseId) {
-        this.exerciseId = exerciseId;
-    }
 
     public String getName() {
         return name;

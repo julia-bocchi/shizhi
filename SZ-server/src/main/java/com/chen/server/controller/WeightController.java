@@ -3,8 +3,10 @@ package com.chen.server.controller;
 import com.chen.server.domain.ResponseResult;
 import com.chen.server.domain.Vo.WeightListResponse;
 import com.chen.server.domain.Vo.WeightResponse;
+import com.chen.server.domain.Vo.WeightSummaryResponse;
 import com.chen.server.domain.dto.WeightRequest;
 import com.chen.server.service.WeightRecordService;
+import com.chen.server.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +34,7 @@ public class WeightController {
     }
 
     private Long getCurrentUserId() {
-        return 1001L;
+        return SecurityUtils.getUserId();
     }
 
 
@@ -49,4 +51,15 @@ public class WeightController {
         return ResponseResult.okResult(response);
     }
 
+
+    @GetMapping("/summary")
+    public ResponseResult getWeightSummary(
+            @RequestParam(required = false, defaultValue = "7") Integer recentDays) {
+
+        Long userId = getCurrentUserId();
+
+        WeightSummaryResponse response = weightRecordService.getWeightSummary(userId, recentDays);
+
+        return ResponseResult.okResult(response);
+    }
 }

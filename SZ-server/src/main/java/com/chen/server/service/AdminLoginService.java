@@ -14,4 +14,6 @@ public interface AdminLoginService {
     ResponseResult getUserInfo();
 
     ResponseResult getRouters();
+
+    ResponseResult register(User user);
 }

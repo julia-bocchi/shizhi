@@ -6,8 +6,12 @@ import com.chen.server.domain.Vo.WorkoutPlanResponse;
 import com.chen.server.domain.dto.WorkoutPlanQueryRequest;
 import com.chen.server.domain.dto.WorkoutPlanRequest;
 import com.chen.server.service.WorkoutPlanService;
+import com.chen.server.utils.SecurityUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/v1/workout-plans")
@@ -17,8 +21,19 @@ public class WorkoutPlanController {
     private WorkoutPlanService workoutPlanService;
 
     @GetMapping
-    public ResponseResult queryWorkoutPlans(WorkoutPlanQueryRequest queryRequest) {
+    public ResponseResult queryWorkoutPlans(
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate endDate) {
         Long userId = getCurrentUserId();
+
+        WorkoutPlanQueryRequest queryRequest = new WorkoutPlanQueryRequest();
+        if (startDate != null) {
+            queryRequest.setStartDate(startDate.toString());
+        }
+        if (endDate != null) {
+            queryRequest.setEndDate(endDate.toString());
+        }
+
         WorkoutPlanListResponse response = workoutPlanService.queryWorkoutPlans(userId, queryRequest);
         return ResponseResult.okResult(response);
     }
@@ -38,6 +53,6 @@ public class WorkoutPlanController {
     }
 
     private Long getCurrentUserId() {
-        return 1L;
+        return SecurityUtils.getUserId();
     }
 }

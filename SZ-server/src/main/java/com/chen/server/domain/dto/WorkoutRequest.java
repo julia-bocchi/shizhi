@@ -24,15 +24,15 @@ public class WorkoutRequest {
 
     private Integer durationSeconds;
 
-    private String planId;
+    private Long planId;
 
     private Map<String, Object> configSnapshot;
 
     public WorkoutRequest() {
     }
 
-    public WorkoutRequest(LocalDate date, String exerciseId, String name, BigDecimal calories, 
-                         Integer durationSeconds, String planId, Map<String, Object> configSnapshot) {
+    public WorkoutRequest(LocalDate date, String exerciseId, String name, BigDecimal calories,
+                         Integer durationSeconds, Long planId, Map<String, Object> configSnapshot) {
         this.date = date;
         this.exerciseId = exerciseId;
         this.name = name;
@@ -50,13 +50,7 @@ public class WorkoutRequest {
         this.date = date;
     }
 
-    public String getExerciseId() {
-        return exerciseId;
-    }
 
-    public void setExerciseId(String exerciseId) {
-        this.exerciseId = exerciseId;
-    }
 
     public String getName() {
         return name;
@@ -82,13 +76,6 @@ public class WorkoutRequest {
         this.durationSeconds = durationSeconds;
     }
 
-    public String getPlanId() {
-        return planId;
-    }
-
-    public void setPlanId(String planId) {
-        this.planId = planId;
-    }
 
     public Map<String, Object> getConfigSnapshot() {
         return configSnapshot;

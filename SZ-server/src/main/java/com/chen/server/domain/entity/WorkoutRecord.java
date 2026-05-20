@@ -1,5 +1,7 @@
 package com.chen.server.domain.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -7,6 +9,7 @@ import java.time.LocalDate;
 
 @Data
 public class WorkoutRecord {
+    @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
     private LocalDate date;
@@ -14,14 +17,14 @@ public class WorkoutRecord {
     private String name;
     private BigDecimal calories;
     private Integer durationSeconds;
-    private String planId;
+    private Long planId;
     private String configSnapshot;
 
     public WorkoutRecord() {
     }
 
-    public WorkoutRecord(Long id, Long userId, LocalDate date, String exerciseId, String name, 
-                        BigDecimal calories, Integer durationSeconds, String planId, String configSnapshot) {
+    public WorkoutRecord(Long id, Long userId, LocalDate date, String exerciseId, String name,
+                        BigDecimal calories, Integer durationSeconds, Long planId, String configSnapshot) {
         this.id = id;
         this.userId = userId;
         this.date = date;
@@ -57,13 +60,6 @@ public class WorkoutRecord {
         this.date = date;
     }
 
-    public String getExerciseId() {
-        return exerciseId;
-    }
-
-    public void setExerciseId(String exerciseId) {
-        this.exerciseId = exerciseId;
-    }
 
     public String getName() {
         return name;
@@ -89,13 +85,6 @@ public class WorkoutRecord {
         this.durationSeconds = durationSeconds;
     }
 
-    public String getPlanId() {
-        return planId;
-    }
-
-    public void setPlanId(String planId) {
-        this.planId = planId;
-    }
 
     public String getConfigSnapshot() {
         return configSnapshot;
