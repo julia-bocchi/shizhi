@@ -10,6 +10,7 @@ export const AI_TASK_ANALYZE_WEIGHT: string = 'analyze_weight';
 export const AI_TASK_GENERATE_PLAN: string = 'generate_plan';
 export const AI_TASK_GENERATE_RECIPE: string = 'generate_recipe';
 export const AI_TASK_GENERATE_FULL_PLAN: string = 'generate_full_plan';
+export const AI_TASK_DAILY_BRIEFING: string = 'daily_briefing';
 
 const DEFAULT_AI_API_ENDPOINT: string = 'https://api.siliconflow.cn/v1/chat/completions';
 const DEFAULT_AI_MODEL: string = 'deepseek-ai/DeepSeek-V3.2';

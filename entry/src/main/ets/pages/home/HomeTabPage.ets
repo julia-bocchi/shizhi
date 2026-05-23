@@ -5,6 +5,13 @@ import {
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
 import {
+  AI_TASK_DAILY_BRIEFING,
+  AiAssistantConfig,
+  getDefaultAiApiEndpoint,
+  getDefaultAiApiKey,
+  getDefaultAiModel
+} from '../../models/AiAssistant';
+import {
   AI_TAB_INDEX,
   EXERCISE_TAB_INDEX,
   FOOD_TAB_INDEX,
@@ -19,9 +26,30 @@ import {
   getHomeWeightTrend,
   getTodayDashboardCalories
 } from '../../utils/HomeDashboardHelper';
+import {
+  DailyBriefingSummary,
+  buildDailyBriefingAiPrompt,
+  buildDailyBriefingSummary,
+  getCachedDailyBriefingAiText,
+  upsertDailyBriefingAiCache
+} from '../../utils/DailyBriefingHelper';
+import {
+  DEFAULT_TTS_ENDPOINT,
+  DEFAULT_TTS_VOICE,
+  TtsPlaybackState,
+  getCachedTtsAudioUrl,
+  pauseTtsPlayback,
+  playTtsAudioUrl,
+  requestTtsBriefing,
+  resumeTtsPlayback,
+  upsertTtsAudioCache
+} from '../../utils/TtsService';
 import { EXERCISE_STORAGE_READY } from '../../utils/ExerciseStorage';
-import { deserializeUserProfile } from '../../utils/ExerciseHelper';
-import { formatDate } from '../../utils/WeightRecordHelper';
+import { deserializeUserProfile, deserializeWorkoutRecords } from '../../utils/ExerciseHelper';
+import { deserializeFoodPlans } from '../../utils/FoodHelper';
+import { deserializeWorkoutPlans } from '../../utils/WorkoutPlanHelper';
+import { deserializeWeightRecords, formatDate } from '../../utils/WeightRecordHelper';
+import { requestAiAssistant } from '../../utils/AiAssistantHelper';
 
 interface HomeQuickEntryItem {
   id: string;
@@ -63,8 +91,8 @@ const HOME_QUICK_ENTRIES: HomeQuickEntryItem[] = [
   },
   {
     id: 'assistant',
-    icon: 'AI',
-    title: '建议',
+    icon: '智',
+    title: '管家',
     description: '今日分析',
     tabIndex: AI_TAB_INDEX,
     accentColor: '#6F7CFF',
@@ -76,10 +104,22 @@ const HOME_QUICK_ENTRIES: HomeQuickEntryItem[] = [
 export struct HomeTabPage {
   @Link currentTabIndex: number;
   @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
   @StorageLink('workoutRecordText') workoutRecordText: string = '';
   @StorageLink('weightRecordText') weightRecordText: string = '';
   @StorageLink('userProfileText') userProfileText: string = '';
   @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = '';
+  @StorageLink('aiApiEndpointText') aiApiEndpointText: string = '';
+  @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
+  @StorageLink('aiModelText') aiModelText: string = '';
+  @StorageLink('dailyBriefingAiCacheText') dailyBriefingAiCacheText: string = '';
+  @StorageLink('ttsAudioCacheText') ttsAudioCacheText: string = '';
+  @StorageLink('authUserIdText') authUserIdText: string = '';
+
+  @State dailyBriefingBusy: boolean = false;
+  @State ttsBusy: boolean = false;
+  @State ttsPlaybackState: TtsPlaybackState = 'idle';
+  @State dailyBriefingNotice: string = '本地规则已生成今日简报。';
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
@@ -87,6 +127,90 @@ export struct HomeTabPage {
 
   private getTodayText(): string {
     return formatDate(new Date());
+  }
+
+  private getAiConfig(): AiAssistantConfig {
+    return {
+      apiEndpoint: this.aiApiEndpointText.trim().length > 0 ? this.aiApiEndpointText : getDefaultAiApiEndpoint(),
+      apiKey: this.aiApiKeyText.trim().length > 0 ? this.aiApiKeyText : getDefaultAiApiKey(),
+      model: this.aiModelText.trim().length > 0 ? this.aiModelText : getDefaultAiModel()
+    };
+  }
+
+  private hasAiConfig(): boolean {
+    let config = this.getAiConfig();
+    return config.apiEndpoint.trim().length > 0 &&
+      config.apiKey.trim().length > 0 &&
+      config.model.trim().length > 0;
+  }
+
+  private getDailyBriefingSummary(): DailyBriefingSummary {
+    return buildDailyBriefingSummary(
+      this.foodPlanText,
+      this.workoutPlanText,
+      this.workoutRecordText,
+      this.weightRecordText,
+      this.dailyFoodCalorieTargetText,
+      this.getTodayText()
+    );
+  }
+
+  private getCachedAiBriefingText(): string {
+    return getCachedDailyBriefingAiText(this.dailyBriefingAiCacheText, this.getTodayText());
+  }
+
+  private getVisibleBriefingText(): string {
+    let cachedAiText = this.getCachedAiBriefingText();
+    if (cachedAiText.trim().length > 0) {
+      return cachedAiText;
+    }
+    return this.getDailyBriefingSummary().primaryAdvice;
+  }
+
+  private getBriefingSpeechText(): string {
+    let cachedAiText = this.getCachedAiBriefingText();
+    if (cachedAiText.trim().length > 0) {
+      return `智卡管家今日解读。${cachedAiText}`;
+    }
+    return this.getDailyBriefingSummary().speechText;
+  }
+
+  private getTtsEndpoint(): string {
+    // 当前测试环境固定使用代码层 TTS 地址，避免本地缓存的旧 IP 覆盖可用服务。
+    return DEFAULT_TTS_ENDPOINT;
+  }
+
+  private isTtsPlaybackToggleEnabled(): boolean {
+    return this.ttsPlaybackState === 'playing' || this.ttsPlaybackState === 'paused';
+  }
+
+  private getTtsPauseButtonText(): string {
+    if (this.ttsPlaybackState === 'paused') {
+      return '继续播报';
+    }
+    if (this.ttsPlaybackState === 'playing') {
+      return '暂停播报';
+    }
+    return '暂停/继续';
+  }
+
+  private getTtsPauseButtonTextColor(): string {
+    return this.isTtsPlaybackToggleEnabled() ? '#0E9F6E' : '#98A2B3';
+  }
+
+  private getTtsPauseButtonBackgroundColor(): string {
+    return this.isTtsPlaybackToggleEnabled() ? '#E8FBF6' : '#F3F6FB';
+  }
+
+  private getBriefingUserId(): string {
+    if (this.authUserIdText.trim().length > 0) {
+      return this.authUserIdText.trim();
+    }
+    let profile = deserializeUserProfile(this.userProfileText);
+    if (profile.nickname.trim().length > 0) {
+      return profile.nickname.trim();
+    }
+    return 'local-user';
   }
 
   private openTab(tabIndex: number): void {
@@ -354,6 +478,297 @@ export struct HomeTabPage {
       return '可直接分析';
     }
     return '查看建议';
+  }
+
+  private async analyzeDailyBriefing(): Promise<void> {
+    if (this.dailyBriefingBusy) {
+      return;
+    }
+    if (!this.hasAiConfig()) {
+      this.dailyBriefingNotice = '请先在智卡管家里配置 AI 接口和 API Key。';
+      return;
+    }
+
+    let summary = this.getDailyBriefingSummary();
+    this.dailyBriefingBusy = true;
+    this.dailyBriefingNotice = '智卡管家正在解读今日计划...';
+    try {
+      let response = await requestAiAssistant(this.getAiConfig(), {
+        task: AI_TASK_DAILY_BRIEFING,
+        userPrompt: buildDailyBriefingAiPrompt(summary),
+        profile: deserializeUserProfile(this.userProfileText),
+        weightRecords: deserializeWeightRecords(this.weightRecordText),
+        workoutRecords: deserializeWorkoutRecords(this.workoutRecordText),
+        existingPlanCount: deserializeWorkoutPlans(this.workoutPlanText).length,
+        existingFoodPlanCount: deserializeFoodPlans(this.foodPlanText).length,
+        dailyFoodCalorieTarget: summary.targetCalories,
+        savedWorkoutNames: [],
+        historyMessages: []
+      });
+      let replyText = response.reply.trim();
+      if (replyText.length === 0) {
+        replyText = summary.primaryAdvice;
+      }
+      this.dailyBriefingAiCacheText = upsertDailyBriefingAiCache(
+        this.dailyBriefingAiCacheText,
+        this.getTodayText(),
+        replyText
+      );
+      this.dailyBriefingNotice = '今日解读已更新，并已缓存到当天。';
+    } catch (error) {
+      this.dailyBriefingNotice = `${error}`;
+    } finally {
+      this.dailyBriefingBusy = false;
+    }
+  }
+
+  private async speakDailyBriefing(): Promise<void> {
+    if (this.ttsBusy) {
+      return;
+    }
+    let endpoint = this.getTtsEndpoint();
+    if (endpoint.trim().length === 0) {
+      this.dailyBriefingNotice = '请先在智卡管家配置 IndexTTS2 本地服务地址。';
+      return;
+    }
+
+    let speechText = this.getBriefingSpeechText();
+    this.ttsBusy = true;
+    this.dailyBriefingNotice = '正在准备智卡语音...';
+    try {
+      let cachedAudioUrl = getCachedTtsAudioUrl(
+        this.ttsAudioCacheText,
+        this.getTodayText(),
+        speechText,
+        DEFAULT_TTS_VOICE
+      );
+      if (cachedAudioUrl.trim().length > 0) {
+        await playTtsAudioUrl(cachedAudioUrl, (state: TtsPlaybackState): void => {
+          this.ttsPlaybackState = state;
+        });
+        this.dailyBriefingNotice = '已播放当天缓存语音。';
+        return;
+      }
+
+      let ttsResponse = await requestTtsBriefing(endpoint, {
+        userId: this.getBriefingUserId(),
+        date: this.getTodayText(),
+        text: speechText,
+        voice: DEFAULT_TTS_VOICE
+      });
+      this.ttsAudioCacheText = upsertTtsAudioCache(
+        this.ttsAudioCacheText,
+        this.getTodayText(),
+        speechText,
+        DEFAULT_TTS_VOICE,
+        ttsResponse
+      );
+      await playTtsAudioUrl(ttsResponse.audioUrl, (state: TtsPlaybackState): void => {
+        this.ttsPlaybackState = state;
+      });
+      this.dailyBriefingNotice = ttsResponse.cached ? '已播放 IndexTTS2 缓存语音。' : 'IndexTTS2 语音已生成并播放。';
+    } catch (error) {
+      this.ttsPlaybackState = 'idle';
+      this.dailyBriefingNotice = `${error}`;
+    } finally {
+      this.ttsBusy = false;
+    }
+  }
+
+  private async toggleTtsPlaybackPause(): Promise<void> {
+    if (!this.isTtsPlaybackToggleEnabled()) {
+      this.dailyBriefingNotice = '当前没有正在播放或暂停的语音。';
+      return;
+    }
+    try {
+      if (this.ttsPlaybackState === 'paused') {
+        let resumed = await resumeTtsPlayback();
+        this.ttsPlaybackState = resumed ? 'playing' : 'idle';
+        this.dailyBriefingNotice = resumed ? '已继续播放语音。' : '当前没有可继续的语音。';
+        return;
+      }
+      let paused = await pauseTtsPlayback();
+      this.ttsPlaybackState = paused ? 'paused' : 'idle';
+      this.dailyBriefingNotice = paused ? '已暂停语音播报。' : '当前没有可暂停的语音。';
+    } catch (error) {
+      this.ttsPlaybackState = 'idle';
+      this.dailyBriefingNotice = `${error}`;
+    }
+  }
+
+  @Builder
+  private buildBriefingMetric(label: string, valueText: string, subText: string, accentColor: string) {
+    Column({ space: 5 }) {
+      Text(label)
+        .fontSize(11)
+        .fontColor('#6F84A3')
+
+      Text(valueText)
+        .fontSize(this.getAdaptiveCalorieFontSize(valueText, 20, 17, 14))
+        .fontWeight(FontWeight.Bolder)
+        .fontColor(PRIMARY_TEXT_COLOR)
+        .maxLines(1)
+
+      Text(subText)
+        .fontSize(10)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(accentColor)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .alignItems(HorizontalAlign.Start)
+    .layoutWeight(1)
+    .padding(12)
+    .backgroundColor('#FFFFFF')
+    .borderRadius(16)
+  }
+
+  @Builder
+  private buildDailyBriefingCard() {
+    Column({ space: 14 }) {
+      Row() {
+        Column({ space: 4 }) {
+          Text('智卡今日简报')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bolder)
+            .fontColor(PRIMARY_TEXT_COLOR)
+
+          Text(this.getCachedAiBriefingText().trim().length > 0 ? '已使用今日 AI 解读缓存' : '本地规则实时判断')
+            .fontSize(12)
+            .fontColor(SECONDARY_TEXT_COLOR)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text(this.dailyBriefingBusy ? '解读中' : '管家')
+          .fontSize(11)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#6F7CFF')
+          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+          .backgroundColor('#F2F1FF')
+          .borderRadius(999)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+
+      Row({ space: 10 }) {
+        this.buildBriefingMetric(
+          '热量账本',
+          `${Math.round(this.getDailyBriefingSummary().remainingTargetCalories)}`,
+          '剩余 kcal',
+          this.getDailyBriefingSummary().remainingTargetCalories >= 0 ? '#10B981' : '#FF5A7A'
+        )
+
+        this.buildBriefingMetric(
+          '计划状态',
+          `${this.getDailyBriefingSummary().completedWorkoutPlanCount}/${this.getDailyBriefingSummary().workoutPlanCount}`,
+          '训练完成',
+          '#FF8B61'
+        )
+
+        this.buildBriefingMetric(
+          '体重趋势',
+          this.getDailyBriefingSummary().latestWeightText,
+          this.getDailyBriefingSummary().latestWeightText === '--' ? '待记录' : '最新',
+          '#15B8A6'
+        )
+      }
+      .width('100%')
+
+      Column({ space: 8 }) {
+        Text('管家建议')
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#5373A6')
+
+        Text(this.getVisibleBriefingText())
+          .fontSize(14)
+          .lineHeight(22)
+          .fontColor(PRIMARY_TEXT_COLOR)
+          .width('100%')
+
+        Text(`${this.getDailyBriefingSummary().calorieStatusText} ${this.getDailyBriefingSummary().foodStatusText} ${this.getDailyBriefingSummary().workoutStatusText}`)
+          .fontSize(12)
+          .lineHeight(18)
+          .fontColor(SECONDARY_TEXT_COLOR)
+          .maxLines(3)
+      }
+      .alignItems(HorizontalAlign.Start)
+      .width('100%')
+      .padding(14)
+      .backgroundColor('#FFFFFF')
+      .borderRadius(18)
+
+      Text(this.dailyBriefingNotice)
+        .fontSize(12)
+        .lineHeight(18)
+        .fontColor(SECONDARY_TEXT_COLOR)
+        .width('100%')
+
+      Column({ space: 10 }) {
+        Button(this.dailyBriefingBusy ? '解读中' : '解读今日计划')
+          .width('100%')
+          .height(46)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#FFFFFF')
+          .backgroundColor(this.dailyBriefingBusy ? '#98A2B3' : '#6F7CFF')
+          .borderRadius(16)
+          .onClick(() => {
+            this.analyzeDailyBriefing();
+          })
+
+        Row({ space: 10 }) {
+          Button(this.ttsBusy ? '生成中' : '语音播报')
+            .layoutWeight(1)
+            .height(48)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#0F6BFF')
+            .backgroundColor('#EAF2FF')
+            .borderRadius(16)
+            .onClick(() => {
+              this.speakDailyBriefing();
+            })
+
+          Button(this.getTtsPauseButtonText())
+            .layoutWeight(1)
+            .height(48)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.getTtsPauseButtonTextColor())
+            .backgroundColor(this.getTtsPauseButtonBackgroundColor())
+            .borderRadius(16)
+            .opacity(this.isTtsPlaybackToggleEnabled() ? 1 : 0.7)
+            .onClick(() => {
+              this.toggleTtsPlaybackPause();
+            })
+        }
+        .width('100%')
+
+        Button(this.getDailyBriefingSummary().suggestedActionText)
+          .width('100%')
+          .height(48)
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#D97706')
+          .backgroundColor('#FFF4E4')
+          .borderRadius(16)
+          .onClick(() => {
+            this.openTab(this.getDailyBriefingSummary().suggestedActionTabIndex);
+          })
+      }
+      .width('100%')
+    }
+    .alignItems(HorizontalAlign.Start)
+    .width('100%')
+    .padding(18)
+    .backgroundColor('#F7F6FF')
+    .borderRadius(24)
+    .border({
+      color: '#DDD9FF',
+      width: 1
+    })
   }
 
   @Builder
@@ -760,6 +1175,7 @@ export struct HomeTabPage {
     Scroll() {
       Column({ space: 14 }) {
         this.buildEnergyHeroCard()
+        this.buildDailyBriefingCard()
         this.buildWeightTrendCard()
         this.buildQuickEntryCard()
         this.buildReminderCard(this.getPrimaryReminder())

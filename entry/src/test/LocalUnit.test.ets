@@ -1,6 +1,7 @@
 import { describe, beforeAll, beforeEach, afterEach, afterAll, it, expect } from '@ohos/hypium';
 import aiAssistantHelperTest from './AiAssistantHelper.test';
 import authSessionTest from './AuthSession.test';
+import dailyBriefingHelperTest from './DailyBriefingHelper.test';
 import homeDashboardHelperTest from './HomeDashboardHelper.test';
 import identityHelperTest from './IdentityHelper.test';
 import monthCalendarHelperTest from './MonthCalendarHelper.test';
@@ -9,6 +10,7 @@ import userProfileTest from './UserProfile.test';
 export default function localUnitTest() {
   aiAssistantHelperTest();
   authSessionTest();
+  dailyBriefingHelperTest();
   homeDashboardHelperTest();
   identityHelperTest();
   monthCalendarHelperTest();

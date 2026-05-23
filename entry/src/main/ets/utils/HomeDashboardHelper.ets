@@ -176,8 +176,8 @@ export function getHomeReminderItems(
   if (reminderItems.length === 0) {
     reminderItems.push({
       id: 'assistant',
-      title: '查看今日建议',
-      description: '数据已经齐了，可以去 AI 助手做分析',
+      title: '查看智卡建议',
+      description: '数据已经齐了，可以去智卡管家做分析',
       targetTabIndex: AI_TAB_INDEX,
       accentColor: '#7B61FF'
     });

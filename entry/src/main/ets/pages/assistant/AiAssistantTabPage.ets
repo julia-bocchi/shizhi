@@ -12,6 +12,7 @@ import {
   AI_ROLE_USER,
   AI_TASK_ANALYZE_WEIGHT,
   AI_TASK_CHAT,
+  AI_TASK_DAILY_BRIEFING,
   AI_TASK_GENERATE_FULL_PLAN,
   AI_TASK_GENERATE_PLAN,
   AI_TASK_GENERATE_RECIPE,
@@ -43,6 +44,7 @@ import {
   deserializeWorkoutRecords
 } from '../../utils/ExerciseHelper';
 import { inferAiAssistantTaskFromPrompt, requestAiAssistant } from '../../utils/AiAssistantHelper';
+import { buildDailyBriefingAiPrompt, buildDailyBriefingSummary } from '../../utils/DailyBriefingHelper';
 import {
   deserializeFoodPlans,
   serializeFoodPlans
@@ -63,13 +65,14 @@ interface AssistantQuickActionItem {
 }
 
 const ASSISTANT_WELCOME_MESSAGE: string =
-  '我是你的 AI 健身饮食助手。我可以分析近期体重变化，也能生成训练计划、定制食谱，以及整套运动和饮食计划。';
-const ASSISTANT_DEFAULT_NOTICE: string = '可以直接发消息，也可以先点下面的快捷功能。';
+  '我是智卡管家，可以结合你的体重、饮食和训练记录，解读今日状态并生成可执行计划。';
+const ASSISTANT_DEFAULT_NOTICE: string = '可以直接发消息，也可以先点下面的管家快捷功能。';
 const ASSISTANT_QUICK_ACTIONS: AssistantQuickActionItem[] = [
-  { id: 'analyze', label: '体重分析' },
-  { id: 'plan', label: '训练计划' },
-  { id: 'recipe', label: '饮食计划' },
-  { id: 'full', label: '制定计划' }
+  { id: 'today', label: '今日解读' },
+  { id: 'analyze', label: '体重趋势' },
+  { id: 'plan', label: '训练安排' },
+  { id: 'recipe', label: '饮食调整' },
+  { id: 'full', label: '一周方案' }
 ];
 const HISTORY_RESULT_LIMIT: number = 20;
 
@@ -197,7 +200,7 @@ export struct AiAssistantTabPage {
 
   private getAssistantStatusText(): string {
     if (this.assistantBusy) {
-      return 'AI 正在整理建议。发送按钮已切换为中断按钮。';
+      return '智卡管家正在整理建议。发送按钮已切换为中断按钮。';
     }
     if (!this.hasAiConfig()) {
       return '还没填好接口配置，先补上 API 地址、模型和 Key。';
@@ -420,6 +423,9 @@ export struct AiAssistantTabPage {
   }
 
   private getTaskLoadingNotice(task: string): string {
+    if (task === AI_TASK_DAILY_BRIEFING) {
+      return '正在解读今日健康计划...';
+    }
     if (task === AI_TASK_GENERATE_PLAN) {
       return '正在生成训练计划草案...';
     }
@@ -433,38 +439,44 @@ export struct AiAssistantTabPage {
   }
 
   private getTaskThinkingHint(task: string): string {
+    if (task === AI_TASK_DAILY_BRIEFING) {
+      return '智卡管家正在综合今天的热量、训练和体重趋势。';
+    }
     if (task === AI_TASK_GENERATE_PLAN) {
-      return 'AI 正在整理训练安排与强度节奏。';
+      return '智卡管家正在整理训练安排与强度节奏。';
     }
     if (task === AI_TASK_GENERATE_RECIPE) {
-      return 'AI 正在匹配餐次、热量与食材建议。';
+      return '智卡管家正在匹配餐次、热量与食材建议。';
     }
     if (task === AI_TASK_GENERATE_FULL_PLAN) {
-      return 'AI 正在同时协调训练与饮食计划。';
+      return '智卡管家正在同时协调训练与饮食计划。';
     }
-    return 'AI 正在理解问题并整理答复。';
+    return '智卡管家正在理解问题并整理答复。';
   }
 
   private buildGeneratedResultNotice(task: string, workoutCount: number, foodCount: number): string {
+    if (task === AI_TASK_DAILY_BRIEFING) {
+      return '今日计划解读已更新。';
+    }
     if (workoutCount > 0 && foodCount > 0) {
-      return `AI 已生成 ${workoutCount} 条训练计划和 ${foodCount} 条饮食计划草案。`;
+      return `智卡管家已生成 ${workoutCount} 条训练计划和 ${foodCount} 条饮食计划草案。`;
     }
     if (workoutCount > 0) {
-      return `AI 已生成 ${workoutCount} 条训练计划草案，你可以先调整再导入。`;
+      return `智卡管家已生成 ${workoutCount} 条训练计划草案，你可以先调整再导入。`;
     }
     if (foodCount > 0) {
-      return `AI 已生成 ${foodCount} 条饮食计划草案，你可以先调整再导入。`;
+      return `智卡管家已生成 ${foodCount} 条饮食计划草案，你可以先调整再导入。`;
     }
     if (task === AI_TASK_GENERATE_PLAN) {
-      return 'AI 这次没有返回可导入训练计划，可以换个问法再试一次。';
+      return '智卡管家这次没有返回可导入训练计划，可以换个问法再试一次。';
     }
     if (task === AI_TASK_GENERATE_RECIPE) {
-      return 'AI 这次没有返回可导入食谱，可以换个口味或目标再试一次。';
+      return '智卡管家这次没有返回可导入食谱，可以换个口味或目标再试一次。';
     }
     if (task === AI_TASK_GENERATE_FULL_PLAN) {
-      return 'AI 这次没有返回完整计划，可以补充更多需求后再试一次。';
+      return '智卡管家这次没有返回完整计划，可以补充更多需求后再试一次。';
     }
-    return 'AI 建议已更新。';
+    return '智卡建议已更新。';
   }
 
   private buildAssistantVisibleReply(task: string, response: AiAssistantResponse): string {
@@ -616,6 +628,18 @@ export struct AiAssistantTabPage {
     );
   }
 
+  private askAboutTodayBriefing(): void {
+    let summary = buildDailyBriefingSummary(
+      this.foodPlanText,
+      this.workoutPlanText,
+      this.workoutRecordText,
+      this.weightRecordText,
+      this.dailyFoodCalorieTargetText,
+      formatDate(new Date())
+    );
+    this.submitToAssistant(AI_TASK_DAILY_BRIEFING, buildDailyBriefingAiPrompt(summary));
+  }
+
   private generateWorkoutPlanDrafts(): void {
     this.submitToAssistant(
       AI_TASK_GENERATE_PLAN,
@@ -642,6 +666,10 @@ export struct AiAssistantTabPage {
   }
 
   private handleQuickAction(actionId: string): void {
+    if (actionId === 'today') {
+      this.askAboutTodayBriefing();
+      return;
+    }
     if (actionId === 'analyze') {
       this.askAboutWeightTrend();
       return;
@@ -658,6 +686,9 @@ export struct AiAssistantTabPage {
   }
 
   private getQuickActionBackgroundColor(actionId: string): string {
+    if (actionId === 'today') {
+      return '#EAF2FF';
+    }
     if (actionId === 'plan' && this.getGeneratedPlanCount() > 0) {
       return '#F2F0FF';
     }
@@ -674,6 +705,9 @@ export struct AiAssistantTabPage {
   }
 
   private getQuickActionBorderColor(actionId: string): string {
+    if (actionId === 'today') {
+      return '#B7D5FF';
+    }
     if (actionId === 'plan' && this.getGeneratedPlanCount() > 0) {
       return '#D7CCFF';
     }
@@ -1134,7 +1168,7 @@ export struct AiAssistantTabPage {
 
   private getAssistantDetailLabel(message: AiChatMessage): string {
     if (message.status === AI_MESSAGE_STATUS_THINKING) {
-      return 'AI 思考中';
+      return '管家思考中';
     }
     if (message.status === AI_MESSAGE_STATUS_ERROR) {
       return '错误信息';
@@ -1248,6 +1282,12 @@ export struct AiAssistantTabPage {
         .alignItems(HorizontalAlign.Start)
       }
       .width('100%')
+
+      Text('IndexTTS2 语音播报使用代码层固定地址，当前页面不提供 TTS IP 修改入口。')
+        .fontSize(12)
+        .lineHeight(18)
+        .fontColor(SECONDARY_TEXT_COLOR)
+        .width('100%')
     }
     .alignItems(HorizontalAlign.Start)
     .width('100%')
@@ -1380,7 +1420,7 @@ export struct AiAssistantTabPage {
         .fontWeight(FontWeight.Bolder)
         .fontColor(PRIMARY_TEXT_COLOR)
 
-      Text('直接输入你的问题，或者先用下方的体重分析、训练计划、饮食计划和制定计划。')
+      Text('直接输入你的问题，或者先用下方的今日解读、体重趋势、训练安排和饮食调整。')
         .fontSize(14)
         .lineHeight(22)
         .fontColor(SECONDARY_TEXT_COLOR)
@@ -1398,7 +1438,7 @@ export struct AiAssistantTabPage {
         Row() {
           Column({ space: 6 }) {
             Row() {
-              Text(this.isAssistantMessage(message) ? 'AI 助手' : this.getUserName())
+              Text(this.isAssistantMessage(message) ? '智卡管家' : this.getUserName())
                 .fontSize(11)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(this.isAssistantMessage(message) ? '#5373A6' : '#98A2B3')
@@ -1879,12 +1919,12 @@ export struct AiAssistantTabPage {
           })
 
         Column({ space: 4 }) {
-          Text('AI 助手')
+          Text('智卡管家')
             .fontSize(24)
             .fontWeight(FontWeight.Bolder)
             .fontColor(PRIMARY_TEXT_COLOR)
 
-          Text(this.assistantBusy ? 'AI 正在生成内容' : '开始一段新对话')
+          Text(this.assistantBusy ? '智卡正在生成内容' : '开始一段管家对话')
             .fontSize(12)
             .fontColor(SECONDARY_TEXT_COLOR)
         }
@@ -1970,7 +2010,7 @@ export struct AiAssistantTabPage {
         this.buildQuickActionStrip(ASSISTANT_QUICK_ACTIONS)
 
         Row({ space: 8 }) {
-          TextInput({ placeholder: '给 AI 发送消息...', text: this.questionInput })
+          TextInput({ placeholder: '给智卡管家发送消息...', text: this.questionInput })
             .layoutWeight(1)
             .height(44)
             .fontSize(15)

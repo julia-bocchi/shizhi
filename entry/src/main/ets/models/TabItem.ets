@@ -23,7 +23,7 @@ export const APP_TAB_ITEMS: BottomTabItem[] = [
   {
     id: 'assistant',
     icon: 'AI',
-    label: '助手',
+    label: '管家',
     index: AI_TAB_INDEX
   },
   {

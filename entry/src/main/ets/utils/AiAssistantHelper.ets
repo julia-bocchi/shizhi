@@ -8,6 +8,7 @@ import {
   AI_TASK_GENERATE_FULL_PLAN,
   AI_TASK_GENERATE_PLAN,
   AI_TASK_GENERATE_RECIPE,
+  AI_TASK_DAILY_BRIEFING,
   AiAssistantConfig,
   AiAssistantResponse,
   AiChatMessage,
@@ -237,6 +238,9 @@ export function inferAiAssistantTaskFromPrompt(promptText: string): string {
 }
 
 function getAiMaxTokens(task: string): number {
+  if (task === AI_TASK_DAILY_BRIEFING) {
+    return 360;
+  }
   if (task === AI_TASK_GENERATE_FULL_PLAN) {
     return 1200;
   }
@@ -247,6 +251,9 @@ function getAiMaxTokens(task: string): number {
 }
 
 function getAiThinkingBudget(task: string): number {
+  if (task === AI_TASK_DAILY_BRIEFING) {
+    return 48;
+  }
   if (task === AI_TASK_GENERATE_FULL_PLAN) {
     return 192;
   }
@@ -476,7 +483,7 @@ function buildWorkoutDataText(workoutRecords: WorkoutRecord[]): string {
 
 function buildSystemPrompt(): string {
   return [
-    '你是一名健身与饮食助手，服务于一个体重、训练计划和饮食计划 App。',
+    '你是“智卡管家”，服务于一个体重、训练计划和饮食计划 App。',
     '你的目标是结合最近体重变化、最近训练记录和用户提问，输出温和、可执行、不过度承诺的建议。',
     '不要给出医疗诊断，不要鼓励极端节食、过量训练或危险动作。',
     '如果用户要求训练计划，只能使用这些 exerciseId：' + buildSupportedExercisesText(),
@@ -497,6 +504,8 @@ function buildUserPrompt(context: AiAssistantRequestContext): string {
   let taskInstruction: string = '请回答用户问题。除非用户明确要求，否则 plans 和 foodPlans 返回空数组。';
   if (context.task === AI_TASK_ANALYZE_WEIGHT) {
     taskInstruction = '请重点分析最近体重变化，并给出 3 条以内可执行建议。plans 和 foodPlans 返回空数组。';
+  } else if (context.task === AI_TASK_DAILY_BRIEFING) {
+    taskInstruction = '请根据用户问题中提供的今日简报结构，输出 120 字以内的今日健康计划解读。plans 和 foodPlans 返回空数组。';
   } else if (context.task === AI_TASK_GENERATE_PLAN) {
     taskInstruction = '请给出简短解释，并额外生成 3 到 5 条可导入的训练计划。计划日期尽量从今天开始顺延，强度循序渐进。foodPlans 返回空数组。';
   } else if (context.task === AI_TASK_GENERATE_RECIPE) {
