@@ -23,6 +23,7 @@ import {
 import {
   getFoodVisualDescriptor,
   isBuiltinFoodImage,
+  isFoodResourceImage,
   resolveFoodOptionImage,
   resolveFoodPlanImage
 } from '../../utils/FoodVisualHelper';
@@ -856,8 +857,65 @@ struct FoodSelectionPage {
   }
 
   @Builder
+  buildFoodResourceVisual(image: string, title: string, heightValue: number) {
+    if (image === 'resource:food:oatmeal') {
+      Image($r('app.media.oatmeal'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:chicken_breast_salad') {
+      Image($r('app.media.chicken_breast_salad'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:pan_seared_salmon') {
+      Image($r('app.media.pan_seared_salmon'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:yogurt') {
+      Image($r('app.media.yogurt'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:beef_rice') {
+      Image($r('app.media.beef_rice'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:egg_toast') {
+      Image($r('app.media.egg_toast'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:whole_wheat_bread') {
+      Image($r('app.media.whole_wheat_bread'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else if (image === 'resource:food:steamed_seabass') {
+      Image($r('app.media.steamed_seabass'))
+        .width('100%')
+        .height(heightValue)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(heightValue >= 200 ? 24 : 18)
+    } else {
+      this.buildFoodVisual('builtin:meal:breakfast', title, heightValue)
+    }
+  }
+
+  @Builder
   buildFoodVisual(image: string, title: string, heightValue: number) {
-    if (isBuiltinFoodImage(image)) {
+    if (isFoodResourceImage(image)) {
+      this.buildFoodResourceVisual(image, title, heightValue)
+    } else if (isBuiltinFoodImage(image)) {
       Stack({ alignContent: Alignment.BottomStart }) {
         Column() {
           Row() {

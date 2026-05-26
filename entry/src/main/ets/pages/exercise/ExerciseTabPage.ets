@@ -296,6 +296,34 @@ export struct ExerciseTabPage {
     return [formatDate(startDate), formatDate(endDate)];
   }
 
+  private replaceWorkoutPlansForDate(dateText: string, datePlans: WorkoutPlanItem[]): WorkoutPlanItem[] {
+    let currentPlans: WorkoutPlanItem[] = this.getAllWorkoutPlans();
+    let nextPlans: WorkoutPlanItem[] = [];
+    for (let index = 0; index < currentPlans.length; index++) {
+      if (currentPlans[index].date !== dateText) {
+        nextPlans.push(currentPlans[index]);
+      }
+    }
+    for (let index = 0; index < datePlans.length; index++) {
+      nextPlans.push(datePlans[index]);
+    }
+    return nextPlans;
+  }
+
+  private replaceWorkoutRecordsForDate(dateText: string, dateRecords: WorkoutRecord[]): WorkoutRecord[] {
+    let currentRecords: WorkoutRecord[] = this.getWorkoutRecords();
+    let nextRecords: WorkoutRecord[] = [];
+    for (let index = 0; index < currentRecords.length; index++) {
+      if (currentRecords[index].date !== dateText) {
+        nextRecords.push(currentRecords[index]);
+      }
+    }
+    for (let index = 0; index < dateRecords.length; index++) {
+      nextRecords.push(dateRecords[index]);
+    }
+    return nextRecords;
+  }
+
   private async syncRemoteExerciseData(): Promise<void> {
     await this.flushPendingSync();
     if (hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_template') ||
@@ -337,6 +365,39 @@ export struct ExerciseTabPage {
       let remoteRecords = await fetchWorkoutRecords(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1]);
       this.workoutRecordText = serializeWorkoutRecords(remoteRecords);
       this.remoteDailySummary = await fetchWorkoutDailySummary(this.apiBaseUrlText, authSession, formatDate(new Date()));
+      this.workoutPlanRenderVersion += 1;
+    } catch (error) {
+      this.customTemplateNotice = `${error}`;
+    } finally {
+      this.remoteSyncing = false;
+    }
+  }
+
+  private async syncRemoteExercisePlansForDate(dateText: string): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_plan') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'workout_record')) {
+      return;
+    }
+    let authSession = resolveStoredAuthSession(this.authSessionText, this.authTokenText, this.authUserIdText,
+      this.authUsernameText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    this.remoteSyncing = true;
+    try {
+      let planResult = await fetchWorkoutPlans(this.apiBaseUrlText, authSession, dateText, dateText,
+        this.getWorkoutPlanMetaItems());
+      let nextPlans: WorkoutPlanItem[] = this.replaceWorkoutPlansForDate(dateText, planResult.plans);
+      this.workoutPlans = nextPlans;
+      this.workoutPlanText = serializeWorkoutPlans(nextPlans);
+      this.workoutPlanMetaText = serializeWorkoutPlanLocalMeta(buildWorkoutPlanMetaList(nextPlans));
+
+      let remoteRecords = await fetchWorkoutRecords(this.apiBaseUrlText, authSession, dateText, dateText);
+      this.workoutRecordText = serializeWorkoutRecords(this.replaceWorkoutRecordsForDate(dateText, remoteRecords));
+      if (dateText === formatDate(new Date())) {
+        this.remoteDailySummary = await fetchWorkoutDailySummary(this.apiBaseUrlText, authSession, dateText);
+      }
       this.workoutPlanRenderVersion += 1;
     } catch (error) {
       this.customTemplateNotice = `${error}`;
@@ -819,7 +880,8 @@ export struct ExerciseTabPage {
         if (currentType.source !== 'saved_template') {
           continue;
         }
-        let savedWorkout = this.findSavedWorkoutById(currentType.savedWorkoutId);
+        let savedWorkoutId = currentType.savedWorkoutId === null ? '' : `${currentType.savedWorkoutId}`;
+        let savedWorkout = this.findSavedWorkoutById(savedWorkoutId);
         if (!savedWorkout) {
           continue;
         }
@@ -1174,6 +1236,12 @@ export struct ExerciseTabPage {
     this.syncRemoteExerciseData();
   }
 
+  private selectPlanDate(dateText: string): void {
+    this.selectedPlanDate = dateText;
+    this.planListCollapsed = false;
+    this.syncRemoteExercisePlansForDate(dateText);
+  }
+
   private getMonthPrefix(): string {
     return `${this.calendarYear}-${this.calendarMonth + 1 < 10 ? `0${this.calendarMonth + 1}` : `${this.calendarMonth + 1}`}-`;
   }
@@ -1389,7 +1457,7 @@ export struct ExerciseTabPage {
                 if (!day.isCurrentMonth) {
                   return;
                 }
-                this.selectedPlanDate = day.dateText;
+                this.selectPlanDate(day.dateText);
               })
             }, (day: CalendarDayItem) => day.key)
           }

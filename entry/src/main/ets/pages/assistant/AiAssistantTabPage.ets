@@ -43,7 +43,7 @@ import {
   deserializeSavedCustomWorkouts,
   deserializeWorkoutRecords
 } from '../../utils/ExerciseHelper';
-import { inferAiAssistantTaskFromPrompt, requestAiAssistant } from '../../utils/AiAssistantHelper';
+import { AiAssistantRequestOptions, inferAiAssistantTaskFromPrompt, requestAiAssistant } from '../../utils/AiAssistantHelper';
 import { buildDailyBriefingAiPrompt, buildDailyBriefingSummary } from '../../utils/DailyBriefingHelper';
 import {
   deserializeFoodPlans,
@@ -90,6 +90,7 @@ export struct AiAssistantTabPage {
   @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
   @StorageLink('aiModelText') aiModelText: string = '';
   @StorageLink('aiConversationHistoryText') aiConversationHistoryText: string = '';
+  @StorageLink('assistantOpenConversationIdText') assistantOpenConversationIdText: string = '';
 
   @State questionInput: string = '';
   @State historyQuery: string = '';
@@ -109,6 +110,13 @@ export struct AiAssistantTabPage {
   aboutToAppear(): void {
     this.ensureDefaultAiConfig();
     this.loadConversationHistory();
+    let requestedConversationId = this.assistantOpenConversationIdText.trim();
+    if (requestedConversationId.length > 0) {
+      this.assistantOpenConversationIdText = '';
+      if (this.openConversation(requestedConversationId)) {
+        return;
+      }
+    }
     if (this.conversationHistory.length > 0) {
       this.openConversation(this.conversationHistory[0].id);
     } else if (this.chatMessages.length === 0) {
@@ -352,7 +360,7 @@ export struct AiAssistantTabPage {
     return result;
   }
 
-  private openConversation(recordId: string): void {
+  private openConversation(recordId: string): boolean {
     for (let index = 0; index < this.conversationHistory.length; index++) {
       let currentRecord = this.conversationHistory[index];
       if (currentRecord.id !== recordId) {
@@ -368,8 +376,9 @@ export struct AiAssistantTabPage {
       this.assistantBusy = false;
       this.showHistoryPanel = false;
       this.assistantNotice = `已载入 ${this.formatHistoryTime(currentRecord.updatedAt)} 的对话记录。`;
-      return;
+      return true;
     }
+    return false;
   }
 
   private updateAssistantMessage(messageId: string, content: string, thinkingContent: string, status: string): void {
@@ -498,6 +507,29 @@ export struct AiAssistantTabPage {
     return trimmedError;
   }
 
+  private buildSplitFullPlanPrompt(promptText: string, targetTask: string): string {
+    if (targetTask === AI_TASK_GENERATE_PLAN) {
+      return `${promptText}\n只生成训练 plans，plans 总数只能是 3 到 4，foodPlans 必须返回空数组。`;
+    }
+    return `${promptText}\n只生成饮食 foodPlans，foodPlans 总数必须是 7，plans 必须返回空数组。整周总共 7 条，不要每天三餐。`;
+  }
+
+  private mergeFullPlanResponses(workoutResponse: AiAssistantResponse,
+    foodResponse: AiAssistantResponse): AiAssistantResponse {
+    return {
+      reply: this.buildGeneratedResultNotice(
+        AI_TASK_GENERATE_FULL_PLAN,
+        workoutResponse.plans.length,
+        foodResponse.foodPlans.length
+      ),
+      reasoningContent: `${workoutResponse.reasoningContent}\n${foodResponse.reasoningContent}`.trim(),
+      plans: workoutResponse.plans,
+      foodPlans: foodResponse.foodPlans,
+      rawText: `${workoutResponse.rawText}\n${foodResponse.rawText}`,
+      parseSucceeded: workoutResponse.parseSucceeded || foodResponse.parseSucceeded
+    };
+  }
+
   private applyAssistantResponse(messageId: string, task: string, workoutPlans: AiGeneratedPlanItem[],
     foodPlans: AiGeneratedFoodPlanItem[]): void {
     let nextMessages: AiChatMessage[] = [];
@@ -564,18 +596,7 @@ export struct AiAssistantTabPage {
         savedWorkoutNames.push(savedWorkouts[index].name);
       }
 
-      let response = await requestAiAssistant(this.getAiConfig(), {
-        task: task,
-        userPrompt: trimmedPrompt,
-        profile: this.userProfile,
-        weightRecords: this.getWeightRecords(),
-        workoutRecords: this.getWorkoutRecords(),
-        existingPlanCount: this.getWorkoutPlans().length,
-        existingFoodPlanCount: this.getFoodPlans().length,
-        dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
-        savedWorkoutNames: savedWorkoutNames,
-        historyMessages: requestHistoryMessages
-      }, {
+      let requestOptions: AiAssistantRequestOptions = {
         onRequestCreated: (cancelHandler: () => void) => {
           if (this.activeRequestToken !== requestToken) {
             cancelHandler();
@@ -583,7 +604,53 @@ export struct AiAssistantTabPage {
           }
           this.cancelCurrentRequest = cancelHandler;
         }
-      });
+      };
+
+      let response: AiAssistantResponse;
+      if (task === AI_TASK_GENERATE_FULL_PLAN) {
+        let workoutResponse = await requestAiAssistant(this.getAiConfig(), {
+          task: AI_TASK_GENERATE_PLAN,
+          userPrompt: this.buildSplitFullPlanPrompt(trimmedPrompt, AI_TASK_GENERATE_PLAN),
+          profile: this.userProfile,
+          weightRecords: this.getWeightRecords(),
+          workoutRecords: this.getWorkoutRecords(),
+          existingPlanCount: this.getWorkoutPlans().length,
+          existingFoodPlanCount: this.getFoodPlans().length,
+          dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
+          savedWorkoutNames: savedWorkoutNames,
+          historyMessages: requestHistoryMessages
+        }, requestOptions);
+        if (this.activeRequestToken !== requestToken) {
+          return;
+        }
+        this.assistantNotice = '训练草案已生成，正在生成饮食草案...';
+        let foodResponse = await requestAiAssistant(this.getAiConfig(), {
+          task: AI_TASK_GENERATE_RECIPE,
+          userPrompt: this.buildSplitFullPlanPrompt(trimmedPrompt, AI_TASK_GENERATE_RECIPE),
+          profile: this.userProfile,
+          weightRecords: this.getWeightRecords(),
+          workoutRecords: this.getWorkoutRecords(),
+          existingPlanCount: this.getWorkoutPlans().length,
+          existingFoodPlanCount: this.getFoodPlans().length,
+          dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
+          savedWorkoutNames: savedWorkoutNames,
+          historyMessages: requestHistoryMessages
+        }, requestOptions);
+        response = this.mergeFullPlanResponses(workoutResponse, foodResponse);
+      } else {
+        response = await requestAiAssistant(this.getAiConfig(), {
+          task: task,
+          userPrompt: trimmedPrompt,
+          profile: this.userProfile,
+          weightRecords: this.getWeightRecords(),
+          workoutRecords: this.getWorkoutRecords(),
+          existingPlanCount: this.getWorkoutPlans().length,
+          existingFoodPlanCount: this.getFoodPlans().length,
+          dailyFoodCalorieTarget: this.getDailyFoodCalorieTarget(),
+          savedWorkoutNames: savedWorkoutNames,
+          historyMessages: requestHistoryMessages
+        }, requestOptions);
+      }
 
       if (this.activeRequestToken !== requestToken) {
         return;
@@ -657,7 +724,7 @@ export struct AiAssistantTabPage {
   private generateFullPlanDrafts(): void {
     this.submitToAssistant(
       AI_TASK_GENERATE_FULL_PLAN,
-      `请结合${this.getUserName()}最近的体重变化、训练情况和饮食目标，为我定制接下来几天的运动计划和饮食计划。`
+      `请结合${this.getUserName()}最近的体重变化、训练情况和饮食目标，为我定制接下来 7 天的运动和饮食草案。训练 plans 只生成 3 到 4 条；饮食 foodPlans 只生成 7 条；不要每天都生成训练，不要每天三餐。`
     );
   }
 

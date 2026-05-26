@@ -7,6 +7,11 @@ import {
 import { resolveApiBaseUrl } from '../../models/AuthSession';
 import { HOME_TAB_INDEX } from '../../models/TabItem';
 import { LoginResult, loginWithPassword, registerWithPassword } from '../../utils/ApiService';
+import {
+  UserDataSessionState,
+  createClearedUserDataSessionState,
+  fetchLoginUserData
+} from '../../utils/UserDataSessionHelper';
 
 @Entry
 @Component
@@ -17,6 +22,32 @@ struct LoginPage {
   @StorageLink('authUserIdText') authUserIdText: string = '';
   @StorageLink('authUsernameText') authUsernameText: string = '';
   @StorageLink('currentTabIndex') currentTabIndex: number = HOME_TAB_INDEX;
+  @StorageLink('userProfileText') userProfileText: string = '';
+  @StorageLink('weightRecordText') weightRecordText: string = '';
+  @StorageLink('customFoodOptionText') customFoodOptionText: string = '';
+  @StorageLink('foodPlanText') foodPlanText: string = '';
+  @StorageLink('savedCustomWorkoutText') savedCustomWorkoutText: string = '';
+  @StorageLink('workoutPlanText') workoutPlanText: string = '';
+  @StorageLink('workoutPlanMetaText') workoutPlanMetaText: string = '';
+  @StorageLink('workoutRecordText') workoutRecordText: string = '';
+  @StorageLink('pendingSyncQueueText') pendingSyncQueueText: string = '';
+  @StorageLink('foodRecommendationCacheText') foodRecommendationCacheText: string = '';
+  @StorageLink('exerciseRecommendationCacheText') exerciseRecommendationCacheText: string = '';
+  @StorageLink('currentEditingSavedWorkoutIdText') currentEditingSavedWorkoutIdText: string = '';
+  @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
+  @StorageLink('currentExerciseDraftText') currentExerciseDraftText: string = '';
+  @StorageLink('currentExerciseProfileText') currentExerciseProfileText: string = '';
+  @StorageLink('currentFoodPlanDateText') currentFoodPlanDateText: string = '';
+  @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
+  @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = '2000';
+  @StorageLink('dailyBriefingAiCacheText') dailyBriefingAiCacheText: string = '';
+  @StorageLink('ttsAudioCacheText') ttsAudioCacheText: string = '';
+  @StorageLink('weeklyPlanDraftConversationIdText') weeklyPlanDraftConversationIdText: string = '';
+  @StorageLink('weeklyPlanDraftDateText') weeklyPlanDraftDateText: string = '';
+  @StorageLink('assistantOpenConversationIdText') assistantOpenConversationIdText: string = '';
+  @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
+  @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
+  @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
 
   @State username: string = '';
   @State password: string = '';
@@ -54,14 +85,51 @@ struct LoginPage {
     }
   }
 
-  private completeAuthSuccess(result: LoginResult, noticeText: string): void {
+  private applyUserDataSessionState(state: UserDataSessionState): void {
+    this.userProfileText = state.userProfileText;
+    this.weightRecordText = state.weightRecordText;
+    this.customFoodOptionText = state.customFoodOptionText;
+    this.foodPlanText = state.foodPlanText;
+    this.savedCustomWorkoutText = state.savedCustomWorkoutText;
+    this.workoutPlanText = state.workoutPlanText;
+    this.workoutPlanMetaText = state.workoutPlanMetaText;
+    this.workoutRecordText = state.workoutRecordText;
+    this.pendingSyncQueueText = state.pendingSyncQueueText;
+    this.foodRecommendationCacheText = state.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = state.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = state.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = state.currentExercisePlanIdText;
+    this.currentExerciseDraftText = state.currentExerciseDraftText;
+    this.currentExerciseProfileText = state.currentExerciseProfileText;
+    this.currentFoodPlanDateText = state.currentFoodPlanDateText;
+    this.currentFoodPlanMealTypeText = state.currentFoodPlanMealTypeText;
+    this.dailyFoodCalorieTargetText = state.dailyFoodCalorieTargetText;
+    this.dailyBriefingAiCacheText = state.dailyBriefingAiCacheText;
+    this.ttsAudioCacheText = state.ttsAudioCacheText;
+    this.weeklyPlanDraftConversationIdText = state.weeklyPlanDraftConversationIdText;
+    this.weeklyPlanDraftDateText = state.weeklyPlanDraftDateText;
+    this.assistantOpenConversationIdText = state.assistantOpenConversationIdText;
+    this.lastSyncAttemptText = state.lastSyncAttemptText;
+    this.lastSyncSuccessText = state.lastSyncSuccessText;
+    this.exercisePlanPickerVisible = state.exercisePlanPickerVisible;
+  }
+
+  private async completeAuthSuccess(result: LoginResult, noticeText: string): Promise<void> {
+    this.applyUserDataSessionState(createClearedUserDataSessionState());
     this.authSessionText = result.authSessionText;
     this.authTokenText = result.authSession.token;
     this.authUserIdText = `${result.authSession.userId}`;
     this.authUsernameText = result.authSession.username;
     this.currentTabIndex = HOME_TAB_INDEX;
     this.password = '';
-    this.loginNotice = noticeText;
+    this.loginNotice = '登录成功，正在同步用户数据。';
+    try {
+      let remoteUserData = await fetchLoginUserData(this.apiBaseUrlText, result.authSession);
+      this.applyUserDataSessionState(remoteUserData);
+      this.loginNotice = noticeText;
+    } catch (error) {
+      this.loginNotice = '登录成功，但用户数据同步失败，请稍后进入页面刷新。';
+    }
     this.goHome();
   }
 
@@ -82,7 +150,7 @@ struct LoginPage {
     this.authBusy = true;
     try {
       let loginResult = await loginWithPassword(this.apiBaseUrlText, this.username, this.password);
-      this.completeAuthSuccess(loginResult, '登录成功，正在返回首页。');
+      await this.completeAuthSuccess(loginResult, '登录成功，已同步最近一周数据，正在返回首页。');
     } catch (error) {
       this.loginNotice = '登录失败，请检查账号、密码或服务状态后重试。';
     } finally {
@@ -107,7 +175,7 @@ struct LoginPage {
     this.authBusy = true;
     try {
       let registerResult = await registerWithPassword(this.apiBaseUrlText, this.username, this.password);
-      this.completeAuthSuccess(registerResult, '注册成功，正在返回首页。');
+      await this.completeAuthSuccess(registerResult, '注册成功，已同步用户数据，正在返回首页。');
     } catch (error) {
       this.loginNotice = '注册失败，请检查账号是否已存在或服务状态后重试。';
     } finally {

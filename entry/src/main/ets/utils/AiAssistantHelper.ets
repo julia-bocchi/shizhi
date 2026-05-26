@@ -120,6 +120,10 @@ export interface AiAssistantRequestContext {
 
 export interface AiAssistantRequestOptions {
   onRequestCreated?: (cancelHandler: () => void) => void;
+  enableThinking?: boolean;
+  thinkingBudget?: number;
+  maxTokens?: number;
+  readTimeout?: number;
 }
 
 function sanitizeString(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
@@ -242,25 +246,33 @@ function getAiMaxTokens(task: string): number {
     return 360;
   }
   if (task === AI_TASK_GENERATE_FULL_PLAN) {
-    return 1200;
+    return 2200;
   }
   if (task === AI_TASK_GENERATE_PLAN || task === AI_TASK_GENERATE_RECIPE) {
-    return 800;
+    return 1000;
   }
   return 600;
 }
 
 function getAiThinkingBudget(task: string): number {
+  if (task === AI_TASK_GENERATE_FULL_PLAN || task === AI_TASK_GENERATE_PLAN || task === AI_TASK_GENERATE_RECIPE) {
+    return 0;
+  }
   if (task === AI_TASK_DAILY_BRIEFING) {
     return 48;
   }
-  if (task === AI_TASK_GENERATE_FULL_PLAN) {
-    return 192;
-  }
-  if (task === AI_TASK_GENERATE_PLAN || task === AI_TASK_GENERATE_RECIPE) {
-    return 128;
-  }
   return 64;
+}
+
+function shouldEnableAiThinking(task: string): boolean {
+  return task !== AI_TASK_GENERATE_FULL_PLAN && task !== AI_TASK_GENERATE_PLAN && task !== AI_TASK_GENERATE_RECIPE;
+}
+
+function getAiReadTimeout(task: string): number {
+  if (task === AI_TASK_GENERATE_FULL_PLAN || task === AI_TASK_GENERATE_PLAN || task === AI_TASK_GENERATE_RECIPE) {
+    return 180000;
+  }
+  return 90000;
 }
 
 function sanitizeAssistantContent(content: string): string {
@@ -483,19 +495,14 @@ function buildWorkoutDataText(workoutRecords: WorkoutRecord[]): string {
 
 function buildSystemPrompt(): string {
   return [
-    '你是“智卡管家”，服务于一个体重、训练计划和饮食计划 App。',
-    '你的目标是结合最近体重变化、最近训练记录和用户提问，输出温和、可执行、不过度承诺的建议。',
-    '不要给出医疗诊断，不要鼓励极端节食、过量训练或危险动作。',
-    '如果用户要求训练计划，只能使用这些 exerciseId：' + buildSupportedExercisesText(),
-    '如果上述预设都不合适，请使用 custom。',
-    'customMode 只能是 duration、set_timer、distance_pace、distance_speed、count_rate。',
-    'customIntensity 只能是 light、moderate、intense。',
-    '饮食计划的 mealType 只能是：' + buildSupportedMealTypesText(),
-    '饮食建议要保持常见、现实、可准备，不要编造药品、保健品或极端减脂食谱。',
-    '请始终返回 JSON 对象，不要输出 Markdown 代码块。',
-    'JSON 结构必须是：{"reply":"给用户展示的建议","plans":[{"date":"YYYY-MM-DD","title":"计划标题","summary":"一句摘要","notes":"备注","exerciseId":"running","customName":"","customMode":"duration","customIntensity":"moderate","durationMinutes":"30","distanceKm":"5","paceMinutes":"6","speedKmH":"18","count":"200","cadencePerMinute":"120","sets":"4","workSeconds":"40","restSeconds":"20"}],"foodPlans":[{"date":"YYYY-MM-DD","mealType":"breakfast","name":"食物或食谱名称","description":"一句说明","calories":"320","serving":"1 份","notes":"烹饪或搭配建议","image":"","accentColor":"#F59E0B"}]}。',
-    '如果本次不需要生成训练计划，plans 返回空数组。',
-    '如果本次不需要生成饮食计划，foodPlans 返回空数组。'
+    '你是智卡管家，只返回 JSON 对象，不要 Markdown。',
+    '顶层字段：reply 字符串、plans 数组、foodPlans 数组；不需要的数组返回空数组。',
+    '必须严格遵守用户要求的生成数量；如果要求 3 到 4 条训练计划，不要为 7 天每天都生成训练。',
+    '训练项字段：date,title,summary,notes,exerciseId,customName,customMode,customIntensity,durationMinutes,distanceKm,paceMinutes,speedKmH,count,cadencePerMinute,sets,workSeconds,restSeconds。',
+    'exerciseId 只能用：' + buildSupportedExercisesText(),
+    'customMode 只能用 duration,set_timer,distance_pace,distance_speed,count_rate；customIntensity 只能用 light,moderate,intense。',
+    '饮食项字段：date,mealType,name,description,calories,serving,notes,image,accentColor；mealType 只能用：' + buildSupportedMealTypesText(),
+    '输出温和可执行建议，避免医疗诊断、危险训练和极端节食。'
   ].join('\n');
 }
 
@@ -507,11 +514,11 @@ function buildUserPrompt(context: AiAssistantRequestContext): string {
   } else if (context.task === AI_TASK_DAILY_BRIEFING) {
     taskInstruction = '请根据用户问题中提供的今日简报结构，输出 120 字以内的今日健康计划解读。plans 和 foodPlans 返回空数组。';
   } else if (context.task === AI_TASK_GENERATE_PLAN) {
-    taskInstruction = '请给出简短解释，并额外生成 3 到 5 条可导入的训练计划。计划日期尽量从今天开始顺延，强度循序渐进。foodPlans 返回空数组。';
+    taskInstruction = '只生成训练 plans。必须输出 {"reply":"80字以内","plans":[训练项],"foodPlans":[]}。plans 总数只能是 3 到 4；foodPlans 必须是空数组；不要生成饮食。';
   } else if (context.task === AI_TASK_GENERATE_RECIPE) {
-    taskInstruction = '请给出简短解释，并额外生成 4 到 8 条可导入的饮食计划，尽量覆盖早餐、午餐、晚餐和加餐，热量设置要现实可执行。plans 返回空数组。';
+    taskInstruction = '只生成饮食 foodPlans。必须输出 {"reply":"80字以内","plans":[],"foodPlans":[饮食项]}。plans 必须是空数组；foodPlans 总数按用户要求，未指定时生成 6 到 8 条；如果用户要求一周草案，整周总共 7 条，不要每天三餐。';
   } else if (context.task === AI_TASK_GENERATE_FULL_PLAN) {
-    taskInstruction = '请同时生成 3 到 5 条训练计划和 6 到 10 条饮食计划。饮食安排尽量与训练日强度对应，日期从今天开始顺延，建议风格要连贯。';
+    taskInstruction = '同时生成训练和饮食。必须输出 {"reply":"80字以内","plans":[训练项],"foodPlans":[饮食项]}。plans 总数只能是 3 到 4；foodPlans 总数只能是 7；不要每天都生成训练，不要每天三餐。';
   }
 
   let savedWorkoutHint: string = context.savedWorkoutNames.length > 0
@@ -797,14 +804,22 @@ export async function requestAiAssistant(config: AiAssistantConfig, context: AiA
       content: buildUserPrompt(context)
     });
 
+    let enableThinking: boolean = options && options.enableThinking !== undefined ?
+      options.enableThinking : shouldEnableAiThinking(context.task);
+    let thinkingBudget: number = options && options.thinkingBudget !== undefined ?
+      options.thinkingBudget : getAiThinkingBudget(context.task);
+    let maxTokens: number = options && options.maxTokens !== undefined ?
+      options.maxTokens : getAiMaxTokens(context.task);
     let requestBody: ChatCompletionRequestBody = {
       model: config.model.trim(),
       temperature: isWorkoutGenerationTask(context.task) || isFoodGenerationTask(context.task) ? 0.7 : 0.5,
-      max_tokens: getAiMaxTokens(context.task),
-      thinking_budget: getAiThinkingBudget(context.task),
+      max_tokens: maxTokens,
       messages: requestMessages,
-      enable_thinking: true
+      enable_thinking: enableThinking
     };
+    if (enableThinking && thinkingBudget > 0) {
+      requestBody.thinking_budget = thinkingBudget;
+    }
     hilog.info(AI_LOG_DOMAIN, AI_LOG_TAG,
       '发起 AI 助手请求，请求链接=%{public}s，模型=%{public}s，任务=%{public}s，鉴权=%{public}s',
       config.apiEndpoint.trim(),
@@ -826,7 +841,7 @@ export async function requestAiAssistant(config: AiAssistantConfig, context: AiA
       },
       extraData: JSON.stringify(requestBody),
       connectTimeout: 15000,
-      readTimeout: 90000,
+      readTimeout: options && options.readTimeout !== undefined ? options.readTimeout : getAiReadTimeout(context.task),
       expectDataType: http.HttpDataType.STRING
     });
 

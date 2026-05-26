@@ -5,11 +5,23 @@ import {
   SURFACE_BACKGROUND_COLOR
 } from '../../constants/AppTheme';
 import {
+  AI_MESSAGE_STATUS_DONE,
+  AI_ROLE_ASSISTANT,
+  AI_ROLE_USER,
   AI_TASK_DAILY_BRIEFING,
+  AI_TASK_GENERATE_PLAN,
+  AI_TASK_GENERATE_RECIPE,
+  AiConversationRecord,
+  AiGeneratedFoodPlanItem,
+  AiGeneratedPlanItem,
   AiAssistantConfig,
+  createAiChatMessage,
+  createAiConversationRecord,
+  deserializeAiConversationHistory,
   getDefaultAiApiEndpoint,
   getDefaultAiApiKey,
-  getDefaultAiModel
+  getDefaultAiModel,
+  serializeAiConversationHistory
 } from '../../models/AiAssistant';
 import {
   AI_TAB_INDEX,
@@ -99,6 +111,7 @@ const HOME_QUICK_ENTRIES: HomeQuickEntryItem[] = [
     surfaceColor: '#F2F1FF'
   }
 ];
+const DAY_MILLISECONDS: number = 24 * 60 * 60 * 1000;
 
 @Component
 export struct HomeTabPage {
@@ -112,14 +125,20 @@ export struct HomeTabPage {
   @StorageLink('aiApiEndpointText') aiApiEndpointText: string = '';
   @StorageLink('aiApiKeyText') aiApiKeyText: string = '';
   @StorageLink('aiModelText') aiModelText: string = '';
+  @StorageLink('aiConversationHistoryText') aiConversationHistoryText: string = '';
   @StorageLink('dailyBriefingAiCacheText') dailyBriefingAiCacheText: string = '';
   @StorageLink('ttsAudioCacheText') ttsAudioCacheText: string = '';
   @StorageLink('authUserIdText') authUserIdText: string = '';
+  @StorageLink('weeklyPlanDraftConversationIdText') weeklyPlanDraftConversationIdText: string = '';
+  @StorageLink('weeklyPlanDraftDateText') weeklyPlanDraftDateText: string = '';
+  @StorageLink('assistantOpenConversationIdText') assistantOpenConversationIdText: string = '';
 
   @State dailyBriefingBusy: boolean = false;
   @State ttsBusy: boolean = false;
   @State ttsPlaybackState: TtsPlaybackState = 'idle';
   @State dailyBriefingNotice: string = '本地规则已生成今日简报。';
+  @State weeklyPlanBusy: boolean = false;
+  @State weeklyPlanNotice: string = '';
 
   aboutToAppear(): void {
     EXERCISE_STORAGE_READY;
@@ -127,6 +146,10 @@ export struct HomeTabPage {
 
   private getTodayText(): string {
     return formatDate(new Date());
+  }
+
+  private getWeekEndText(): string {
+    return formatDate(new Date(Date.now() + 6 * DAY_MILLISECONDS));
   }
 
   private getAiConfig(): AiAssistantConfig {
@@ -180,26 +203,117 @@ export struct HomeTabPage {
     return DEFAULT_TTS_ENDPOINT;
   }
 
+  private findWeeklyPlanDraftRecord(): AiConversationRecord | undefined {
+    if (this.weeklyPlanDraftDateText !== this.getTodayText()) {
+      return undefined;
+    }
+    let draftId = this.weeklyPlanDraftConversationIdText.trim();
+    if (draftId.length === 0) {
+      return undefined;
+    }
+    let records = deserializeAiConversationHistory(this.aiConversationHistoryText);
+    for (let index = 0; index < records.length; index++) {
+      if (records[index].id === draftId) {
+        return records[index];
+      }
+    }
+    return undefined;
+  }
+
+  private hasWeeklyPlanDraft(): boolean {
+    return this.findWeeklyPlanDraftRecord() !== undefined;
+  }
+
+  private getWeeklyPlanButtonText(): string {
+    if (this.weeklyPlanBusy) {
+      return '生成中';
+    }
+    if (this.hasWeeklyPlanDraft()) {
+      return '查看一周草案';
+    }
+    return '生成一周计划';
+  }
+
+  private getWeeklyPlanButtonColor(): string {
+    if (this.hasWeeklyPlanDraft()) {
+      return '#0E9F6E';
+    }
+    return '#0F6BFF';
+  }
+
+  private getWeeklyPlanActionSubtitle(): string {
+    if (this.weeklyPlanBusy) {
+      return '正在整理训练和饮食草案，完成后会保存在管家对话里。';
+    }
+    if (this.hasWeeklyPlanDraft()) {
+      return '今日草案已生成，进入智卡管家确认后可导入。';
+    }
+    return `${this.getTodayText()} 到 ${this.getWeekEndText()} · 训练 + 饮食草案`;
+  }
+
+  private getWeeklyPlanActionTagText(): string {
+    if (this.weeklyPlanBusy) {
+      return '请稍候';
+    }
+    if (this.hasWeeklyPlanDraft()) {
+      return '去查看';
+    }
+    return '开始';
+  }
+
+  private getWeeklyPlanActionBackgroundColor(): string {
+    if (this.hasWeeklyPlanDraft()) {
+      return '#F0FFF7';
+    }
+    return '#FFFFFF';
+  }
+
+  private getWeeklyPlanActionBorderColor(): string {
+    if (this.hasWeeklyPlanDraft()) {
+      return '#BDEFD4';
+    }
+    return '#D7E6F8';
+  }
+
+  private openWeeklyPlanDraft(): void {
+    let record = this.findWeeklyPlanDraftRecord();
+    if (!record) {
+      this.weeklyPlanNotice = '还没有可查看的一周方案草案。';
+      return;
+    }
+    this.assistantOpenConversationIdText = record.id;
+    this.currentTabIndex = AI_TAB_INDEX;
+  }
+
   private isTtsPlaybackToggleEnabled(): boolean {
     return this.ttsPlaybackState === 'playing' || this.ttsPlaybackState === 'paused';
   }
 
-  private getTtsPauseButtonText(): string {
+  private getTtsSpeechButtonText(): string {
+    if (this.ttsBusy) {
+      return '生成中';
+    }
     if (this.ttsPlaybackState === 'paused') {
       return '继续播报';
     }
     if (this.ttsPlaybackState === 'playing') {
       return '暂停播报';
     }
-    return '暂停/继续';
+    return '语音播报';
   }
 
-  private getTtsPauseButtonTextColor(): string {
-    return this.isTtsPlaybackToggleEnabled() ? '#0E9F6E' : '#98A2B3';
+  private getTtsSpeechButtonTextColor(): string {
+    if (this.ttsBusy) {
+      return '#FFFFFF';
+    }
+    return this.isTtsPlaybackToggleEnabled() ? '#0E9F6E' : '#0F6BFF';
   }
 
-  private getTtsPauseButtonBackgroundColor(): string {
-    return this.isTtsPlaybackToggleEnabled() ? '#E8FBF6' : '#F3F6FB';
+  private getTtsSpeechButtonBackgroundColor(): string {
+    if (this.ttsBusy) {
+      return '#98A2B3';
+    }
+    return this.isTtsPlaybackToggleEnabled() ? '#E8FBF6' : '#EAF2FF';
   }
 
   private getBriefingUserId(): string {
@@ -522,6 +636,157 @@ export struct HomeTabPage {
     }
   }
 
+  private buildWeeklyWorkoutPrompt(): string {
+    return `请为${this.getBriefingUserId()}生成从 ${this.getTodayText()} 到 ${this.getWeekEndText()} 的轻量一周训练草案。只生成 3 到 4 条训练 plans，foodPlans 必须为空数组。日期覆盖不同训练日，不要每天都练，reply 控制在 60 字以内。`;
+  }
+
+  private buildWeeklyFoodPrompt(): string {
+    return `请为${this.getBriefingUserId()}生成从 ${this.getTodayText()} 到 ${this.getWeekEndText()} 的轻量一周饮食草案。只生成 7 条 foodPlans，plans 必须为空数组。整周总共 7 条，不是每天三餐，餐次可以轮换，reply 控制在 60 字以内。`;
+  }
+
+  private buildWeeklyPlanResultText(workoutCount: number, foodCount: number, workoutErrorText: string,
+    foodErrorText: string): string {
+    let resultText = `已生成今天起 7 天的一周方案草案：训练 ${workoutCount} 条，饮食 ${foodCount} 条。`;
+    if (workoutErrorText.length > 0 || foodErrorText.length > 0) {
+      resultText += '部分内容生成失败，可稍后重新生成。';
+    }
+    return resultText;
+  }
+
+  private upsertWeeklyPlanConversation(workoutPlans: AiGeneratedPlanItem[],
+    foodPlans: AiGeneratedFoodPlanItem[], workoutErrorText: string, foodErrorText: string): string {
+    let todayText = this.getTodayText();
+    let userMessage = createAiChatMessage(
+      AI_ROLE_USER,
+      `请为我生成从 ${todayText} 到 ${this.getWeekEndText()} 的一周健康方案。`
+    );
+    let assistantMessage = createAiChatMessage(
+      AI_ROLE_ASSISTANT,
+      this.buildWeeklyPlanResultText(workoutPlans.length, foodPlans.length, workoutErrorText, foodErrorText),
+      '',
+      AI_MESSAGE_STATUS_DONE,
+      workoutPlans,
+      foodPlans
+    );
+    let record = createAiConversationRecord([userMessage, assistantMessage]);
+    record.title = `一周方案草案 ${todayText}`;
+    record.createdAt = Date.now();
+    record.updatedAt = Date.now();
+
+    let records = deserializeAiConversationHistory(this.aiConversationHistoryText);
+    let nextRecords: AiConversationRecord[] = [record];
+    for (let index = 0; index < records.length; index++) {
+      if (records[index].id === this.weeklyPlanDraftConversationIdText) {
+        continue;
+      }
+      nextRecords.push(records[index]);
+    }
+    this.aiConversationHistoryText = serializeAiConversationHistory(nextRecords);
+    this.weeklyPlanDraftConversationIdText = record.id;
+    this.weeklyPlanDraftDateText = todayText;
+    return record.id;
+  }
+
+  private async generateWeeklyPlanDrafts(): Promise<void> {
+    if (this.weeklyPlanBusy) {
+      return;
+    }
+    if (!this.hasAiConfig()) {
+      this.weeklyPlanNotice = '请先在智卡管家里配置 AI 接口和 API Key。';
+      return;
+    }
+    if (this.hasWeeklyPlanDraft()) {
+      this.weeklyPlanNotice = '今日一周方案草案已生成，可直接查看。';
+      return;
+    }
+
+    this.weeklyPlanBusy = true;
+    this.weeklyPlanNotice = '正在生成一周方案草案，首页会保留进度...';
+    let workoutPlans: AiGeneratedPlanItem[] = [];
+    let foodPlans: AiGeneratedFoodPlanItem[] = [];
+    let workoutErrorText: string = '';
+    let foodErrorText: string = '';
+    let profile = deserializeUserProfile(this.userProfileText);
+    let weightRecords = deserializeWeightRecords(this.weightRecordText);
+    let workoutRecords = deserializeWorkoutRecords(this.workoutRecordText);
+    let existingPlanCount = deserializeWorkoutPlans(this.workoutPlanText).length;
+    let existingFoodPlanCount = deserializeFoodPlans(this.foodPlanText).length;
+    let targetCalories = this.getDailyBriefingSummary().targetCalories;
+
+    try {
+      this.weeklyPlanNotice = '正在生成训练计划草案...';
+      let workoutResponse = await requestAiAssistant(this.getAiConfig(), {
+        task: AI_TASK_GENERATE_PLAN,
+        userPrompt: this.buildWeeklyWorkoutPrompt(),
+        profile: profile,
+        weightRecords: weightRecords,
+        workoutRecords: workoutRecords,
+        existingPlanCount: existingPlanCount,
+        existingFoodPlanCount: existingFoodPlanCount,
+        dailyFoodCalorieTarget: targetCalories,
+        savedWorkoutNames: [],
+        historyMessages: []
+      }, {
+        enableThinking: false,
+        maxTokens: 720,
+        readTimeout: 120000
+      });
+      workoutPlans = workoutResponse.plans;
+    } catch (error) {
+      workoutErrorText = `${error}`;
+    }
+
+    try {
+      this.weeklyPlanNotice = workoutPlans.length > 0 ? '训练草案已生成，正在生成饮食草案...' : '正在生成饮食计划草案...';
+      let foodResponse = await requestAiAssistant(this.getAiConfig(), {
+        task: AI_TASK_GENERATE_RECIPE,
+        userPrompt: this.buildWeeklyFoodPrompt(),
+        profile: profile,
+        weightRecords: weightRecords,
+        workoutRecords: workoutRecords,
+        existingPlanCount: existingPlanCount,
+        existingFoodPlanCount: existingFoodPlanCount,
+        dailyFoodCalorieTarget: targetCalories,
+        savedWorkoutNames: [],
+        historyMessages: []
+      }, {
+        enableThinking: false,
+        maxTokens: 760,
+        readTimeout: 120000
+      });
+      foodPlans = foodResponse.foodPlans;
+    } catch (error) {
+      foodErrorText = `${error}`;
+    }
+
+    if (workoutPlans.length === 0 && foodPlans.length === 0) {
+      let failureText = workoutErrorText.length > 0 ? workoutErrorText : foodErrorText;
+      this.weeklyPlanNotice = failureText.length > 0 ? failureText : 'AI 没有返回可导入的一周方案草案，请稍后重试。';
+      this.weeklyPlanBusy = false;
+      return;
+    }
+
+    this.upsertWeeklyPlanConversation(workoutPlans, foodPlans, workoutErrorText, foodErrorText);
+    this.weeklyPlanNotice = this.buildWeeklyPlanResultText(
+      workoutPlans.length,
+      foodPlans.length,
+      workoutErrorText,
+      foodErrorText
+    );
+    this.weeklyPlanBusy = false;
+  }
+
+  private handleWeeklyPlanButtonClick(): void {
+    if (this.weeklyPlanBusy) {
+      return;
+    }
+    if (this.hasWeeklyPlanDraft()) {
+      this.openWeeklyPlanDraft();
+      return;
+    }
+    this.generateWeeklyPlanDrafts();
+  }
+
   private async speakDailyBriefing(): Promise<void> {
     if (this.ttsBusy) {
       return;
@@ -594,6 +859,17 @@ export struct HomeTabPage {
       this.ttsPlaybackState = 'idle';
       this.dailyBriefingNotice = `${error}`;
     }
+  }
+
+  private handleTtsSpeechButtonClick(): void {
+    if (this.ttsBusy) {
+      return;
+    }
+    if (this.isTtsPlaybackToggleEnabled()) {
+      this.toggleTtsPlaybackPause();
+      return;
+    }
+    this.speakDailyBriefing();
   }
 
   @Builder
@@ -719,44 +995,31 @@ export struct HomeTabPage {
           })
 
         Row({ space: 10 }) {
-          Button(this.ttsBusy ? '生成中' : '语音播报')
+          Button(this.getTtsSpeechButtonText())
             .layoutWeight(1)
             .height(48)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
-            .fontColor('#0F6BFF')
-            .backgroundColor('#EAF2FF')
+            .fontColor(this.getTtsSpeechButtonTextColor())
+            .backgroundColor(this.getTtsSpeechButtonBackgroundColor())
             .borderRadius(16)
             .onClick(() => {
-              this.speakDailyBriefing();
+              this.handleTtsSpeechButtonClick();
             })
 
-          Button(this.getTtsPauseButtonText())
+          Button(this.getDailyBriefingSummary().suggestedActionText)
             .layoutWeight(1)
             .height(48)
             .fontSize(14)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.getTtsPauseButtonTextColor())
-            .backgroundColor(this.getTtsPauseButtonBackgroundColor())
+            .fontColor('#D97706')
+            .backgroundColor('#FFF4E4')
             .borderRadius(16)
-            .opacity(this.isTtsPlaybackToggleEnabled() ? 1 : 0.7)
             .onClick(() => {
-              this.toggleTtsPlaybackPause();
+              this.openTab(this.getDailyBriefingSummary().suggestedActionTabIndex);
             })
         }
         .width('100%')
-
-        Button(this.getDailyBriefingSummary().suggestedActionText)
-          .width('100%')
-          .height(48)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor('#D97706')
-          .backgroundColor('#FFF4E4')
-          .borderRadius(16)
-          .onClick(() => {
-            this.openTab(this.getDailyBriefingSummary().suggestedActionTabIndex);
-          })
       }
       .width('100%')
     }
@@ -806,6 +1069,62 @@ export struct HomeTabPage {
   }
 
   @Builder
+  private buildWeeklyPlanAction() {
+    Button() {
+      Row({ space: 12 }) {
+        Text('智')
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.getWeeklyPlanButtonColor())
+          .width(42)
+          .height(42)
+          .textAlign(TextAlign.Center)
+          .padding({ top: 8, bottom: 8 })
+          .backgroundColor(this.hasWeeklyPlanDraft() ? '#DFFBEA' : '#EAF2FF')
+          .borderRadius(21)
+
+        Column({ space: 4 }) {
+          Text(this.getWeeklyPlanButtonText())
+            .fontSize(16)
+            .fontWeight(FontWeight.Bolder)
+            .fontColor(PRIMARY_TEXT_COLOR)
+            .maxLines(1)
+
+          Text(this.getWeeklyPlanActionSubtitle())
+            .fontSize(12)
+            .lineHeight(18)
+            .fontColor(SECONDARY_TEXT_COLOR)
+            .maxLines(2)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text(this.getWeeklyPlanActionTagText())
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#FFFFFF')
+          .padding({ left: 12, right: 12, top: 7, bottom: 7 })
+          .backgroundColor(this.weeklyPlanBusy ? '#98A2B3' : this.getWeeklyPlanButtonColor())
+          .borderRadius(999)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .padding({ left: 14, right: 14, top: 14, bottom: 14 })
+    .backgroundColor(this.getWeeklyPlanActionBackgroundColor())
+    .borderRadius(20)
+    .border({
+      color: this.getWeeklyPlanActionBorderColor(),
+      width: 1
+    })
+    .opacity(this.weeklyPlanBusy ? 0.86 : 1)
+    .onClick(() => {
+      this.handleWeeklyPlanButtonClick();
+    })
+  }
+
+  @Builder
   private buildEnergyHeroCard() {
     Column({ space: 18 }) {
       Row() {
@@ -820,6 +1139,7 @@ export struct HomeTabPage {
             .fontColor(SECONDARY_TEXT_COLOR)
         }
         .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
 
         Text(this.getHeroBadgeText())
           .fontSize(11)
@@ -832,6 +1152,16 @@ export struct HomeTabPage {
       .width('100%')
       .justifyContent(FlexAlign.SpaceBetween)
       .alignItems(VerticalAlign.Top)
+
+      this.buildWeeklyPlanAction()
+
+      if (this.weeklyPlanNotice.trim().length > 0) {
+        Text(this.weeklyPlanNotice)
+          .fontSize(12)
+          .lineHeight(18)
+          .fontColor('#5373A6')
+          .width('100%')
+      }
 
       Row({ space: 10 }) {
         this.buildEnergySideStat(

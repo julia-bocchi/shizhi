@@ -12,6 +12,7 @@ export interface FoodVisualDescriptor {
 
 const BUILTIN_PREFIX: string = 'builtin:food:';
 const BUILTIN_MEAL_PREFIX: string = 'builtin:meal:';
+const RESOURCE_FOOD_PREFIX: string = 'resource:food:';
 
 function normalizeMealTypeFromSuggestion(mealSuggestion: string): string {
   if (mealSuggestion === '早餐') {
@@ -33,24 +34,79 @@ export function isBuiltinFoodImage(image: string): boolean {
   return image.indexOf(BUILTIN_PREFIX) === 0 || image.indexOf(BUILTIN_MEAL_PREFIX) === 0;
 }
 
+export function isFoodResourceImage(image: string): boolean {
+  return image.indexOf(RESOURCE_FOOD_PREFIX) === 0;
+}
+
+function getDefaultFoodImageByName(name: string): string {
+  let normalizedName = name.trim();
+  if (normalizedName.indexOf('鸡胸') >= 0 || normalizedName.indexOf('鸡肉沙拉') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}chicken_breast_salad`;
+  }
+  if (normalizedName.indexOf('三文鱼') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}pan_seared_salmon`;
+  }
+  if (normalizedName.indexOf('鲈鱼') >= 0 || normalizedName.indexOf('清蒸鱼') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}steamed_seabass`;
+  }
+  if (normalizedName.indexOf('酸奶') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}yogurt`;
+  }
+  if (normalizedName.indexOf('燕麦') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}oatmeal`;
+  }
+  if (normalizedName.indexOf('牛肉') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}beef_rice`;
+  }
+  if (normalizedName.indexOf('吐司') >= 0 || normalizedName.indexOf('鸡蛋') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}egg_toast`;
+  }
+  if (normalizedName.indexOf('全麦') >= 0 || normalizedName.indexOf('面包') >= 0) {
+    return `${RESOURCE_FOOD_PREFIX}whole_wheat_bread`;
+  }
+  return '';
+}
+
+function getFoodResourceImageByBuiltinToken(image: string): string {
+  if (image === `${BUILTIN_PREFIX}oatmeal`) {
+    return `${RESOURCE_FOOD_PREFIX}oatmeal`;
+  }
+  if (image === `${BUILTIN_PREFIX}chicken-salad`) {
+    return `${RESOURCE_FOOD_PREFIX}chicken_breast_salad`;
+  }
+  if (image === `${BUILTIN_PREFIX}salmon`) {
+    return `${RESOURCE_FOOD_PREFIX}pan_seared_salmon`;
+  }
+  if (image === `${BUILTIN_PREFIX}yogurt`) {
+    return `${RESOURCE_FOOD_PREFIX}yogurt`;
+  }
+  if (image === `${BUILTIN_PREFIX}rice-beef`) {
+    return `${RESOURCE_FOOD_PREFIX}beef_rice`;
+  }
+  if (image === `${BUILTIN_PREFIX}egg-toast`) {
+    return `${RESOURCE_FOOD_PREFIX}egg_toast`;
+  }
+  return '';
+}
+
 export function getBuiltinFoodImageById(foodId: string, mealType: string = 'breakfast'): string {
-  if (foodId === 'preset-oatmeal') {
-    return `${BUILTIN_PREFIX}oatmeal`;
+  if (foodId === '1' || foodId === 'preset-oatmeal') {
+    return `${RESOURCE_FOOD_PREFIX}oatmeal`;
   }
-  if (foodId === 'preset-chicken-salad') {
-    return `${BUILTIN_PREFIX}chicken-salad`;
+  if (foodId === '2' || foodId === 'preset-chicken-salad') {
+    return `${RESOURCE_FOOD_PREFIX}chicken_breast_salad`;
   }
-  if (foodId === 'preset-salmon') {
-    return `${BUILTIN_PREFIX}salmon`;
+  if (foodId === '3' || foodId === 'preset-salmon') {
+    return `${RESOURCE_FOOD_PREFIX}pan_seared_salmon`;
   }
-  if (foodId === 'preset-yogurt') {
-    return `${BUILTIN_PREFIX}yogurt`;
+  if (foodId === '4' || foodId === 'preset-yogurt') {
+    return `${RESOURCE_FOOD_PREFIX}yogurt`;
   }
-  if (foodId === 'preset-rice-beef') {
-    return `${BUILTIN_PREFIX}rice-beef`;
+  if (foodId === '5' || foodId === 'preset-rice-beef') {
+    return `${RESOURCE_FOOD_PREFIX}beef_rice`;
   }
-  if (foodId === 'preset-egg-toast') {
-    return `${BUILTIN_PREFIX}egg-toast`;
+  if (foodId === '6' || foodId === 'preset-egg-toast') {
+    return `${RESOURCE_FOOD_PREFIX}egg_toast`;
   }
   if (foodId === 'create-custom-card') {
     return `${BUILTIN_PREFIX}custom-card`;
@@ -58,19 +114,25 @@ export function getBuiltinFoodImageById(foodId: string, mealType: string = 'brea
   return `${BUILTIN_MEAL_PREFIX}${mealType}`;
 }
 
-export function resolveFoodImage(image: string, foodId: string, mealType: string = 'breakfast'): string {
-  if (image.trim().length > 0) {
-    return image;
+export function resolveFoodImage(image: string, foodId: string, mealType: string = 'breakfast', name: string = ''): string {
+  let trimmedImage = image.trim();
+  if (trimmedImage.length > 0) {
+    let resourceImage = getFoodResourceImageByBuiltinToken(trimmedImage);
+    return resourceImage.length > 0 ? resourceImage : trimmedImage;
+  }
+  let namedImage = getDefaultFoodImageByName(name);
+  if (namedImage.length > 0) {
+    return namedImage;
   }
   return getBuiltinFoodImageById(foodId, mealType);
 }
 
 export function resolveFoodOptionImage(option: FoodOption): string {
-  return resolveFoodImage(option.image, option.id, normalizeMealTypeFromSuggestion(option.mealSuggestion));
+  return resolveFoodImage(option.image, option.id, normalizeMealTypeFromSuggestion(option.mealSuggestion), option.name);
 }
 
 export function resolveFoodPlanImage(plan: FoodPlanItem): string {
-  return resolveFoodImage(plan.image, plan.foodId, plan.mealType);
+  return resolveFoodImage(plan.image, plan.foodId, plan.mealType, plan.name);
 }
 
 export function getFoodVisualDescriptor(image: string, name: string): FoodVisualDescriptor {

@@ -23,15 +23,18 @@ export interface WeightSummaryResponseData {
   changeFromPrevious: number;
 }
 
+export type BackendId = string | number;
+export type NullableBackendId = string | number | null;
+
 export interface BackendWeightRecord {
-  id: string;
+  id: BackendId;
   date: string;
   weight: number;
   isUpdated?: boolean;
 }
 
 export interface BackendFoodOption {
-  id: string;
+  id: BackendId;
   source: string;
   name: string;
   description: string;
@@ -43,9 +46,9 @@ export interface BackendFoodOption {
 }
 
 export interface BackendFoodPlan {
-  id: string;
+  id: BackendId;
   date: string;
-  foodId: string;
+  foodId: BackendId;
   name: string;
   description: string;
   calories: number;
@@ -57,10 +60,10 @@ export interface BackendFoodPlan {
 }
 
 export interface BackendWorkoutType {
-  id: string;
+  id: BackendId;
   source: string;
   exerciseId: string;
-  savedWorkoutId: string;
+  savedWorkoutId: NullableBackendId;
   name: string;
   description: string;
   mode: string;
@@ -69,30 +72,30 @@ export interface BackendWorkoutType {
 }
 
 export interface BackendWorkoutPlan {
-  id: string;
+  id: BackendId;
   date: string;
   title: string;
   summary: string;
   notes: string;
   draftText: string;
-  savedWorkoutId: string;
+  savedWorkoutId: NullableBackendId;
   accentColor: string;
 }
 
 export interface BackendWorkoutRecord {
-  id: string;
+  id: BackendId;
   date: string;
   name: string;
   calories: number;
   durationSeconds: number;
   exerciseId: string;
-  planId: string;
+  planId: NullableBackendId;
   distanceKm: number;
   count: number;
 }
 
 export interface BackendWorkoutTemplate {
-  id: string;
+  id: BackendId;
   name: string;
   mode: string;
   intensity: string;
@@ -144,7 +147,7 @@ export interface CreateFoodOptionPayload {
 
 export interface CreateFoodPlanPayload {
   date: string;
-  foodId: string;
+  foodId: BackendId;
   mealType: string;
   notes: string;
 }

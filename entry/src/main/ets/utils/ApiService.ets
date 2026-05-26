@@ -8,6 +8,7 @@ import { SavedCustomWorkout } from '../models/ExerciseOption';
 import { WorkoutRecord } from '../models/WorkoutRecord';
 import { AuthSession, createEmptyAuthSession, normalizeUserId } from '../models/AuthSession';
 import {
+  BackendId,
   BackendFoodOption,
   BackendFoodPlan,
   BackendWeightRecord,
@@ -39,6 +40,11 @@ interface FoodOptionsResponseData {
   items: BackendFoodOption[];
 }
 
+interface WeightRecordsResponseData {
+  items?: BackendWeightRecord[];
+  records?: BackendWeightRecord[];
+}
+
 interface FoodPlansResponseData {
   plans: BackendFoodPlan[];
 }
@@ -57,11 +63,49 @@ interface WorkoutTemplatesResponseData {
   templates?: BackendWorkoutTemplate[];
 }
 
+// Keep 64-bit backend IDs as strings; JSON numbers above this value lose precision.
+const MAX_SAFE_REQUEST_ID: number = 9007199254740991;
+
 function sanitizeString(value: string | number | boolean | undefined | null, fallbackValue: string = ''): string {
   if (value === undefined || value === null) {
     return fallbackValue;
   }
   return `${value}`;
+}
+
+function normalizeLegacyPresetFoodId(value: string): string {
+  if (value === 'preset-oatmeal') {
+    return '1';
+  }
+  if (value === 'preset-chicken-salad') {
+    return '2';
+  }
+  if (value === 'preset-salmon') {
+    return '3';
+  }
+  if (value === 'preset-yogurt') {
+    return '4';
+  }
+  if (value === 'preset-rice-beef') {
+    return '5';
+  }
+  if (value === 'preset-egg-toast') {
+    return '6';
+  }
+  return value;
+}
+
+function normalizeRequestId(value: string | number | boolean | undefined | null): BackendId {
+  let text = normalizeLegacyPresetFoodId(sanitizeString(value).trim());
+  if (text.length === 0) {
+    return '';
+  }
+  let parsedValue = Number(text);
+  if (!isNaN(parsedValue) && parsedValue >= 0 && parsedValue <= MAX_SAFE_REQUEST_ID &&
+    Math.trunc(parsedValue) === parsedValue && `${parsedValue}` === text) {
+    return parsedValue;
+  }
+  return text;
 }
 
 function sanitizeNumber(value: string | number | boolean | undefined | null, fallbackValue: number = 0): number {
@@ -83,6 +127,48 @@ function sanitizeBoolean(value: boolean | string | number | undefined | null, fa
     return fallbackValue;
   }
   return `${value}` === 'true' || `${value}` === '1';
+}
+
+function getWeightRecordItems(data: BackendWeightRecord[] | WeightRecordsResponseData): BackendWeightRecord[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  let responseData = data as WeightRecordsResponseData;
+  if (responseData.records && Array.isArray(responseData.records)) {
+    return responseData.records;
+  }
+  if (responseData.items && Array.isArray(responseData.items)) {
+    return responseData.items;
+  }
+  return [];
+}
+
+function getWorkoutRecordItems(data: BackendWorkoutRecord[] | WorkoutRecordsResponseData): BackendWorkoutRecord[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  let responseData = data as WorkoutRecordsResponseData;
+  if (responseData.items && Array.isArray(responseData.items)) {
+    return responseData.items;
+  }
+  if (responseData.records && Array.isArray(responseData.records)) {
+    return responseData.records;
+  }
+  return [];
+}
+
+function getWorkoutTemplateItems(data: BackendWorkoutTemplate[] | WorkoutTemplatesResponseData): BackendWorkoutTemplate[] {
+  if (Array.isArray(data)) {
+    return data;
+  }
+  let responseData = data as WorkoutTemplatesResponseData;
+  if (responseData.items && Array.isArray(responseData.items)) {
+    return responseData.items;
+  }
+  if (responseData.templates && Array.isArray(responseData.templates)) {
+    return responseData.templates;
+  }
+  return [];
 }
 
 export interface RemoteWeightSummary {
@@ -269,6 +355,15 @@ export function removeWorkoutPlanMeta(metaItems: WorkoutPlanLocalMeta[], planId:
   return nextMetaItems;
 }
 
+function buildCreateFoodPlanPayload(payload: CreateFoodPlanPayload): CreateFoodPlanPayload {
+  return {
+    date: payload.date,
+    foodId: normalizeRequestId(payload.foodId),
+    mealType: payload.mealType,
+    notes: payload.notes
+  };
+}
+
 export function createLoginResultFromResponse(data: LoginResponseData, fallbackUsername: string): LoginResult {
   let resolvedUserId = normalizeUserId(data.userId);
   if (resolvedUserId <= 0) {
@@ -347,7 +442,7 @@ export async function updateUserProfileRemote(baseUrl: string, authSession: Auth
 }
 
 export async function fetchWeightRecords(baseUrl: string, authSession: AuthSession, startDate: string, endDate: string): Promise<WeightRecord[]> {
-  let data = await requestApiData<BackendWeightRecord[]>({
+  let data = await requestApiData<BackendWeightRecord[] | WeightRecordsResponseData>({
     baseUrl: baseUrl,
     path: '/weight-records',
     method: http.RequestMethod.GET,
@@ -357,9 +452,10 @@ export async function fetchWeightRecords(baseUrl: string, authSession: AuthSessi
       { key: 'endDate', value: endDate }
     ]
   });
+  let sourceItems = getWeightRecordItems(data);
   let records: WeightRecord[] = [];
-  for (let index = 0; index < data.length; index++) {
-    records.push(mapBackendWeightRecord(data[index]));
+  for (let index = 0; index < sourceItems.length; index++) {
+    records.push(mapBackendWeightRecord(sourceItems[index]));
   }
   return records;
 }
@@ -470,7 +566,7 @@ export async function createFoodPlanRemote(baseUrl: string, authSession: AuthSes
     path: '/food-plans',
     method: http.RequestMethod.POST,
     authSession: authSession,
-    body: payload
+    body: buildCreateFoodPlanPayload(payload)
   });
   return mapBackendFoodPlan(data);
 }
@@ -497,13 +593,13 @@ export async function deleteFoodPlanRemote(baseUrl: string, authSession: AuthSes
 }
 
 export async function fetchWorkoutTemplates(baseUrl: string, authSession: AuthSession): Promise<SavedCustomWorkout[]> {
-  let data = await requestApiData<WorkoutTemplatesResponseData>({
+  let data = await requestApiData<BackendWorkoutTemplate[] | WorkoutTemplatesResponseData>({
     baseUrl: baseUrl,
     path: '/workout-templates',
     method: http.RequestMethod.GET,
     authSession: authSession
   });
-  let sourceItems = data.items ? data.items : (data.templates ? data.templates : []);
+  let sourceItems = getWorkoutTemplateItems(data);
   let templates: SavedCustomWorkout[] = [];
   for (let index = 0; index < sourceItems.length; index++) {
     templates.push(mapBackendWorkoutTemplate(sourceItems[index]));
@@ -593,7 +689,7 @@ export async function deleteWorkoutPlanRemote(baseUrl: string, authSession: Auth
 }
 
 export async function fetchWorkoutRecords(baseUrl: string, authSession: AuthSession, startDate: string, endDate: string): Promise<WorkoutRecord[]> {
-  let data = await requestApiData<WorkoutRecordsResponseData>({
+  let data = await requestApiData<BackendWorkoutRecord[] | WorkoutRecordsResponseData>({
     baseUrl: baseUrl,
     path: '/workout-records',
     method: http.RequestMethod.GET,
@@ -603,7 +699,7 @@ export async function fetchWorkoutRecords(baseUrl: string, authSession: AuthSess
       { key: 'endDate', value: endDate }
     ]
   });
-  let sourceItems = data.items ? data.items : (data.records ? data.records : []);
+  let sourceItems = getWorkoutRecordItems(data);
   let records: WorkoutRecord[] = [];
   for (let index = 0; index < sourceItems.length; index++) {
     records.push(mapBackendWorkoutRecord(sourceItems[index]));

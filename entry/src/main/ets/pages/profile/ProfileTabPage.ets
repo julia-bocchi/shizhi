@@ -28,6 +28,7 @@ import { resolveStoredAuthSession } from '../../utils/AuthStorageHelper';
 import { fetchUserProfile, logoutSession } from '../../utils/ApiService';
 import { createProfilePutOperation, hasPendingSyncOperation } from '../../utils/SyncQueueHelper';
 import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from '../../utils/SyncService';
+import { UserDataSessionState, createClearedUserDataSessionState } from '../../utils/UserDataSessionHelper';
 
 @Component
 export struct ProfileTabPage {
@@ -54,6 +55,17 @@ export struct ProfileTabPage {
   @StorageLink('currentExercisePlanIdText') currentExercisePlanIdText: string = '';
   @StorageLink('lastSyncAttemptText') lastSyncAttemptText: string = '';
   @StorageLink('lastSyncSuccessText') lastSyncSuccessText: string = '';
+  @StorageLink('currentExerciseDraftText') currentExerciseDraftText: string = '';
+  @StorageLink('currentExerciseProfileText') currentExerciseProfileText: string = '';
+  @StorageLink('currentFoodPlanDateText') currentFoodPlanDateText: string = '';
+  @StorageLink('currentFoodPlanMealTypeText') currentFoodPlanMealTypeText: string = '';
+  @StorageLink('dailyFoodCalorieTargetText') dailyFoodCalorieTargetText: string = '2000';
+  @StorageLink('dailyBriefingAiCacheText') dailyBriefingAiCacheText: string = '';
+  @StorageLink('ttsAudioCacheText') ttsAudioCacheText: string = '';
+  @StorageLink('weeklyPlanDraftConversationIdText') weeklyPlanDraftConversationIdText: string = '';
+  @StorageLink('weeklyPlanDraftDateText') weeklyPlanDraftDateText: string = '';
+  @StorageLink('assistantOpenConversationIdText') assistantOpenConversationIdText: string = '';
+  @StorageLink('exercisePlanPickerVisible') exercisePlanPickerVisible: boolean = false;
   @State profileSaving: boolean = false;
 
   private buildSyncState(): SyncRuntimeState {
@@ -101,6 +113,36 @@ export struct ProfileTabPage {
     this.currentExercisePlanIdText = nextState.currentExercisePlanIdText;
     this.lastSyncAttemptText = nextState.lastSyncAttemptText;
     this.lastSyncSuccessText = nextState.lastSyncSuccessText;
+  }
+
+  private applyUserDataSessionState(state: UserDataSessionState): void {
+    this.userProfileText = state.userProfileText;
+    this.weightRecordText = state.weightRecordText;
+    this.customFoodOptionText = state.customFoodOptionText;
+    this.foodPlanText = state.foodPlanText;
+    this.savedCustomWorkoutText = state.savedCustomWorkoutText;
+    this.workoutPlanText = state.workoutPlanText;
+    this.workoutPlanMetaText = state.workoutPlanMetaText;
+    this.workoutRecordText = state.workoutRecordText;
+    this.pendingSyncQueueText = state.pendingSyncQueueText;
+    this.foodRecommendationCacheText = state.foodRecommendationCacheText;
+    this.exerciseRecommendationCacheText = state.exerciseRecommendationCacheText;
+    this.currentEditingSavedWorkoutIdText = state.currentEditingSavedWorkoutIdText;
+    this.currentExercisePlanIdText = state.currentExercisePlanIdText;
+    this.currentExerciseDraftText = state.currentExerciseDraftText;
+    this.currentExerciseProfileText = state.currentExerciseProfileText;
+    this.currentFoodPlanDateText = state.currentFoodPlanDateText;
+    this.currentFoodPlanMealTypeText = state.currentFoodPlanMealTypeText;
+    this.dailyFoodCalorieTargetText = state.dailyFoodCalorieTargetText;
+    this.dailyBriefingAiCacheText = state.dailyBriefingAiCacheText;
+    this.ttsAudioCacheText = state.ttsAudioCacheText;
+    this.weeklyPlanDraftConversationIdText = state.weeklyPlanDraftConversationIdText;
+    this.weeklyPlanDraftDateText = state.weeklyPlanDraftDateText;
+    this.assistantOpenConversationIdText = state.assistantOpenConversationIdText;
+    this.lastSyncAttemptText = state.lastSyncAttemptText;
+    this.lastSyncSuccessText = state.lastSyncSuccessText;
+    this.exercisePlanPickerVisible = state.exercisePlanPickerVisible;
+    this.userProfile = deserializeUserProfile(this.userProfileText);
   }
 
   private async flushPendingSync(): Promise<void> {
@@ -214,13 +256,14 @@ export struct ProfileTabPage {
   }
 
   private handleLogout(): void {
+    this.applyUserDataSessionState(createClearedUserDataSessionState());
     let result = logoutSession();
     this.authSessionText = result.authSessionText;
     this.authTokenText = '';
     this.authUserIdText = '';
     this.authUsernameText = '';
     this.currentTabIndex = HOME_TAB_INDEX;
-    this.profileNotice = '已退出登录，本地资料仍会保留。';
+    this.profileNotice = '已退出登录，用户数据已清空。';
   }
 
   private async saveProfileToServer(): Promise<void> {

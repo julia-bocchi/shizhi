@@ -14,7 +14,12 @@ import {
   serializeCustomFoodOptions,
   serializeFoodPlans
 } from '../../utils/FoodHelper';
-import { getFoodVisualDescriptor, isBuiltinFoodImage, resolveFoodPlanImage } from '../../utils/FoodVisualHelper';
+import {
+  getFoodVisualDescriptor,
+  isBuiltinFoodImage,
+  isFoodResourceImage,
+  resolveFoodPlanImage
+} from '../../utils/FoodVisualHelper';
 import {
   buildMonthCalendarRows,
   CALENDAR_WEEK_LABELS,
@@ -255,6 +260,20 @@ export struct FoodTabPage {
     return [formatDate(startDate), formatDate(endDate)];
   }
 
+  private replaceFoodPlansForDate(dateText: string, datePlans: FoodPlanItem[]): FoodPlanItem[] {
+    let currentPlans: FoodPlanItem[] = this.getAllFoodPlans();
+    let nextPlans: FoodPlanItem[] = [];
+    for (let index = 0; index < currentPlans.length; index++) {
+      if (currentPlans[index].date !== dateText) {
+        nextPlans.push(currentPlans[index]);
+      }
+    }
+    for (let index = 0; index < datePlans.length; index++) {
+      nextPlans.push(datePlans[index]);
+    }
+    return nextPlans;
+  }
+
   private async syncRemoteFoodData(): Promise<void> {
     await this.flushPendingSync();
     if (hasPendingSyncOperation(this.pendingSyncQueueText, 'food_option') ||
@@ -292,9 +311,86 @@ export struct FoodTabPage {
     }
   }
 
+  private async syncRemoteFoodPlansForDate(dateText: string): Promise<void> {
+    await this.flushPendingSync();
+    if (hasPendingSyncOperation(this.pendingSyncQueueText, 'food_option') ||
+      hasPendingSyncOperation(this.pendingSyncQueueText, 'food_meal')) {
+      return;
+    }
+    let authSession = resolveStoredAuthSession(this.authSessionText, this.authTokenText, this.authUserIdText,
+      this.authUsernameText);
+    if (!isAuthSessionValid(authSession)) {
+      return;
+    }
+    this.remoteSyncing = true;
+    try {
+      let remotePlans: FoodPlanItem[] = await fetchFoodPlans(this.apiBaseUrlText, authSession, dateText, dateText);
+      this.foodPlanText = serializeFoodPlans(this.replaceFoodPlansForDate(dateText, remotePlans));
+    } catch (error) {
+      this.scannerNotice = `${error}`;
+    } finally {
+      this.remoteSyncing = false;
+    }
+  }
+
+  @Builder
+  buildFoodResourceVisual(image: string) {
+    if (image === 'resource:food:oatmeal') {
+      Image($r('app.media.oatmeal'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:chicken_breast_salad') {
+      Image($r('app.media.chicken_breast_salad'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:pan_seared_salmon') {
+      Image($r('app.media.pan_seared_salmon'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:yogurt') {
+      Image($r('app.media.yogurt'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:beef_rice') {
+      Image($r('app.media.beef_rice'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:egg_toast') {
+      Image($r('app.media.egg_toast'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:whole_wheat_bread') {
+      Image($r('app.media.whole_wheat_bread'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    } else if (image === 'resource:food:steamed_seabass') {
+      Image($r('app.media.steamed_seabass'))
+        .width(52)
+        .height(52)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(14)
+    }
+  }
+
   @Builder
   buildFoodVisual(plan: FoodPlanItem) {
-    if (isBuiltinFoodImage(resolveFoodPlanImage(plan))) {
+    if (isFoodResourceImage(resolveFoodPlanImage(plan))) {
+      this.buildFoodResourceVisual(resolveFoodPlanImage(plan))
+    } else if (isBuiltinFoodImage(resolveFoodPlanImage(plan))) {
       Stack({ alignContent: Alignment.BottomStart }) {
         Text('')
           .width('100%')
@@ -699,6 +795,13 @@ export struct FoodTabPage {
     this.syncRemoteFoodData();
   }
 
+  private selectPlanDate(dateText: string): void {
+    this.selectedPlanDate = dateText;
+    this.currentFoodPlanDateText = dateText;
+    this.expandedMealType = '';
+    this.syncRemoteFoodPlansForDate(dateText);
+  }
+
   private toggleMealSection(mealType: string): void {
     this.expandedMealType = this.expandedMealType === mealType ? '' : mealType;
   }
@@ -1093,9 +1196,7 @@ export struct FoodTabPage {
                 if (!day.isCurrentMonth) {
                   return;
                 }
-                this.selectedPlanDate = day.dateText;
-                this.currentFoodPlanDateText = day.dateText;
-                this.expandedMealType = '';
+                this.selectPlanDate(day.dateText);
               })
             }, (day: CalendarDayItem) => day.key)
           }

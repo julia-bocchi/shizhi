@@ -38,9 +38,11 @@ import { SyncRuntimeState, syncOperationNowOrQueue, syncPendingOperations } from
 const CHART_BAR_GROUP_WIDTH: number = 40;
 const CHART_BAR_GROUP_SPACING: number = 12;
 const RECENT_CHART_DAYS: number = 7;
+const MAX_VISIBLE_CHART_RECORDS: number = 6;
 
 interface CalendarDayItem extends CalendarMonthCell {
   hasRecord: boolean;
+  weightText: string;
 }
 
 @Component
@@ -74,6 +76,7 @@ export struct RecordTabPage {
   @State recordsVersion: number = 0;
   @State calendarYear: number = new Date().getFullYear();
   @State calendarMonth: number = new Date().getMonth();
+  @State selectedDateText: string = formatDate(new Date());
   @State remoteSyncing: boolean = false;
 
   private buildSyncState(): SyncRuntimeState {
@@ -139,9 +142,7 @@ export struct RecordTabPage {
       this.apiBaseUrlText = DEFAULT_API_BASE_URL;
     }
     this.syncRecordsFromStorage();
-    this.flushPendingSync().then(() => {
-      this.syncRemoteWeightData();
-    });
+    this.syncRemoteCalendarMonthData();
   }
 
   private syncRecordsFromStorage(): void {
@@ -162,6 +163,50 @@ export struct RecordTabPage {
     return sortedRecords;
   }
 
+  private createDateFromText(dateText: string): Date {
+    if (dateText.length < 10) {
+      return new Date();
+    }
+    let year = Number(dateText.substring(0, 4));
+    let month = Number(dateText.substring(5, 7)) - 1;
+    let day = Number(dateText.substring(8, 10));
+    if (isNaN(year) || isNaN(month) || isNaN(day)) {
+      return new Date();
+    }
+    return new Date(year, month, day);
+  }
+
+  private getDateRangeEndingAt(dateText: string, dayCount: number): string[] {
+    let endDate = this.createDateFromText(dateText);
+    let startDate = new Date(endDate.getTime());
+    startDate.setDate(endDate.getDate() - (dayCount - 1));
+    return [formatDate(startDate), formatDate(endDate)];
+  }
+
+  private getTrendAnchorDateText(): string {
+    let todayText = this.getTodayDate();
+    if (this.selectedDateText > todayText) {
+      return todayText;
+    }
+    return this.selectedDateText;
+  }
+
+  private getTrendDateRange(): string[] {
+    return this.getDateRangeEndingAt(this.getTrendAnchorDateText(), RECENT_CHART_DAYS);
+  }
+
+  private getRecordsInDateRange(startDateText: string, endDateText: string): WeightRecord[] {
+    let sortedRecords = this.getSortedRecords();
+    let result: WeightRecord[] = [];
+    for (let index = 0; index < sortedRecords.length; index++) {
+      let currentRecord = sortedRecords[index];
+      if (currentRecord.date >= startDateText && currentRecord.date <= endDateText) {
+        result.push(currentRecord);
+      }
+    }
+    return result;
+  }
+
   getRecentRecords(): WeightRecord[] {
     let sortedRecords = this.getSortedRecords();
     if (sortedRecords.length <= 7) {
@@ -171,23 +216,16 @@ export struct RecordTabPage {
   }
 
   getRecentChartRecords(): WeightRecord[] {
-    let sortedRecords = this.getSortedRecords();
-    if (sortedRecords.length === 0) {
-      return [];
+    let dateRange = this.getTrendDateRange();
+    return this.getRecordsInDateRange(dateRange[0], dateRange[1]);
+  }
+
+  getVisibleChartRecords(): WeightRecord[] {
+    let recentRecords = this.getRecentChartRecords();
+    if (recentRecords.length <= MAX_VISIBLE_CHART_RECORDS) {
+      return recentRecords;
     }
-    let today = new Date();
-    let startDate = new Date(today.getTime());
-    startDate.setDate(today.getDate() - (RECENT_CHART_DAYS - 1));
-    let startDateText = formatDate(startDate);
-    let endDateText = formatDate(today);
-    let result: WeightRecord[] = [];
-    for (let index = 0; index < sortedRecords.length; index++) {
-      let currentRecord = sortedRecords[index];
-      if (currentRecord.date >= startDateText && currentRecord.date <= endDateText) {
-        result.push(currentRecord);
-      }
-    }
-    return result;
+    return recentRecords.slice(recentRecords.length - MAX_VISIBLE_CHART_RECORDS, recentRecords.length);
   }
 
   getLatestRecord(): WeightRecord | undefined {
@@ -236,6 +274,57 @@ export struct RecordTabPage {
     return latestRecord.weight - previousRecord.weight;
   }
 
+  getTrendAverage(): number {
+    let recentRecords = this.getRecentChartRecords();
+    if (recentRecords.length === 0) {
+      return 0;
+    }
+
+    let totalWeight = 0;
+    for (let index = 0; index < recentRecords.length; index++) {
+      totalWeight += recentRecords[index].weight;
+    }
+    return totalWeight / recentRecords.length;
+  }
+
+  getTrendChange(): number {
+    let recentRecords = this.getRecentChartRecords();
+    if (recentRecords.length < 2) {
+      return 0;
+    }
+    return recentRecords[recentRecords.length - 1].weight - recentRecords[0].weight;
+  }
+
+  getTrendLatestRecord(): WeightRecord | undefined {
+    let recentRecords = this.getRecentChartRecords();
+    if (recentRecords.length === 0) {
+      return undefined;
+    }
+    return recentRecords[recentRecords.length - 1];
+  }
+
+  getTrendPreviousRecord(): WeightRecord | undefined {
+    let recentRecords = this.getRecentChartRecords();
+    if (recentRecords.length < 2) {
+      return undefined;
+    }
+    return recentRecords[recentRecords.length - 2];
+  }
+
+  getTrendLatestChange(): number {
+    let latestRecord = this.getTrendLatestRecord();
+    let previousRecord = this.getTrendPreviousRecord();
+    if (!latestRecord || !previousRecord) {
+      return 0;
+    }
+    return latestRecord.weight - previousRecord.weight;
+  }
+
+  getTrendPeriodText(): string {
+    let dateRange = this.getTrendDateRange();
+    return `${dateRange[0]} 至 ${dateRange[1]}`;
+  }
+
   getCurrentWeightText(): string {
     let latestRecord = this.getLatestRecord();
     if (!latestRecord) {
@@ -267,8 +356,8 @@ export struct RecordTabPage {
   }
 
   getFeedbackTitle(): string {
-    let weeklyChange = this.getWeeklyChange();
-    if (this.getRecentRecords().length < 3) {
+    let weeklyChange = this.getTrendChange();
+    if (this.getRecentChartRecords().length < 3) {
       return '先连续记录几天';
     }
     if (weeklyChange <= -0.5) {
@@ -281,37 +370,37 @@ export struct RecordTabPage {
   }
 
   getFeedbackText(): string {
-    let recentRecords = this.getRecentRecords();
+    let recentRecords = this.getRecentChartRecords();
     if (recentRecords.length < 3) {
-      return '连续记录 3 天以上后，我会基于近期波动给出更可靠的反馈。';
+      return `截至 ${this.getTrendAnchorDateText()} 的 7 天内记录不足 3 条，继续记录后会给出更可靠的反馈。`;
     }
 
-    let weeklyChange = this.getWeeklyChange();
-    let todayChange = this.getTodayChange();
-    let averageWeight = this.getWeeklyAverage();
-    let latestRecord = this.getLatestRecord();
+    let weeklyChange = this.getTrendChange();
+    let todayChange = this.getTrendLatestChange();
+    let averageWeight = this.getTrendAverage();
+    let latestRecord = this.getTrendLatestRecord();
 
     if (!latestRecord) {
-      return '先补充今天的体重记录。';
+      return `截至 ${this.getTrendAnchorDateText()} 的 7 天内暂无体重记录。`;
     }
 
     if (weeklyChange <= -0.5 && latestRecord.weight <= averageWeight) {
-      return `最近 7 次记录整体下降 ${Math.abs(weeklyChange).toFixed(1)} kg，当前体重也低于近期均值，保持现在的作息和饮食节奏即可。`;
+      return `这 7 天记录整体下降 ${Math.abs(weeklyChange).toFixed(1)} kg，窗口内最新体重也低于均值，保持现在的作息和饮食节奏即可。`;
     }
 
     if (weeklyChange >= 0.5 && todayChange >= 0.2) {
-      return `最近走势有明显回升，今天又比上一次高 ${Math.abs(todayChange).toFixed(1)} kg。建议先检查晚餐、零食和近两天活动量。`;
+      return `这段走势有明显回升，窗口内最新记录又比上一次高 ${Math.abs(todayChange).toFixed(1)} kg。建议检查晚餐、零食和近两天活动量。`;
     }
 
     if (Math.abs(weeklyChange) < 0.5) {
       return '最近一周整体比较平稳。如果你正在减脂，可以继续稳定记录，再观察睡眠、饮水和盐分摄入对波动的影响。';
     }
 
-    return `今天比上一次${todayChange <= 0 ? '下降' : '上升'} ${Math.abs(todayChange).toFixed(1)} kg。继续记录，优先看周趋势，不要只盯单日波动。`;
+    return `窗口内最新记录比上一次${todayChange <= 0 ? '下降' : '上升'} ${Math.abs(todayChange).toFixed(1)} kg。继续记录，优先看周趋势，不要只盯单日波动。`;
   }
 
   getFeedbackBackgroundColor(): string {
-    let weeklyChange = this.getWeeklyChange();
+    let weeklyChange = this.getTrendChange();
     if (weeklyChange <= -0.5) {
       return '#ECFFF4';
     }
@@ -322,7 +411,7 @@ export struct RecordTabPage {
   }
 
   getFeedbackAccentColor(): string {
-    let weeklyChange = this.getWeeklyChange();
+    let weeklyChange = this.getTrendChange();
     if (weeklyChange <= -0.5) {
       return '#10B981';
     }
@@ -333,19 +422,19 @@ export struct RecordTabPage {
   }
 
   getChartBounds(): number[] {
-    let recentRecords = this.getRecentChartRecords();
-    if (recentRecords.length === 0) {
+    let visibleRecords = this.getVisibleChartRecords();
+    if (visibleRecords.length === 0) {
       return [0, CHART_MIN_SPAN];
     }
 
-    let minWeight = recentRecords[0].weight;
-    let maxWeight = recentRecords[0].weight;
-    for (let index = 1; index < recentRecords.length; index++) {
-      if (recentRecords[index].weight < minWeight) {
-        minWeight = recentRecords[index].weight;
+    let minWeight = visibleRecords[0].weight;
+    let maxWeight = visibleRecords[0].weight;
+    for (let index = 1; index < visibleRecords.length; index++) {
+      if (visibleRecords[index].weight < minWeight) {
+        minWeight = visibleRecords[index].weight;
       }
-      if (recentRecords[index].weight > maxWeight) {
-        maxWeight = recentRecords[index].weight;
+      if (visibleRecords[index].weight > maxWeight) {
+        maxWeight = visibleRecords[index].weight;
       }
     }
 
@@ -413,8 +502,27 @@ export struct RecordTabPage {
     return latestRecord.id === record.id;
   }
 
+  isTrendLatestRecord(record: WeightRecord): boolean {
+    let latestRecord = this.getTrendLatestRecord();
+    if (!latestRecord) {
+      return false;
+    }
+    return latestRecord.id === record.id;
+  }
+
   getRecordRenderKey(record: WeightRecord): string {
     return `${record.id}-${record.date}-${record.weight.toFixed(1)}-${this.recordsVersion}`;
+  }
+
+  getTrendChartRecordRenderKey(record: WeightRecord): string {
+    return `${this.selectedDateText}-${this.getRecordRenderKey(record)}`;
+  }
+
+  getChartRangeText(): string {
+    if (this.getVisibleChartRecords().length === 0) {
+      return `图表范围 ${this.getTrendPeriodText()} 暂无记录`;
+    }
+    return `图表范围 ${this.getChartMinWeight().toFixed(1)} kg - ${this.getChartMaxWeight().toFixed(1)} kg`;
   }
 
   getTodayDate(): string {
@@ -427,20 +535,20 @@ export struct RecordTabPage {
   }
 
   getRecordDelta(record: WeightRecord): number {
-    let recentRecords = this.getRecentChartRecords();
-    for (let index = 0; index < recentRecords.length; index++) {
-      if (recentRecords[index].id === record.id) {
+    let visibleRecords = this.getVisibleChartRecords();
+    for (let index = 0; index < visibleRecords.length; index++) {
+      if (visibleRecords[index].id === record.id) {
         if (index === 0) {
           return 0;
         }
-        return record.weight - recentRecords[index - 1].weight;
+        return record.weight - visibleRecords[index - 1].weight;
       }
     }
     return 0;
   }
 
   getRecordTextTag(record: WeightRecord): string {
-    if (this.isLatestRecord(record)) {
+    if (this.isTrendLatestRecord(record)) {
       return '最新';
     }
 
@@ -455,7 +563,7 @@ export struct RecordTabPage {
   }
 
   getRecordEmojiTag(record: WeightRecord): string {
-    if (this.isLatestRecord(record)) {
+    if (this.isTrendLatestRecord(record)) {
       return '⭐';
     }
 
@@ -496,20 +604,44 @@ export struct RecordTabPage {
     let nextCursor = shiftCalendarMonth(this.calendarYear, this.calendarMonth, step);
     this.calendarYear = nextCursor.year;
     this.calendarMonth = nextCursor.month;
-    this.syncRemoteWeightData();
+    this.syncRemoteCalendarMonthData();
   }
 
   private getMonthPrefix(): string {
     return `${this.calendarYear}-${this.calendarMonth + 1 < 10 ? `0${this.calendarMonth + 1}` : `${this.calendarMonth + 1}`}-`;
   }
 
-  private hasRecordOnDate(dateText: string): boolean {
+  private getRecordOnDate(dateText: string): WeightRecord | undefined {
     for (let index = 0; index < this.records.length; index++) {
       if (this.records[index].date === dateText) {
-        return true;
+        return this.records[index];
       }
     }
-    return false;
+    return undefined;
+  }
+
+  private isFutureDate(dateText: string): boolean {
+    return dateText > this.getTodayDate();
+  }
+
+  private isCalendarDateSelected(day: CalendarDayItem): boolean {
+    return day.isCurrentMonth && day.dateText === this.selectedDateText;
+  }
+
+  private isCalendarTodayMarkerVisible(day: CalendarDayItem): boolean {
+    return day.isCurrentMonth && day.isToday;
+  }
+
+  private getCalendarDayRenderKey(day: CalendarDayItem): string {
+    return `${day.key}-${day.weightText}-${this.selectedDateText}-${this.recordsVersion}`;
+  }
+
+  private getCalendarWeekRenderKey(week: CalendarDayItem[]): string {
+    return `${week[0].key}-${this.selectedDateText}-${this.recordsVersion}`;
+  }
+
+  private selectCalendarDate(dateText: string): void {
+    this.selectedDateText = dateText;
   }
 
   private getCalendarRows(): CalendarDayItem[][] {
@@ -520,13 +652,15 @@ export struct RecordTabPage {
       let nextRow: CalendarDayItem[] = [];
       for (let columnIndex = 0; columnIndex < baseRows[rowIndex].length; columnIndex++) {
         let currentCell = baseRows[rowIndex][columnIndex];
+        let currentRecord = currentCell.isCurrentMonth ? this.getRecordOnDate(currentCell.dateText) : undefined;
         nextRow.push({
           key: currentCell.key,
           dateText: currentCell.dateText,
           dayNumber: currentCell.dayNumber,
           isCurrentMonth: currentCell.isCurrentMonth,
           isToday: currentCell.isToday,
-          hasRecord: currentCell.isCurrentMonth ? this.hasRecordOnDate(currentCell.dateText) : false
+          hasRecord: currentRecord !== undefined,
+          weightText: currentRecord ? `${currentRecord.weight.toFixed(1)}kg` : ''
         });
       }
       rows.push(nextRow);
@@ -605,18 +739,83 @@ export struct RecordTabPage {
     return `本月最近记录：${latestRecord.date} · ${latestRecord.weight.toFixed(1)} kg`;
   }
 
-  private getWeightRangeDateRange(): string[] {
-    let today = new Date();
-    let rollingStart = new Date(today.getTime());
-    rollingStart.setDate(rollingStart.getDate() - 120);
-    let monthStart = new Date(this.calendarYear, this.calendarMonth, 1);
-    let monthEnd = new Date(this.calendarYear, this.calendarMonth + 1, 0);
-    let startDate = rollingStart.getTime() < monthStart.getTime() ? rollingStart : monthStart;
-    let endDate = today.getTime() > monthEnd.getTime() ? today : monthEnd;
-    return [formatDate(startDate), formatDate(endDate)];
+  getSelectedDateBadgeText(): string {
+    if (this.isFutureDate(this.selectedDateText)) {
+      return '未来';
+    }
+    if (this.selectedDateText === this.getTodayDate()) {
+      return '今天';
+    }
+    if (this.getRecordOnDate(this.selectedDateText)) {
+      return '已记录';
+    }
+    return '未记录';
   }
 
-  private async syncRemoteWeightData(): Promise<void> {
+  getSelectedDateDetailText(): string {
+    if (this.isFutureDate(this.selectedDateText)) {
+      return `${this.selectedDateText} 是未来日期，暂无体重记录。`;
+    }
+    let selectedRecord = this.getRecordOnDate(this.selectedDateText);
+    if (!selectedRecord) {
+      return `${this.selectedDateText} 暂无体重记录。`;
+    }
+    return `${this.selectedDateText} · ${selectedRecord.weight.toFixed(1)} kg`;
+  }
+
+  getSelectedDateTrendText(): string {
+    if (this.isFutureDate(this.selectedDateText)) {
+      return `月历按整月同步，走势显示 ${this.getTrendPeriodText()}。`;
+    }
+    return `月历按整月同步，走势显示 ${this.getTrendPeriodText()}。`;
+  }
+
+  private getCalendarMonthDateRange(): string[] {
+    let monthStartText = formatDate(new Date(this.calendarYear, this.calendarMonth, 1));
+    let monthEndText = formatDate(new Date(this.calendarYear, this.calendarMonth + 1, 0));
+    return [monthStartText, monthEndText];
+  }
+
+  private mergeRemoteWeightRecords(remoteRecords: WeightRecord[]): WeightRecord[] {
+    let mergedRecords = this.getSortedRecords();
+    for (let remoteIndex = 0; remoteIndex < remoteRecords.length; remoteIndex++) {
+      let remoteRecord = remoteRecords[remoteIndex];
+      let hasUpdated = false;
+      for (let localIndex = 0; localIndex < mergedRecords.length; localIndex++) {
+        if (mergedRecords[localIndex].date === remoteRecord.date) {
+          mergedRecords[localIndex] = {
+            id: remoteRecord.id,
+            date: remoteRecord.date,
+            weight: remoteRecord.weight
+          };
+          hasUpdated = true;
+          break;
+        }
+      }
+      if (!hasUpdated) {
+        mergedRecords.push({
+          id: remoteRecord.id,
+          date: remoteRecord.date,
+          weight: remoteRecord.weight
+        });
+      }
+    }
+    mergedRecords.sort((left: WeightRecord, right: WeightRecord) => compareRecordDate(left, right));
+    return mergedRecords;
+  }
+
+  private syncRemoteCalendarMonthData(): void {
+    let dateRange = this.getCalendarMonthDateRange();
+    if (dateRange[0].length === 0 || dateRange[0] > dateRange[1]) {
+      return;
+    }
+    this.syncRemoteWeightRange(dateRange[0], dateRange[1]);
+  }
+
+  private async syncRemoteWeightRange(startDateText: string, endDateText: string): Promise<void> {
+    if (startDateText.length === 0 || endDateText.length === 0 || startDateText > endDateText) {
+      return;
+    }
     await this.flushPendingSync();
     if (hasPendingSyncOperation(this.pendingSyncQueueText, 'weight')) {
       return;
@@ -628,10 +827,10 @@ export struct RecordTabPage {
     }
     this.remoteSyncing = true;
     try {
-      let dateRange = this.getWeightRangeDateRange();
-      let remoteRecords = await fetchWeightRecords(this.apiBaseUrlText, authSession, dateRange[0], dateRange[1]);
-      this.weightRecordText = serializeWeightRecords(remoteRecords);
-      this.updateRecordState(remoteRecords);
+      let remoteRecords = await fetchWeightRecords(this.apiBaseUrlText, authSession, startDateText, endDateText);
+      let mergedRecords = this.mergeRemoteWeightRecords(remoteRecords);
+      this.weightRecordText = serializeWeightRecords(mergedRecords);
+      this.updateRecordState(mergedRecords);
     } catch (error) {
       this.noticeText = `${error}`;
     } finally {
@@ -792,42 +991,74 @@ export struct RecordTabPage {
               Stack({ alignContent: Alignment.TopStart }) {
                 Column({ space: 2 }) {
                   Text(day.isCurrentMonth ? `${day.dayNumber}` : '')
-                    .fontSize(18)
-                    .fontWeight(day.isToday ? FontWeight.Bold : FontWeight.Medium)
-                    .fontColor(day.isToday ? '#0F6BFF' : (day.isCurrentMonth ? PRIMARY_TEXT_COLOR : '#C8D0DC'))
+                    .fontSize(17)
+                    .fontWeight(this.isCalendarDateSelected(day) || day.isToday ? FontWeight.Bold : FontWeight.Medium)
+                    .fontColor(this.isCalendarDateSelected(day) ? '#FFFFFF' : (day.isToday ? '#0F6BFF' : (day.isCurrentMonth ? PRIMARY_TEXT_COLOR : '#C8D0DC')))
 
-                  Text(day.isToday && day.isCurrentMonth ? '今' : '')
+                  Text(day.weightText.length > 0 ? day.weightText : (this.isCalendarTodayMarkerVisible(day) ? '今' : ''))
                     .fontSize(10)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor('#89AFFF')
+                    .fontWeight(day.hasRecord ? FontWeight.Bold : FontWeight.Medium)
+                    .fontColor(this.isCalendarDateSelected(day) ? '#DCEBFF' : (day.hasRecord ? '#6A8AB2' : '#89AFFF'))
+                    .maxLines(1)
+                    .width('100%')
+                    .textAlign(TextAlign.Center)
                 }
                 .width('100%')
                 .alignItems(HorizontalAlign.Center)
-                .margin({ top: 8 })
-
-                if (day.hasRecord && day.isCurrentMonth) {
-                  Text('')
-                    .width(6)
-                    .height(6)
-                    .backgroundColor('#8EBBFF')
-                    .borderRadius(3)
-                    .margin({ top: 37, left: 24 })
-                }
+                .margin({ top: 7 })
               }
               .layoutWeight(1)
-              .height(52)
-              .backgroundColor(day.isToday ? '#EEF5FF' : '#FFFFFF')
+              .height(58)
+              .backgroundColor(this.isCalendarDateSelected(day) ? '#0F6BFF' : '#FFFFFF')
               .borderRadius(14)
               .border({
                 width: 1,
-                color: day.isToday ? '#CFE2FF' : '#EEF2F7'
+                color: this.isCalendarDateSelected(day) ? '#0F6BFF' : (day.isToday ? '#CFE2FF' : '#EEF2F7')
               })
-            }, (day: CalendarDayItem) => day.key)
+              .onClick(() => {
+                if (day.isCurrentMonth) {
+                  this.selectCalendarDate(day.dateText);
+                }
+              })
+            }, (day: CalendarDayItem) => this.getCalendarDayRenderKey(day))
           }
           .width('100%')
-        }, (week: CalendarDayItem[]) => week[0].key)
+        }, (week: CalendarDayItem[]) => this.getCalendarWeekRenderKey(week))
       }
       .width('100%')
+
+      Column({ space: 6 }) {
+        Row() {
+          Text('选中日期')
+            .fontSize(11)
+            .fontColor('#8A95A5')
+
+          Text(this.getSelectedDateBadgeText())
+            .fontSize(11)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#0F6BFF')
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            .backgroundColor('#E6F0FF')
+            .borderRadius(999)
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.SpaceBetween)
+        .alignItems(VerticalAlign.Center)
+
+        Text(this.getSelectedDateDetailText())
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(PRIMARY_TEXT_COLOR)
+
+        Text(this.getSelectedDateTrendText())
+          .fontSize(12)
+          .fontColor('#6A7B91')
+      }
+      .width('100%')
+      .alignItems(HorizontalAlign.Start)
+      .padding(12)
+      .backgroundColor('#F5F8FF')
+      .borderRadius(16)
 
       Row({ space: 10 }) {
         Column({ space: 4 }) {
@@ -1098,7 +1329,7 @@ export struct RecordTabPage {
                 .fontWeight(FontWeight.Medium)
                 .fontColor(PRIMARY_TEXT_COLOR)
 
-          Text(`近 ${RECENT_CHART_DAYS} 天 ${this.getRecentChartRecords().length} 条记录`)
+              Text(`近 ${RECENT_CHART_DAYS} 天 ${this.getRecentChartRecords().length} 条记录 · 截至 ${this.getTrendAnchorDateText()}`)
                 .fontSize(12)
                 .fontColor('#94A0B4')
             }
@@ -1127,50 +1358,69 @@ export struct RecordTabPage {
           .justifyContent(FlexAlign.SpaceBetween)
           .alignItems(VerticalAlign.Center)
 
-          Text(`图表范围 ${this.getChartMinWeight().toFixed(1)} kg - ${this.getChartMaxWeight().toFixed(1)} kg`)
+          Text(this.getChartRangeText())
             .fontSize(12)
             .fontColor('#94A0B4')
 
-          Row({ space: CHART_BAR_GROUP_SPACING }) {
-            ForEach(this.getRecentChartRecords(), (record: WeightRecord) => {
-              Column({ space: 8 }) {
-                Text(this.getRecordTag(record))
-                  .fontSize(this.getRecordTagFontSize())
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(this.isLatestRecord(record) ? '#0F6BFF' : '#94A0B4')
-                  .maxLines(1)
-                  .width('100%')
-                  .textAlign(TextAlign.Center)
+          if (this.getVisibleChartRecords().length === 0) {
+            Column({ space: 6 }) {
+              Text('暂无体重记录')
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .fontColor(PRIMARY_TEXT_COLOR)
 
-                Column() {
-                  Text('')
+              Text(`所选窗口：${this.getTrendPeriodText()}`)
+                .fontSize(12)
+                .fontColor('#94A0B4')
+            }
+            .width('100%')
+            .height(CHART_BAR_TRACK_HEIGHT + 58)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+            .backgroundColor('#F5F8FF')
+            .borderRadius(18)
+          } else {
+            Row({ space: CHART_BAR_GROUP_SPACING }) {
+              ForEach(this.getVisibleChartRecords(), (record: WeightRecord) => {
+                Column({ space: 8 }) {
+                  Text(this.getRecordTag(record))
+                    .fontSize(this.getRecordTagFontSize())
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isTrendLatestRecord(record) ? '#0F6BFF' : '#94A0B4')
+                    .maxLines(1)
                     .width('100%')
-                    .height(this.getBarHeight(record))
-                    .backgroundColor(this.isLatestRecord(record) ? '#0F6BFF' : '#8CC4FF')
-                    .borderRadius(16)
+                    .textAlign(TextAlign.Center)
+
+                  Column() {
+                    Text('')
+                      .width('100%')
+                      .height(this.getBarHeight(record))
+                      .backgroundColor(this.isTrendLatestRecord(record) ? '#0F6BFF' : '#8CC4FF')
+                      .borderRadius(16)
+                  }
+                  .width(28)
+                  .height(CHART_BAR_TRACK_HEIGHT)
+                  .justifyContent(FlexAlign.End)
+                  .backgroundColor('#E6F0FF')
+                  .borderRadius(16)
+
+                  Text(this.getShortDate(record.date))
+                    .fontSize(11)
+                    .fontColor('#94A0B4')
+
+                  Text(record.weight.toFixed(1))
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(PRIMARY_TEXT_COLOR)
                 }
-                .width(28)
-                .height(CHART_BAR_TRACK_HEIGHT)
-                .justifyContent(FlexAlign.End)
-                .backgroundColor('#E6F0FF')
-                .borderRadius(16)
-
-                Text(this.getShortDate(record.date))
-                  .fontSize(11)
-                  .fontColor('#94A0B4')
-
-                Text(record.weight.toFixed(1))
-                  .fontSize(12)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(PRIMARY_TEXT_COLOR)
-              }
-              .width(CHART_BAR_GROUP_WIDTH)
-              .alignItems(HorizontalAlign.Center)
-            }, (record: WeightRecord) => this.getRecordRenderKey(record))
+                .width(CHART_BAR_GROUP_WIDTH)
+                .alignItems(HorizontalAlign.Center)
+              }, (record: WeightRecord) => this.getTrendChartRecordRenderKey(record))
+            }
+            .width('100%')
+            .justifyContent(FlexAlign.Start)
+            .alignItems(VerticalAlign.Bottom)
           }
-          .width('100%')
-          .justifyContent(FlexAlign.Start)
-          .alignItems(VerticalAlign.Bottom)
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')

@@ -14,7 +14,7 @@ export const AI_TASK_DAILY_BRIEFING: string = 'daily_briefing';
 
 const DEFAULT_AI_API_ENDPOINT: string = 'https://api.siliconflow.cn/v1/chat/completions';
 const DEFAULT_AI_MODEL: string = 'deepseek-ai/DeepSeek-V3.2';
-const DEFAULT_API_KEY: string = '';
+const DEFAULT_API_KEY: string = 'sk-jdvqtwgqcsfvdpmeirevtzxsmnlgkvcsmzusnlezpecwixxr';
 
 export interface AiAssistantConfig {
   apiEndpoint: string;
